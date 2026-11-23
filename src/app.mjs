@@ -34,6 +34,7 @@ function restore() {
 let maze=restore(),undo=[],redo=[],selected="wall",inspection=false,route=null,view="build";
 let currentTile=null,photoImage=null,photoCorners=null,photoGuide=null;
 let scanPixels=null,scanGuide=null,scanResult=null,scanSelected=new Set();
+let scanAdded=new Set(),scanRemoved=new Set();
 let play=startPlay(maze),stereo=false,showMap=false,holding=new Set();
 let lastFrame=0,lastBoardRect=null,boardPainting=false,boardLastCell=null;
 const toolOrder=["wall","empty","entrance","exit","gate","riddle","info","map",
@@ -440,6 +441,7 @@ function initializePhoto() {
       canvas.style.aspectRatio=canvas.width+" / "+canvas.height;
       photoCorners=initialCorners(canvas.width,canvas.height);
       scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
+      scanAdded.clear();scanRemoved.clear();
       el("scanStage").hidden=true;
       el("photoStage").hidden=false;
       el("photoActions").hidden=false;
@@ -477,6 +479,7 @@ function initializePhoto() {
       y:Math.max(0,Math.min(canvas.height-1,p.y))
     };
     scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
+    scanAdded.clear();scanRemoved.clear();
     el("scanStage").hidden=true;
     renderPhoto();
   });
@@ -502,7 +505,7 @@ function initializePhoto() {
       ? "Tap green tiles to deselect mistakes; tap another square to add one."
       : scanResult.message+" Tap squares to correct suggestions.";
     el("scanStatus").textContent=scanSelected.size+
-      " proposed wall tiles. "+description+" Original markers and existing cells will be preserved.";
+      " selected wall tiles. "+description+" Existing cells are protected. Physical starts and holes are not recognized yet.";
     el("applyScanButton").disabled=scanSelected.size===0;
     el("applyScanButton").textContent="Add "+scanSelected.size+" reviewed wall tiles";
   }
@@ -518,7 +521,7 @@ function initializePhoto() {
     context.save();
     for(let z=0;z<rows;z++)for(let x=0;x<cols;x++){
       if(!scanSelected.has(x+","+z))continue;
-      context.fillStyle="rgba(48,189,116,.54)";
+      context.fillStyle="rgba(48,189,116,.35)";
       context.fillRect(x*tw,z*th,tw,th);
     }
     context.beginPath();context.lineWidth=Math.max(.6,width/900);
@@ -544,7 +547,9 @@ function initializePhoto() {
         columns:Number(maze.data.scale[0]),rows:Number(maze.data.scale[2]),
         sensitivity:Number(el("sensitivitySlider").value)/100
       });
-      scanSelected=new Set(scanResult.suggestions.map(item=>item.x+","+item.z));
+      const detected=new Set(scanResult.suggestions.map(item=>item.x+","+item.z));
+      scanSelected=new Set([...detected].filter(key=>!scanRemoved.has(key)));
+      for(const key of scanAdded)scanSelected.add(key);
       el("scanStage").hidden=false;
       renderScan();
       if(reveal)el("scanStage").scrollIntoView({behavior:"smooth",block:"nearest"});
@@ -563,13 +568,21 @@ function initializePhoto() {
     const z=Math.floor((event.clientY-r.top)/r.height*Number(maze.data.scale[2]));
     if(x<0||z<0||x>=Number(maze.data.scale[0])||z>=Number(maze.data.scale[2]))return;
     const key=x+","+z;
-    if(scanSelected.has(key))scanSelected.delete(key);
-    else scanSelected.add(key);
+    if(scanSelected.has(key)){
+      scanSelected.delete(key);
+      scanRemoved.add(key);
+      scanAdded.delete(key);
+    }else{
+      scanSelected.add(key);
+      scanAdded.add(key);
+      scanRemoved.delete(key);
+    }
     renderScan();
   });
   el("cancelScanButton").addEventListener("click",()=>{
     el("scanStage").hidden=true;
     scanSelected.clear();
+    scanAdded.clear();scanRemoved.clear();
     scanResult=null;
   });
   el("applyScanButton").addEventListener("click",()=>{
@@ -596,6 +609,7 @@ function initializePhoto() {
   el("clearPhotoButton").addEventListener("click",()=>{
     photoImage=null;photoCorners=null;photoGuide=null;
     scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
+    scanAdded.clear();scanRemoved.clear();
     el("scanStage").hidden=true;
     el("photoActions").hidden=true;
     el("photoStage").hidden=true;el("detectButton").disabled=true;

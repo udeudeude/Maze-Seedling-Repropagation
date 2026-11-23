@@ -424,7 +424,7 @@ function renderPhoto() {
 }
 function initializePhoto() {
   const canvas=el("photoCanvas");
-  el("photoInput").addEventListener("change",event=>{
+  function loadPhoto(event) {
     const file=event.target.files?.[0];if(!file)return;
     if(!file.type.startsWith("image/")){notice("Select a photograph");return;}
     const url=URL.createObjectURL(file);
@@ -444,7 +444,8 @@ function initializePhoto() {
     image.onerror=()=>{URL.revokeObjectURL(url);alert("Unable to decode this photograph.");};
     image.src=url;
     event.target.value="";
-  });
+  }
+  for(const id of ["photoInput","cameraInput"])el(id).addEventListener("change",loadPhoto);
   let activeCorner=-1;
   const coord=event=>{
     const r=canvas.getBoundingClientRect();

@@ -4,6 +4,7 @@ on:
   push:
     paths:
       - .github/workflows/inspect-original.yml
+      - scripts/forensic_inspect.py
   workflow_dispatch:
     inputs:
       download_url:
@@ -17,8 +18,11 @@ permissions:
 jobs:
   inventory:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
+      - uses: actions/checkout@v4
+      - name: Install static-analysis dependencies
+        run: python3 -m pip install --quiet --disable-pip-version-check 'dnfile>=0.15,<1' 'UnityPy>=1.20,<2' 'androguard>=4,<5'
       - name: Fetch public archive
         env:
           DOWNLOAD_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.download_url || 'https://d.apkpure.com/b/XAPK/com.seedling.maze?version=latest' }}
@@ -121,6 +125,9 @@ jobs:
                   f.write('\t'.join(str(v).replace('\t', ' ').replace('\n', ' ') for v in row) + '\n')
           print('\n'.join(reports[:60]))
           PY
+
+      - name: Inspect Unity assets, application manifest, and managed-code metadata
+        run: python3 scripts/forensic_inspect.py original.zip inventory/deep
 
       - name: Preserve inventory only (not copyrighted application)
         if: always()

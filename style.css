@@ -113,7 +113,7 @@ select{width:100%;min-height:36px;border:1px solid #3b4650;border-radius:9px;
 .scan-slider label{font-size:13px;font-weight:620}
 .scan-slider input{width:100%;accent-color:var(--accent);min-height:40px}
 .scan-slider span{font-size:11px;color:var(--dim);display:block;text-align:center}
-.scan-actions{display:flex;gap:8px;flex-wrap:wrap}
+.scan-actions{display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:3;background:#202a31;padding:9px 0 12px;margin-bottom:9px;border-bottom:1px solid #45525c}
 .scan-actions button{border:1px solid #56626a;background:#2f3d46;border-radius:10px;padding:12px 13px;min-height:44px;font-weight:600}
 .scan-actions button:disabled{opacity:.4}
 .capture-note{font-size:12px;line-height:1.6;color:#aab7bc;border-left:2px solid #7d8790;

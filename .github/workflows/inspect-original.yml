@@ -1,6 +1,9 @@
 name: Inspect original Android archive
 
 on:
+  push:
+    paths:
+      - .github/workflows/inspect-original.yml
   workflow_dispatch:
     inputs:
       download_url:
@@ -18,7 +21,7 @@ jobs:
     steps:
       - name: Fetch public archive
         env:
-          DOWNLOAD_URL: ${{ inputs.download_url }}
+          DOWNLOAD_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.download_url || 'https://d.apkpure.com/b/XAPK/com.seedling.maze?version=latest' }}
         run: |
           python3 - <<'PY'
           import hashlib
@@ -28,12 +31,15 @@ jobs:
 
           original = os.environ['DOWNLOAD_URL'].strip()
           parsed = urlparse(original)
-          if parsed.scheme != 'https' or parsed.hostname not in {'www.dropbox.com', 'dropbox.com'} or not parsed.path.startswith('/scl/fi/'):
-              raise SystemExit('Expected a public https://www.dropbox.com/scl/fi/... link')
-          query = dict(parse_qsl(parsed.query, keep_blank_values=True))
-          query.pop('st', None)
-          query['dl'] = '1'
-          download = urlunparse(parsed._replace(query=urlencode(query)))
+          if parsed.scheme != 'https' or not ((parsed.hostname in {'www.dropbox.com', 'dropbox.com'} and parsed.path.startswith('/scl/fi/')) or (parsed.hostname == 'd.apkpure.com' and parsed.path.startswith('/b/XAPK/'))):
+              raise SystemExit('Expected a Dropbox /scl/fi/ or APKPure /b/XAPK/ HTTPS link')
+          if parsed.hostname in {'www.dropbox.com', 'dropbox.com'}:
+              query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+              query.pop('st', None)
+              query['dl'] = '1'
+              download = urlunparse(parsed._replace(query=urlencode(query)))
+          else:
+              download = original
           request = Request(download, headers={'User-Agent': 'Mozilla/5.0 Maze-preservation-research/1.0'})
           limit = 650 * 1024 * 1024
           count = 0

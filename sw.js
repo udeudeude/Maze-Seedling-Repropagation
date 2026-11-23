@@ -1,9 +1,9 @@
 /* Maze Repropagation: self-contained offline shell. Never cache camera images. */
-const VERSION="maze-shell-2026-11-22-1";
+const VERSION="maze-shell-2026-11-22-2";
 const ASSETS=[
   "./","./index.html","./style.css","./manifest.webmanifest",
   "./src/app.mjs","./src/maze-document.mjs","./src/maze-world.mjs",
-  "./src/maze-play.mjs","./src/maze-capture.mjs"
+  "./src/maze-play.mjs","./src/maze-capture.mjs","./src/maze-recognize.mjs"
 ];
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(VERSION).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));

@@ -1,0 +1,126 @@
+name: Inspect original Android archive
+
+on:
+  workflow_dispatch:
+    inputs:
+      download_url:
+        description: "Dropbox link to the original XAPK ZIP (no login required)"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  inventory:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Fetch public archive
+        env:
+          DOWNLOAD_URL: ${{ inputs.download_url }}
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import os
+          from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
+          from urllib.request import Request, urlopen
+
+          original = os.environ['DOWNLOAD_URL'].strip()
+          parsed = urlparse(original)
+          if parsed.scheme != 'https' or parsed.hostname not in {'www.dropbox.com', 'dropbox.com'} or not parsed.path.startswith('/scl/fi/'):
+              raise SystemExit('Expected a public https://www.dropbox.com/scl/fi/... link')
+          query = dict(parse_qsl(parsed.query, keep_blank_values=True))
+          query.pop('st', None)
+          query['dl'] = '1'
+          download = urlunparse(parsed._replace(query=urlencode(query)))
+          request = Request(download, headers={'User-Agent': 'Mozilla/5.0 Maze-preservation-research/1.0'})
+          limit = 650 * 1024 * 1024
+          count = 0
+          digest = hashlib.sha256()
+          with urlopen(request, timeout=90) as response, open('original.zip', 'wb') as out:
+              while block := response.read(1024 * 1024):
+                  count += len(block)
+                  if count > limit:
+                      raise SystemExit('Archive exceeds the 650 MB inspection limit')
+                  out.write(block)
+                  digest.update(block)
+          os.makedirs('inventory', exist_ok=True)
+          with open('inventory/download.txt', 'w') as report:
+              report.write('Download succeeded\n')
+              report.write(f'Bytes: {count}\nSHA256: {digest.hexdigest()}\n')
+          print(f'Downloaded {count:,} bytes; SHA256 {digest.hexdigest()}')
+          PY
+
+      - name: Inspect archive without executing code
+        run: |
+          python3 - <<'PY'
+          import collections
+          import os
+          import shutil
+          import tempfile
+          import zipfile
+
+          reports = []
+          indexed = []
+          max_nested = 550 * 1024 * 1024
+          max_entries = 100000
+          indicators = ('assets/bin/data', 'globalgamemanagers', 'resources.assets', '.unity3d', 'libunity.so', 'libil2cpp.so', 'classes.dex', 'androidmanifest.xml', 'manifest.json', 'sharedassets', 'streamingassets')
+
+          def walk(stream, label, depth):
+              if depth > 3:
+                  return
+              try:
+                  with zipfile.ZipFile(stream, 'r') as z:
+                      members = z.infolist()
+                      if len(members) > max_entries:
+                          raise ValueError(f'Too many entries in {label}')
+                      total = sum(item.file_size for item in members)
+                      reports.append(f'{label}: {len(members):,} entries, {total:,} bytes uncompressed')
+                      extensions = collections.Counter()
+                      nested = []
+                      for item in members:
+                          if item.is_dir():
+                              continue
+                          name = item.filename
+                          extension = os.path.splitext(name)[1].lower() or '(none)'
+                          extensions[extension] += 1
+                          indexed.append((label, name, item.file_size, item.compress_size))
+                          if extension in {'.apk', '.xapk', '.zip', '.obb'} and item.file_size <= max_nested:
+                              nested.append(item)
+                      reports.append('  Common extensions: ' + ', '.join(f'{key}={value}' for key, value in extensions.most_common(20)))
+                      for item in nested:
+                          with tempfile.TemporaryFile() as tmp, z.open(item) as member:
+                              shutil.copyfileobj(member, tmp, 1024 * 1024)
+                              tmp.seek(0)
+                              if zipfile.is_zipfile(tmp):
+                                  walk(tmp, label + '/' + item.filename, depth + 1)
+              except (zipfile.BadZipFile, RuntimeError, ValueError) as exc:
+                  reports.append(f'{label}: inspection error: {exc}')
+
+          with open('original.zip', 'rb') as source:
+              if not zipfile.is_zipfile(source):
+                  raise SystemExit('Downloaded file is not a ZIP or XAPK archive')
+              walk(source, 'original.zip', 0)
+
+          matches = [row for row in indexed if any(token in row[1].lower() for token in indicators)]
+          reports.append(f'Total file records (including nested archives): {len(indexed):,}')
+          reports.append('Possible game engine / Android indicators:')
+          reports.extend('  ' + label + '/' + name for label, name, _, _ in matches[:150])
+          with open('inventory/summary.txt', 'w') as f:
+              f.write('\n'.join(reports) + '\n')
+          with open('inventory/files.tsv', 'w') as f:
+              f.write('archive\tpath\tuncompressed_bytes\tcompressed_bytes\n')
+              for row in indexed:
+                  f.write('\t'.join(str(v).replace('\t', ' ').replace('\n', ' ') for v in row) + '\n')
+          print('\n'.join(reports[:60]))
+          PY
+
+      - name: Preserve inventory only (not copyrighted application)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maze-original-android-inventory
+          path: inventory/
+          if-no-files-found: warn
+          retention-days: 7

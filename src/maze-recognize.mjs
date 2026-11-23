@@ -153,7 +153,7 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
     const row=Math.min(rows-1,Math.floor(y/tileHeight));
     totals[row*columns+column]++;
   }
-  const minimumCoverage=.235-.27*sensitivity; // 0.10 at default; 0.235 at minimum
+  const minimumCoverage=Math.max(.027,.235-.27*sensitivity); // 0.10 at default
   const suggestions=[];
   for(let z=0;z<rows;z++)for(let x=0;x<columns;x++){
     const x0=Math.ceil(x*tileWidth),x1=Math.ceil((x+1)*tileWidth);

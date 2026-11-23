@@ -1,1 +1,48 @@
-# Maze-Seedling-Repropagation
+# Maze by Seedling: Repropagation
+
+Independent, evidence-led reconstruction of the discontinued **Maze by Seedling** mobile companion for people who still own the original physical marble-maze kit.
+
+**Status:** Historical Android application recovered and examined; core maze-document module implemented and tested. **No playable replacement has been released yet.**
+
+## What we're restoring
+
+The experience begins with the original wooden maze: arrange walls, choose entrance and exit, and punch traps in the paper floor. The original phone app photographed the physical board, turned its design into a digital maze, allowed editing with riddles, power-ups, hazards, photographs and sounds, and offered ordinary-screen and Google Cardboard exploration, with multiplayer racing.
+
+Our target is an **iPhone-first, offline-capable web app** that preserves this physical-to-virtual workflow and historical visual/interaction character. It should not rely on a discontinued App Store application or third-party account.
+
+## Verified historical evidence
+
+- [Forensic findings](docs/FORENSIC_FINDINGS.md): original mechanics, platform architecture, camera-scanning implementation, four environments and audio/visual assets.
+- [Android archive provenance](docs/ORIGINAL_ANDROID_ARCHIVE.md): recovered original package's SHA-256, inspection results and source.
+- [Archived iPhone feature list](https://maze-seedling.appstor.io/).
+- [Original Seedling demonstration](https://www.youtube.com/watch?v=sNR9Vf7bxe4).
+
+The recovered Android 1.4 package has a native camera scanner using OpenCV and `libtile_reader.so`, a Java maze editor, and Unity 3D exploration. We have identified its actual JSON maze-document structure, all four environments, original class/asset names, and original preset files.
+
+## Implemented
+
+- `src/maze-document.mjs`: validates, imports, edits and exports the original maze-document structure. Preserves unknown fields and original numeric-string representations.
+- `tests/maze-document.test.mjs`: synthetic-source regression tests, run automatically in GitHub Actions.
+- `scripts/forensic_inspect.py`: static, reproducible package, native camera, Android editor, Unity asset, and game-document analysis.
+- `scripts/verify-original-presets.mjs`: checks the data model against actual recovered sample documents without publishing those documents.
+- [Forensic workflow](.github/workflows/inspect-original.yml): on-demand source inspection and short-lived derived-metadata reports.
+
+Run the core model tests locally with Node.js:
+
+```sh
+node --test tests/*.test.mjs
+```
+
+## Build order
+
+1. Establish **exact** physical grid/marker geometry and original imaging behavior using source evidence.
+2. Implement camera capture, automatic recognition, and manual correction.
+3. Build the editor with all original cell types and media/riddle features.
+4. Reconstruct the four distinct environments and their visual identity, play controls, sound, and Google Cardboard rendering.
+5. Implement local multiplayer and full offline-first support, then test on the physical kit and current iPhones.
+
+## Original software and rights
+
+This project is independent and unaffiliated with Seedling USA. The recovered Android software and its original artwork, music, models, fonts and code remain third-party material. **Do not commit, bundle, or publicly redistribute their unlicensed binaries or assets.** The open repository stores reimplementation and non-copying research metadata only.
+
+The user's private `udeudeude/work-and-research` repository is available for research that genuinely requires private storage. Use its documented isolation/privacy rules and never treat private Git as a place for credentials or large copyrighted binaries.

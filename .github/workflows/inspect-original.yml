@@ -5,6 +5,7 @@ on:
     paths:
       - .github/workflows/inspect-original.yml
       - scripts/forensic_inspect.py
+      - scripts/verify-original-presets.mjs
   workflow_dispatch:
     inputs:
       download_url:
@@ -128,6 +129,21 @@ jobs:
 
       - name: Inspect Unity assets, application manifest, and managed-code metadata
         run: python3 scripts/forensic_inspect.py original.zip inventory/deep
+
+      - name: Verify lossless compatibility with real bundled game documents
+        run: |
+          python3 - <<'PY'
+          import io, os, pathlib, zipfile
+          root = pathlib.Path(os.environ["RUNNER_TEMP"]) / "seedling-presets"
+          root.mkdir(parents=True, exist_ok=True)
+          with zipfile.ZipFile("original.zip") as archive:
+              filename = next(name for name in archive.namelist() if name.endswith(".apk"))
+              with zipfile.ZipFile(io.BytesIO(archive.read(filename))) as apk:
+                  for name in apk.namelist():
+                      if name.startswith("assets/json/") and name.endswith(".json"):
+                          (root / pathlib.Path(name).name).write_bytes(apk.read(name))
+          PY
+          node scripts/verify-original-presets.mjs "$RUNNER_TEMP/seedling-presets"
 
       - name: Preserve inventory only (not copyrighted application)
         if: always()

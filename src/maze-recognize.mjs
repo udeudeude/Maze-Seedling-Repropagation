@@ -63,7 +63,9 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
     return {...cell,score:woodScore};
   });
   const scores=measured.map(c=>c.score).sort((a,b)=>a-b);
-  const baseline=percentile(scores,.5),spread=percentile(scores,.89)-baseline;
+  const baseline=percentile(scores,.5);
+  const spread=Math.max((percentile(scores,.95)-baseline)*.85,
+    (percentile(scores,.99)-baseline)*.60);
   if(spread<.044)
     return {suggestions:[],grid:[columns,rows],quality:"low-contrast",
       message:"Wooden walls could not be separated reliably from the board.",

@@ -103,16 +103,17 @@
         <div class="scan-stage" id="scanStage" hidden>
           <h2>Review detected walls</h2>
           <p id="scanStatus" role="status">Suggestions will appear here.</p>
+          <div class="scan-actions">
+            <button type="button" id="applyScanButton" class="primary">Add reviewed walls</button>
+            <button type="button" id="cancelScanButton">Return to photograph</button>
+          </div>
           <canvas id="scanCanvas" tabindex="0" aria-label="Corrected board photograph with proposed wall tiles; tap a square to select or deselect a wall."></canvas>
           <div class="scan-slider">
             <label for="sensitivitySlider">Detection sensitivity</label>
             <input id="sensitivitySlider" type="range" min="0" max="100" step="5" value="50">
             <span>Fewer walls <span aria-hidden="true">·</span> More walls</span>
           </div>
-          <div class="scan-actions">
-            <button type="button" id="applyScanButton" class="primary">Add reviewed walls</button>
-            <button type="button" id="cancelScanButton">Return to photograph</button>
-          </div>
+
         </div>
         <p class="capture-note">Wall suggestions are experimental, not the original scanner. Align corners carefully, inspect the suggestions, and correct mistakes before applying them. This first pass cannot reliably identify holes, start or finish markers, or the physical board grid independently.</p>
       </section>

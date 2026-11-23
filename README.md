@@ -2,7 +2,7 @@
 
 Independent, evidence-led reconstruction of the discontinued **Maze by Seedling** mobile companion for people who still own the original physical marble-maze kit.
 
-**Status:** Historical Android application recovered and examined; core maze-document module implemented and tested. **No playable replacement has been released yet.**
+**Status:** An early **playable iPhone web prototype** is deployed at https://udeudeude.github.io/Maze-Seedling-Repropagation/. It is not yet historically faithful and the physical-scanning recognizer is experimental.
 
 ## What we're restoring
 
@@ -18,6 +18,14 @@ Our target is an **iPhone-first, offline-capable web app** that preserves this p
 - [Original Seedling demonstration](https://www.youtube.com/watch?v=sNR9Vf7bxe4).
 
 The recovered Android 1.4 package has a native camera scanner using OpenCV and `libtile_reader.so`, a Java maze editor, and Unity 3D exploration. We have identified its actual JSON maze-document structure, all four environments, original class/asset names, and original preset files.
+
+## Try the prototype
+
+Open https://udeudeude.github.io/Maze-Seedling-Repropagation/ on your phone. Use **Build** to edit a digital board and **Explore** for first-person movement. In **Capture**, **Choose a photograph** opens the photo library while **Take a photograph** opens the camera. After aligning the board corners, you can either trace by hand or preview **experimental dark-wall suggestions**, adjust sensitivity, tap mistaken cells to correct them, and approve an undoable batch.
+
+The scanner does **not** yet recognize physical trap holes, start/finish stickers or the original physical grid automatically. It is not a faithful restoration of the original computer-vision system. All scanning occurs locally.
+
+See the evidence-led [original feature parity audit](docs/FEATURE_PARITY.md) for the major missing systems.
 
 ## Implemented
 

@@ -4,10 +4,10 @@ import {sampleGrid,suggestWalls,applyWallSuggestions} from "../src/maze-recogniz
 import {newMaze,primaryCell} from "../src/maze-world.mjs";
 
 const size=18,scale=28;
-const colors={floor:[232,230,215],wall:[29,32,34],hole:[12,12,12],paperGrid:[154,153,147]};
+const colors={floor:[232,230,215],wall:[29,32,34],hole:[12,12,12],paperGrid:[154,153,147],surroundingGreen:[128,191,119]};
 
 /** A test photograph surrogate: charcoal strips, round punched holes, gridded paper. */
-function fixture({walls=[],holes=[],uniform=false,solidWalls=false}={}){
+function fixture({walls=[],holes=[],uniform=false,solidWalls=false,greenBorder=false}={}){
   const w=size*scale,h=size*scale;
   const data=new Uint8ClampedArray(w*h*4);
   const wallSet=new Set(walls.map(([x,z])=>x+","+z));
@@ -20,8 +20,9 @@ function fixture({walls=[],holes=[],uniform=false,solidWalls=false}={}){
       Math.abs(dy)<4 && Math.abs(dx)<scale*.45);
     const isHole=holeSet.has(key)&&Math.hypot(dx,dy)<scale*.23;
     const line=!uniform&&(x%scale===0||y%scale===0);
+    const isOuter=greenBorder&&(cx===0||cz===0||cx===size-1||cz===size-1);
     const rgb=uniform?colors.floor:isDarkWall?colors.wall:isHole?colors.hole:
-      line?colors.paperGrid:colors.floor;
+      isOuter?colors.surroundingGreen:line?colors.paperGrid:colors.floor;
     const i=(y*w+x)*4;
     data.set([...rgb,255],i);
   }
@@ -74,4 +75,23 @@ test("approved candidates alter only empty cells and preserve original data",()=
   assert.equal(primaryCell(result.maze,1,1).cell.type,"entrance");
   assert.deepEqual(result.maze.metadata,original.metadata);
   assert.equal(original.data.cells.length,2);
+});
+
+test("green surroundings of the actual board are not misidentified as walls",()=>{
+  const walls=[];
+  for(let x=3;x<=14;x++)walls.push([x,7]);
+  for(let z=5;z<=13;z++)walls.push([10,z]);
+  const holes=[[3,3],[8,10],[12,12]];
+  const result=suggestWalls(fixture({walls,holes,greenBorder:true}));
+  const chosen=new Set(result.suggestions.map(s=>s.x+","+s.z));
+  for(let x=0;x<size;x++){
+    assert.ok(!chosen.has(x+",0"),"Top green border falsely recognized");
+    assert.ok(!chosen.has(x+","+(size-1)),"Bottom green border falsely recognized");
+  }
+  for(let z=0;z<size;z++){
+    assert.ok(!chosen.has("0,"+z),"Left green border falsely recognized");
+    assert.ok(!chosen.has((size-1)+","+z),"Right green border falsely recognized");
+  }
+  for(const [x,z] of walls)assert.ok(chosen.has(x+","+z),"Missing dark wall");
+  for(const [x,z] of holes)assert.ok(!chosen.has(x+","+z),"Round hole misidentified");
 });

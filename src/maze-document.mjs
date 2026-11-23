@@ -9,7 +9,7 @@ export const CELL_KINDS = Object.freeze([
   "speed_powerup", "timer_hazard", "timer_powerup", "wall",
 ]);
 
-export const THEMES = Object.freeze(["adventure", "hedge", "marble", "space"]);
+export const THEMES = Object.freeze(["adventure", "hedge", "marble_maze", "space"]);
 
 function clone(value) {
   return JSON.parse(JSON.stringify(value));

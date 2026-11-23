@@ -18,7 +18,7 @@ The Android application has three distinct components:
 2. **Native Android editor** has `MazeEditorActivity`, `MazeView`, `MazeUtility`, image/audio capture, text messaging, riddles, wall placement, tile selection, undo-like finger buffers, zoom, and maze-completability checks.
 3. **Unity 3D explorer** uses `Seedling.VRMaze` managed code, scene assets in the APK and expansion OBB, and a Google Cardboard stereoscopic renderer. Managed logic includes player controllers, gates and keys, shadows that follow players, secret passages, shortest-path search, timer and speed power-ups, maps, riddles, localized sound, and multiplayer peers.
 
-The Android application declares camera, audio-recording, storage, and network permissions. The presence of a class or method proves the feature was implemented in some form; it does **not** establish that it worked correctly or identically to iOS.
+The native scanner library is **not stripped of its relevant C++ symbol names**. Exported symbols include `TileReader::getBoardCorners`, `computeBoard`, `drawGrid`, `removeBoardEdges`, `getWalls`, `setBoardDimensions`, and `stb::TileBoard::toJSON`, `getBoardWalls`, `getTileAt`, `setTileAt`, and `hasStart`/`hasEnd`. This establishes the original processing stages, but **does not reveal their exact mathematical thresholds**. The Android application declares camera, audio-recording, storage, and network permissions. The presence of a class or method proves the feature was implemented in some form; it does **not** establish that it worked correctly or identically to iOS.
 
 ## Concrete mechanics and data model
 
@@ -29,9 +29,13 @@ Two versions of the same concept appear in the code:
 
 The native cell type enumeration has: **empty, entrance, exit, floor, gate, info, map, riddle, secret passage, shadow, speed hazard, speed power-up, timer hazard, timer power-up, wall**.
 
-Each bundled preset's document keys are `source`, `uniqueIdentifier`, `version`, `options`, `data`, `name`. `data` contains `cells`, `duration`, `player_avatars`, `scale`, `theme`. A cell has a three-coordinate `position`, `type` and, optionally, `variant`. The coordinates and several boolean-like options are stored as **strings**, which must be preserved during round trips.
+Each bundled preset's document keys are `source`, `uniqueIdentifier`, `version`, `options`, `data`, `name`. `data` contains `cells`, `duration`, `player_avatars`, `scale`, `theme`. A cell has a three-coordinate `position`, `type` and, optionally, `variant`. The coordinates, the three scale components, the duration (`"300.0"`), tile variants, and boolean-like options (`"true"`) are stored as **strings**, which must be preserved during round trips.
 
-Eight valid built-in preset documents were recovered structurally (not republished):
+**All eight built-in level documents specify scale `["18", "1", "18"]`, with horizontal tile coordinates in the range 0–17.** This verifies an 18 × 18 *digital* cell map. It does **not** by itself establish the photographic scanning grid's dimensions or the physical sizes of the wall pieces.
+
+The original theme identifiers in JSON are `adventure`, `hedge`, `marble_maze`, `space`. The native Java enum calls the Marble theme `MARBLE`, but its **serialized identifier is `marble_maze`**. This distinction matters for compatibility.
+
+Eight valid built-in preset documents were recovered structurally (not republished), and the replacement model was independently tested against **every one** with a lossless JSON round-trip in [this successful integration run](https://github.com/udeudeude/Maze-Seedling-Repropagation/actions/runs/45102851758):
 
 | Environment | Standard cells | Hard cells |
 |---|---:|---:|
@@ -41,7 +45,7 @@ Eight valid built-in preset documents were recovered structurally (not republish
 | Space | 109 | 136 |
 
 
-A ninth file, `assets/json/tutorial.json`, was found but is **not valid strict JSON** as stored, containing a trailing comma. Its intent and actual loader tolerance require further investigation.
+The original preset titles are **Forbidden Temple** (Adventure), **Castle Quest** (Hedge), **Marble Mayhem** (Marble), and **Space Race** (Space), each in standard and hard versions. A ninth file, `assets/json/tutorial.json`, was found but is **not valid strict JSON** as stored, containing a trailing comma. Its intent and actual loader tolerance require further investigation.
 
 ## Original themes and visual evidence
 
@@ -64,6 +68,10 @@ The Unity font assets identify the **Avenir** family. The Android APK additional
 - [Historical maze capture photograph](https://brooksandco.co.nz/products/maze-diy-virtual-reality-adventure-game-for-kids-steam-toy) shows the alignment prompt and camera view.
 
 The Android and iOS interfaces should be treated as **separate sources**, not assumed identical.
+
+## Tested reconstruction foundation
+
+`src/maze-document.mjs` now imports, validates, edits, and exports the original JSON structure while preserving unknown cell keys and the original string-based numeric representation. Unit tests are green, and all eight actual source presets were parsed and reserialized without changing their JSON data (the original proprietary level layouts were not published).
 
 ## Next implementation constraints
 

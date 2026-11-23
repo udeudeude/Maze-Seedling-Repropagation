@@ -257,8 +257,64 @@ def preset_info(apk):
                     if len(row["examples"]) < 3 and len(value) < 70 and TERMS.search(path):
                         row["examples"].append(clean(value))
             inspect(data, "$")
-            result["files"].append({"file": name, "schema": dict(paths)})
+            cells = data.get("data", {}).get("cells", []) if isinstance(data, dict) else []
+            counts = collections.Counter(clean(cell.get("type")) for cell in cells if isinstance(cell, dict))
+            variants = collections.Counter(clean(cell.get("variant", "(none)")) for cell in cells if isinstance(cell, dict))
+            coords = [[], [], []]
+            for cell in cells:
+                if not isinstance(cell, dict):
+                    continue
+                pos = cell.get("position")
+                if isinstance(pos, list) and len(pos) == 3:
+                    for axis, value in enumerate(pos):
+                        try:
+                            coords[axis].append(int(value))
+                        except (TypeError, ValueError):
+                            pass
+            mechanics = {
+                "theme": data.get("data", {}).get("theme"),
+                "scale": data.get("data", {}).get("scale"),
+                "duration": data.get("data", {}).get("duration"),
+                "options": data.get("options", {}),
+                "types": dict(counts),
+                "variants": dict(variants),
+                "axis_bounds": [{"min": min(vals), "max": max(vals), "distinct": len(set(vals))} if vals else None for vals in coords],
+                "unique_cell_keys": sorted({key for cell in cells if isinstance(cell, dict) for key in cell})
+            }
+            result["files"].append({"file": name, "schema": dict(paths), "mechanics": mechanics})
     result["file_count"] = len(result["files"])
+    return result
+
+
+
+def native_symbols(apk):
+    import subprocess
+    result = {"symbols": [], "relevant_strings": [], "errors": []}
+    try:
+        with zipfile.ZipFile(apk) as source:
+            binary = "lib/armeabi-v7a/libtile_reader.so"
+            if binary not in source.namelist():
+                return {"error": "Missing expected libtile_reader.so"}
+            with tempfile.NamedTemporaryFile(suffix=".so") as temp:
+                temp.write(source.read(binary))
+                temp.flush()
+                for command, label in [
+                    (["nm", "-D", "-C", "--defined-only", temp.name], "symbols"),
+                    (["strings", "-a", "-n", "7", temp.name], "relevant_strings")
+                ]:
+                    try:
+                        proc = subprocess.run(command, capture_output=True, text=True, timeout=20)
+                        if proc.returncode:
+                            result["errors"].append({"stage": label, "returncode": proc.returncode, "error": clean(proc.stderr)})
+                        lines = proc.stdout.splitlines()
+                        if label == "symbols":
+                            result[label] = [clean(line) for line in lines if TERMS.search(line) or "JNI" in line or "Java_" in line][:400]
+                        else:
+                            result[label] = [clean(line) for line in lines if TERMS.search(line) or "OpenCV" in line][:150]
+                    except Exception as exc:
+                        result["errors"].append({"stage": label, "error": clean(exc)})
+    except Exception as exc:
+        result["errors"].append({"stage": "extract", "error": clean(exc)})
     return result
 
 
@@ -292,6 +348,8 @@ def main():
             save(Path(destination) / "android-code.json", java)
             presets = preset_info(apk)
             save(Path(destination) / "presets-schema.json", presets)
+            native = native_symbols(apk)
+            save(Path(destination) / "native-scanner.json", native)
             unity = unity_info(apk, obb)
             save(Path(destination) / "unity-assets.json", unity)
             print("PACKAGE", json.dumps(package, ensure_ascii=False)[:1200])
@@ -304,7 +362,9 @@ def main():
                 print("ANDROID CLASS", x["name"], "FIELDS", ", ".join(x["fields"][:15]), "METHODS", ", ".join(x["methods"][:25]))
             print("PRESET FILES", presets["file_count"], "ERRORS", presets["errors"])
             for x in presets["files"]:
-                print("PRESET", x["file"], "SCHEMA", json.dumps({k:v for k,v in x["schema"].items() if k.count(".") < 4})[:1700])
+                print("PRESET", x["file"], "MECHANICS", json.dumps(x["mechanics"]))
+            print("NATIVE SYMBOLS", json.dumps(native.get("symbols", [])[:100]))
+            print("NATIVE ERRORS", json.dumps(native.get("errors", [])))
             print("UNITY", json.dumps({"files_parsed": unity.get("files_parsed"), "total_types": unity.get("total_types"), "errors": unity.get("errors", [])[:12]})[:2500])
             for x in unity.get("interesting_names", [])[:120]:
                 print("UNITY HIGHLIGHT", json.dumps(x, ensure_ascii=False))

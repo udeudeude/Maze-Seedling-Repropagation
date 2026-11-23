@@ -442,6 +442,7 @@ function initializePhoto() {
       scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
       el("scanStage").hidden=true;
       el("photoStage").hidden=false;
+      el("photoActions").hidden=false;
       el("detectButton").disabled=false;
       el("traceButton").disabled=false;el("clearPhotoButton").disabled=false;
       renderPhoto();
@@ -475,6 +476,8 @@ function initializePhoto() {
       x:Math.max(0,Math.min(canvas.width-1,p.x)),
       y:Math.max(0,Math.min(canvas.height-1,p.y))
     };
+    scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
+    el("scanStage").hidden=true;
     renderPhoto();
   });
   const release=()=>activeCorner=-1;
@@ -530,7 +533,7 @@ function initializePhoto() {
     context.restore();
     updateScanStatus();
   }
-  function analyzePhoto() {
+  function analyzePhoto(reveal=false) {
     try {
       // Re-evaluate the same aligned image when sensitivity changes.
       if(!scanPixels){
@@ -544,14 +547,14 @@ function initializePhoto() {
       scanSelected=new Set(scanResult.suggestions.map(item=>item.x+","+item.z));
       el("scanStage").hidden=false;
       renderScan();
-      el("scanStage").scrollIntoView({behavior:"smooth",block:"nearest"});
+      if(reveal)el("scanStage").scrollIntoView({behavior:"smooth",block:"nearest"});
     }catch(error) {
       alert("Could not analyze this photograph: "+error.message);
     }
   }
-  el("detectButton").addEventListener("click",analyzePhoto);
+  el("detectButton").addEventListener("click",()=>analyzePhoto(true));
   el("sensitivitySlider").addEventListener("input",()=>{
-    if(scanPixels)analyzePhoto();
+    if(scanPixels)analyzePhoto(false);
   });
   el("scanCanvas").addEventListener("pointerdown",event=>{
     if(!scanGuide)return;
@@ -594,6 +597,7 @@ function initializePhoto() {
     photoImage=null;photoCorners=null;photoGuide=null;
     scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     el("scanStage").hidden=true;
+    el("photoActions").hidden=true;
     el("photoStage").hidden=true;el("detectButton").disabled=true;
     el("traceButton").disabled=true;el("clearPhotoButton").disabled=true;
     redrawAll();notice("Photograph removed");

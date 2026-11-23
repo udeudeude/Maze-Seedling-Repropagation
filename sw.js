@@ -1,16 +1,20 @@
-/* Maze Repropagation: self-contained offline shell. Never cache camera images. */
-const VERSION="maze-shell-2026-11-22-2";
+/* Maze Repropagation: offline shell; photographs remain on the user's device. */
+const VERSION="maze-shell-2026-11-22-3";
 const ASSETS=[
   "./","./index.html","./style.css","./manifest.webmanifest",
   "./src/app.mjs","./src/maze-document.mjs","./src/maze-world.mjs",
   "./src/maze-play.mjs","./src/maze-capture.mjs","./src/maze-recognize.mjs"
 ];
 self.addEventListener("install",event=>{
-  event.waitUntil(caches.open(VERSION).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting()));
+  event.waitUntil(caches.open(VERSION)
+    .then(cache=>cache.addAll(ASSETS))
+    .then(()=>self.skipWaiting()));
 });
 self.addEventListener("activate",event=>{
   event.waitUntil(Promise.all([
-    caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith("maze-shell-")&&key!==VERSION).map(key=>caches.delete(key)))),
+    caches.keys().then(keys=>Promise.all(keys
+      .filter(key=>key.startsWith("maze-shell-")&&key!==VERSION)
+      .map(key=>caches.delete(key)))),
     self.clients.claim()
   ]));
 });
@@ -19,20 +23,28 @@ self.addEventListener("fetch",event=>{
   const url=new URL(event.request.url);
   if(url.origin!==self.location.origin)return;
   if(url.pathname.endsWith(".json")&&!url.pathname.endsWith("manifest.webmanifest"))return;
+  const scope=new URL(self.registration.scope).pathname;
+  if(!url.pathname.startsWith(scope))return;
   if(event.request.mode==="navigate"){
     event.respondWith(fetch(event.request).then(response=>{
       if(response.ok){
         const copy=response.clone();
-        caches.open(VERSION).then(cache=>cache.put("./index.html",copy)).catch(()=>{});
+        event.waitUntil(caches.open(VERSION).then(cache=>cache.put("./index.html",copy)));
       }
       return response;
     }).catch(()=>caches.match("./index.html")));
-  }else{
-    event.respondWith(caches.match(event.request).then(cached=>cached||fetch(event.request).then(response=>{
-      if(response.ok&&url.pathname.startsWith(new URL(self.registration.scope).pathname)){
-        const copy=response.clone();caches.open(VERSION).then(cache=>cache.put(event.request,copy));
-      }
-      return response;
-    })));
+    return;
   }
+  // Network first keeps published JavaScript current without needing another
+  // manual cache-version bump every time. Cached files provide offline fallback.
+  event.respondWith(fetch(event.request).then(response=>{
+    if(response.ok){
+      const copy=response.clone();
+      event.waitUntil(caches.open(VERSION).then(cache=>cache.put(event.request,copy)));
+    }
+    return response;
+  }).catch(async()=>{
+    const cached=await caches.match(event.request);
+    return cached??Response.error();
+  }));
 });

@@ -5,6 +5,7 @@ import {
 } from "./maze-world.mjs";
 import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC} from "./maze-play.mjs";
 import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
+import {suggestWalls,applyWallSuggestions} from "./maze-recognize.mjs";
 
 const $=selector=>document.querySelector(selector);
 const el=id=>document.getElementById(id);
@@ -31,7 +32,8 @@ function restore() {
   return newMaze();
 }
 let maze=restore(),undo=[],redo=[],selected="wall",inspection=false,route=null,view="build";
-let currentTile=null,photoImage=null,photoCorners=null,photoSource=null,photoGuide=null;
+let currentTile=null,photoImage=null,photoCorners=null,photoGuide=null;
+let scanPixels=null,scanGuide=null,scanResult=null,scanSelected=new Set();
 let play=startPlay(maze),stereo=false,showMap=false,holding=new Set();
 let lastFrame=0,lastBoardRect=null,boardPainting=false,boardLastCell=null;
 const toolOrder=["wall","empty","entrance","exit","gate","riddle","info","map",
@@ -437,7 +439,10 @@ function initializePhoto() {
       canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
       canvas.style.aspectRatio=canvas.width+" / "+canvas.height;
       photoCorners=initialCorners(canvas.width,canvas.height);
+      scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
+      el("scanStage").hidden=true;
       el("photoStage").hidden=false;
+      el("detectButton").disabled=false;
       el("traceButton").disabled=false;el("clearPhotoButton").disabled=false;
       renderPhoto();
     };
@@ -474,25 +479,123 @@ function initializePhoto() {
   });
   const release=()=>activeCorner=-1;
   canvas.addEventListener("pointerup",release);canvas.addEventListener("pointercancel",release);
+  /** Perspective-corrected photograph is held locally and never uploaded. */
+  function rectifyPhoto() {
+    if(!photoImage||!photoCorners)throw new Error("Select and align a photograph first");
+    const sourceCanvas=document.createElement("canvas");
+    sourceCanvas.width=canvas.width;sourceCanvas.height=canvas.height;
+    const context=sourceCanvas.getContext("2d",{willReadFrequently:true});
+    context.drawImage(photoImage,0,0,canvas.width,canvas.height);
+    const pixels=context.getImageData(0,0,canvas.width,canvas.height);
+    const warped=warpSquarePixels(pixels.data,canvas.width,canvas.height,photoCorners);
+    const target=document.createElement("canvas");
+    target.width=warped.width;target.height=warped.height;
+    target.getContext("2d").putImageData(new ImageData(warped.data,warped.width,warped.height),0,0);
+    return {warped,target};
+  }
+  function updateScanStatus() {
+    if(!scanResult)return;
+    const description=scanResult.quality==="review"
+      ? "Tap green tiles to deselect mistakes; tap another square to add one."
+      : scanResult.message+" Tap squares to correct suggestions.";
+    el("scanStatus").textContent=scanSelected.size+
+      " proposed wall tiles. "+description+" Original markers and existing cells will be preserved.";
+    el("applyScanButton").disabled=scanSelected.size===0;
+    el("applyScanButton").textContent="Add "+scanSelected.size+" reviewed wall tiles";
+  }
+  function renderScan() {
+    if(!scanGuide)return;
+    const output=el("scanCanvas");
+    output.width=scanGuide.width;output.height=scanGuide.height;
+    const context=output.getContext("2d");
+    const width=output.width,height=output.height;
+    context.drawImage(scanGuide,0,0,width,height);
+    const cols=Number(maze.data.scale[0]),rows=Number(maze.data.scale[2]);
+    const tw=width/cols,th=height/rows;
+    context.save();
+    for(let z=0;z<rows;z++)for(let x=0;x<cols;x++){
+      if(!scanSelected.has(x+","+z))continue;
+      context.fillStyle="rgba(48,189,116,.54)";
+      context.fillRect(x*tw,z*th,tw,th);
+    }
+    context.beginPath();context.lineWidth=Math.max(.6,width/900);
+    context.strokeStyle="rgba(255,250,232,.60)";
+    for(let x=0;x<=cols;x++){
+      context.moveTo(x*tw,0);context.lineTo(x*tw,height);
+    }
+    for(let z=0;z<=rows;z++){
+      context.moveTo(0,z*th);context.lineTo(width,z*th);
+    }
+    context.stroke();
+    context.restore();
+    updateScanStatus();
+  }
+  function analyzePhoto() {
+    try {
+      // Re-evaluate the same aligned image when sensitivity changes.
+      if(!scanPixels){
+        const rectified=rectifyPhoto();
+        scanPixels=rectified.warped;scanGuide=rectified.target;
+      }
+      scanResult=suggestWalls(scanPixels,{
+        columns:Number(maze.data.scale[0]),rows:Number(maze.data.scale[2]),
+        sensitivity:Number(el("sensitivitySlider").value)/100
+      });
+      scanSelected=new Set(scanResult.suggestions.map(item=>item.x+","+item.z));
+      el("scanStage").hidden=false;
+      renderScan();
+      el("scanStage").scrollIntoView({behavior:"smooth",block:"nearest"});
+    }catch(error) {
+      alert("Could not analyze this photograph: "+error.message);
+    }
+  }
+  el("detectButton").addEventListener("click",analyzePhoto);
+  el("sensitivitySlider").addEventListener("input",()=>{
+    if(scanPixels)analyzePhoto();
+  });
+  el("scanCanvas").addEventListener("pointerdown",event=>{
+    if(!scanGuide)return;
+    const r=event.currentTarget.getBoundingClientRect();
+    const x=Math.floor((event.clientX-r.left)/r.width*Number(maze.data.scale[0]));
+    const z=Math.floor((event.clientY-r.top)/r.height*Number(maze.data.scale[2]));
+    if(x<0||z<0||x>=Number(maze.data.scale[0])||z>=Number(maze.data.scale[2]))return;
+    const key=x+","+z;
+    if(scanSelected.has(key))scanSelected.delete(key);
+    else scanSelected.add(key);
+    renderScan();
+  });
+  el("cancelScanButton").addEventListener("click",()=>{
+    el("scanStage").hidden=true;
+    scanSelected.clear();
+    scanResult=null;
+  });
+  el("applyScanButton").addEventListener("click",()=>{
+    if(!scanGuide||!scanSelected.size)return;
+    const suggestions=[...scanSelected].map(key=>{
+      const [x,z]=key.split(",").map(Number);
+      return {x,z};
+    });
+    const {maze:updated,applied}=applyWallSuggestions(maze,suggestions);
+    photoGuide=scanGuide;
+    commit(updated);
+    setView("build");
+    notice("Added "+applied+" wall tiles; existing tiles preserved. Check and correct any mistakes.");
+  });
   el("traceButton").addEventListener("click",()=>{
-    if(!photoImage||!photoCorners)return;
-    try{
-      const sourceCanvas=document.createElement("canvas");
-      sourceCanvas.width=canvas.width;sourceCanvas.height=canvas.height;
-      const context=sourceCanvas.getContext("2d",{willReadFrequently:true});
-      context.drawImage(photoImage,0,0,canvas.width,canvas.height);
-      const pixels=context.getImageData(0,0,canvas.width,canvas.height);
-      const warped=warpSquarePixels(pixels.data,canvas.width,canvas.height,photoCorners);
-      const target=document.createElement("canvas");
-      target.width=warped.width;target.height=warped.height;
-      target.getContext("2d").putImageData(new ImageData(warped.data,warped.width,warped.height),0,0);
+    try {
+      const {target}=rectifyPhoto();
       photoGuide=target;setView("build");
       notice("Photograph aligned. Trace walls using the drawing tools.");
-    }catch(error){alert("Corner alignment could not be completed: "+error.message);}
+    }catch(error){
+      alert("Corner alignment could not be completed: "+error.message);
+    }
   });
   el("clearPhotoButton").addEventListener("click",()=>{
     photoImage=null;photoCorners=null;photoGuide=null;
-    el("photoStage").hidden=true;el("traceButton").disabled=true;el("clearPhotoButton").disabled=true;
+    scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
+    el("scanStage").hidden=true;
+    el("photoStage").hidden=true;el("detectButton").disabled=true;
+    el("traceButton").disabled=true;el("clearPhotoButton").disabled=true;
     redrawAll();notice("Photograph removed");
   });
 }

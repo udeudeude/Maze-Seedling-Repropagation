@@ -37,10 +37,9 @@ Eight valid built-in preset documents were recovered structurally (not republish
 |---|---:|---:|
 | Adventure | 115 | 132 |
 | Hedge | 114 | 121 |
-| Marble | to verify | 130 |
+| Marble | 102 | 130 |
 | Space | 109 | 136 |
 
-The exact Marble standard count must be confirmed from the inventory; do not copy a provisional count into implementation.
 
 A ninth file, `assets/json/tutorial.json`, was found but is **not valid strict JSON** as stored, containing a trailing comma. Its intent and actual loader tolerance require further investigation.
 

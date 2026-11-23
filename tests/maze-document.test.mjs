@@ -20,7 +20,7 @@ const original = {
     scale: ["3", "1", "3"],
     duration: "60",
     player_avatars: {},
-    theme: "marble",
+    theme: "marble_maze",
     cells: [
       {position: ["0", "0", "0"], type: "entrance"},
       {position: ["1", "0", "1"], type: "wall", variant: "2", future: {custom: 7}},
@@ -33,7 +33,7 @@ const original = {
 
 test("recognizes all historically recovered cell categories and themes", () => {
   assert.equal(CELL_KINDS.length, 15);
-  assert.deepEqual(THEMES, ["adventure", "hedge", "marble", "space"]);
+  assert.deepEqual(THEMES, ["adventure", "hedge", "marble_maze", "space"]);
 });
 
 test("preserves type, value, coordinate string representations and unknown keys", () => {

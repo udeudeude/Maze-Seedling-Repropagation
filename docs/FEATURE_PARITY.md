@@ -31,8 +31,8 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 
 - Original native symbols: TileReader::getBoardCorners, computeBoard, drawGrid, getWalls, setBoardDimensions, removeBoardEdges; native board model can identify start and end.
 - The first-hand Toy Insider review explicitly confirms automatic wall, punched-hole, start and finish recognition.
-- The original kit has 45 wall blocks in three lengths; the 18 × 18 size is VERIFIED FOR THE DIGITAL PRESETS only, not the physical camera scanning grid.
-- Current classifier is a provisional wood-color heuristic. It preserves existing tiles, allows sensitivity adjustment and manual review, and does not yet recognize all original features. Accuracy on real Seedling photos is NOT independently established.
+- [Original kit contents photograph](https://www.vat19.com/item/design-your-own-marble-maze-virtual-reality) shows charcoal-black walls, not tan wood. The original kit has 45 wall blocks in three lengths; the 18 × 18 size is VERIFIED FOR THE DIGITAL PRESETS only, not the physical camera scanning grid.
+- Current classifier is a provisional locally adaptive dark-strip shape detector, designed after examining photos of the actual charcoal wall pieces. It preserves existing tiles, allows sensitivity adjustment and manual review, and does not yet recognize all original features. Accuracy on real Seedling photos is NOT independently established.
 
 ## High-priority order
 

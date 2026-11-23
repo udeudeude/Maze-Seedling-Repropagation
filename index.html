@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="theme-color" content="#171b21">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Recreate and explore a maze built with the original Seedling wooden maze kit.">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="stylesheet" href="./style.css">
+  <title>Maze · Repropagation</title>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">▦</span>
+        <span><strong>MAZE</strong><small>REPROPAGATION</small></span></div>
+      <div class="top-actions">
+        <span class="state-pill" id="savedIndicator" aria-live="polite">Ready</span>
+        <button class="icon-button" type="button" id="menuButton" aria-label="Open file and settings menu">☰</button>
+      </div>
+    </header>
+    <main id="main">
+      <section class="view view-build" id="buildView" aria-labelledby="buildTitle">
+        <div class="section-top">
+          <div><p class="eyebrow">THE BOARD</p><h1 id="buildTitle">My Maze</h1></div>
+          <label class="theme-control"><span>WORLD</span>
+            <select id="themeSelect" aria-label="Choose world">
+              <option value="marble_maze">Marble Mayhem</option>
+              <option value="adventure">Forbidden Temple</option>
+              <option value="hedge">Castle Quest</option>
+              <option value="space">Space Race</option>
+            </select>
+          </label>
+        </div>
+        <div class="editor-actions">
+          <button id="undoButton" type="button" title="Undo" aria-label="Undo previous edit">↶ <span>Undo</span></button>
+          <button id="redoButton" type="button" title="Redo" aria-label="Redo previous edit">↷ <span>Redo</span></button>
+          <button id="inspectButton" type="button">Inspect tile</button>
+          <span class="editor-stat" id="boardStatus" aria-live="polite">18 × 18</span>
+        </div>
+        <div class="board-wrap"><canvas id="boardCanvas" role="img"
+          aria-label="Editable eighteen by eighteen maze grid. Select a tile, then tap or drag on cells to paint.">Maze board</canvas>
+          <div class="board-coordinates"><span>0</span><span>17</span></div></div>
+        <div class="board-info"><span id="tileStatus" aria-live="polite">Wall selected · Tap to place</span>
+          <button id="routeButton" type="button">Check route</button></div>
+        <div class="toolbox" aria-label="Maze tile tools" id="toolbox" role="group"></div>
+        <div class="help-line">Drag to draw. Select <strong>Erase</strong> to clear. Changes are saved on this phone.</div>
+      </section>
+      <section class="view view-explore" id="exploreView" hidden aria-labelledby="exploreTitle">
+        <div class="section-top">
+          <div><p class="eyebrow">THROUGH THE MAZE</p><h1 id="exploreTitle">Explore</h1></div>
+          <button class="quiet-button" id="restartButton" type="button">Restart</button>
+        </div>
+        <div class="scene-wrap">
+          <canvas id="sceneCanvas" aria-label="First-person view into your maze"></canvas>
+          <div class="scene-data"><span id="timeReadout">5:00</span><span id="playReadout" aria-live="polite">Find the exit</span></div>
+        </div>
+        <div class="explore-actions">
+          <button id="mapButton" type="button" aria-pressed="false">Map</button>
+          <button id="stereoButton" type="button" aria-pressed="false">Cardboard</button>
+          <span class="explore-tip">Hold buttons to move</span>
+        </div>
+        <div class="touch-controls" aria-label="Movement controls">
+          <div class="movement-pad">
+            <button data-control="strafeLeft" type="button" aria-label="Strafe left">←</button>
+            <button data-control="forward" type="button" aria-label="Forward">↑</button>
+            <button data-control="backward" type="button" aria-label="Backward">↓</button>
+            <button data-control="strafeRight" type="button" aria-label="Strafe right">→</button>
+          </div>
+          <div class="turn-pad">
+            <button data-control="turnLeft" type="button" aria-label="Turn left">⟲</button>
+            <button data-control="turnRight" type="button" aria-label="Turn right">⟳</button>
+          </div>
+        </div>
+        <div class="play-message" id="playMessage" role="status">Explore a maze you have built or imported.</div>
+      </section>
+      <section class="view view-photo" id="photoView" hidden aria-labelledby="photoTitle">
+        <div class="section-top"><div><p class="eyebrow">FROM WOOD TO WORLD</p><h1 id="photoTitle">Capture your maze</h1></div></div>
+        <p class="capture-intro">Photograph your physical Seedling maze. Align its four corners to trace the design into the digital grid.</p>
+        <label class="photo-picker">
+          <input id="photoInput" type="file" accept="image/*" capture="environment">
+          <span class="photo-icon" aria-hidden="true">◎</span><strong>Choose or take a photograph</strong>
+          <small>Processed locally on your phone.</small>
+        </label>
+        <div class="photo-stage" id="photoStage" hidden>
+          <canvas id="photoCanvas" aria-label="Photograph of physical maze with four adjustable corners"></canvas>
+          <span class="photo-hint">Drag the numbered corners onto the board's four corners.</span>
+        </div>
+        <div class="photo-actions">
+          <button type="button" id="traceButton" disabled>Use as tracing guide</button>
+          <button type="button" id="clearPhotoButton" disabled>Discard photo</button>
+        </div>
+        <p class="capture-note">Automatic recognition is being reconstructed from the original scanner. Corner alignment and manual tracing are available first. Do not assume the original physical grid is identical to the game's 18 × 18 digital grid.</p>
+      </section>
+    </main>
+    <nav class="tabbar" aria-label="Main navigation">
+      <button type="button" class="tab active" data-view="build" aria-current="page"><span>▦</span>Build</button>
+      <button type="button" class="tab" data-view="photo"><span>◎</span>Capture</button>
+      <button type="button" class="tab" data-view="explore"><span>◈</span>Explore</button>
+    </nav>
+  </div>
+  <dialog id="menuDialog" class="sheet">
+    <form method="dialog" class="sheet-header"><h2>Maze files</h2><button aria-label="Close menu" class="icon-button">✕</button></form>
+    <div class="sheet-body">
+      <label class="field-label" for="mazeNameInput">Maze name</label>
+      <input id="mazeNameInput" maxlength="80" placeholder="My maze" autocomplete="off">
+      <button id="renameButton" type="button" class="full-button primary">Rename maze</button>
+      <div class="separator"></div>
+      <button id="importButton" class="full-button" type="button">Import Seedling maze file</button>
+      <input type="file" id="importInput" accept=".json,application/json" hidden>
+      <button id="exportButton" class="full-button" type="button">Export maze JSON</button>
+      <button id="newButton" class="full-button" type="button">New blank maze</button>
+      <button id="practiceButton" class="full-button" type="button">Load practice maze</button>
+      <p class="sheet-hint">Your board is autosaved locally, not uploaded to a server. Export makes a portable backup.</p>
+    </div>
+  </dialog>
+  <dialog id="tileDialog" class="sheet">
+    <form method="dialog" class="sheet-header"><h2 id="tileDialogTitle">Tile details</h2><button aria-label="Close tile details" class="icon-button">✕</button></form>
+    <div class="sheet-body">
+      <p id="tileDetailType"></p>
+      <label class="field-label" for="variantInput">Variant / gate identifier</label>
+      <input id="variantInput" placeholder="0">
+      <label class="field-label" for="messageInput">Message or riddle note</label>
+      <textarea id="messageInput" rows="3" placeholder="Optional note"></textarea>
+      <button type="button" class="full-button primary" id="saveTileButton">Save tile</button>
+      <button type="button" class="full-button" id="deleteTileButton">Erase this tile</button>
+    </div>
+  </dialog>
+  <script type="module" src="./src/app.mjs"></script>
+</body></html>

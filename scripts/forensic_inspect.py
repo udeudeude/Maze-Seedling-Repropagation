@@ -67,6 +67,10 @@ def managed_types(apk):
                                 except Exception:
                                     pass
                                 item = {"name": (namespace + "." if namespace else "") + name, "methods": methods}
+                                try:
+                                    item["fields"] = [clean(getattr(field, "row", field).Name) for field in typedef.FieldList]
+                                except Exception:
+                                    item["fields"] = []
                                 row["types"].append(item)
                                 if TERMS.search(item["name"]) or (entry.filename.endswith("/Assembly-CSharp.dll") and TERMS.search(" ".join(methods))):
                                     output["interesting_types"].append({"assembly": Path(entry.filename).name, **item})
@@ -169,6 +173,95 @@ def unity_info(apk, obb):
     output["interesting_names"] = output["interesting_names"][:500]
     return output
 
+
+def dex_info(apk):
+    result = {"classes": [], "native_libraries": [], "layouts": [], "errors": []}
+    try:
+        from androguard.core.dex import DEX
+        from androguard.core.axml import AXMLPrinter
+        with zipfile.ZipFile(apk) as source:
+            result["native_libraries"] = sorted(n for n in source.namelist() if n.startswith("lib/") and n.endswith(".so"))
+            for path in source.namelist():
+                if not path.startswith("res/layout/") or not path.endswith(".xml"):
+                    continue
+                if not TERMS.search(path):
+                    continue
+                layout = {"file": path, "elements": []}
+                try:
+                    root = AXMLPrinter(source.read(path)).get_xml_obj()
+                    for node in root.iter():
+                        tag = str(node.tag).split("}")[-1]
+                        label = []
+                        for attr, value in node.attrib.items():
+                            key = str(attr).split("}")[-1]
+                            if key in {"id", "text", "hint", "contentDescription"}:
+                                label.append({key: str(value)[:100]})
+                        layout["elements"].append({"tag": tag, "attributes": label})
+                except Exception as exc:
+                    layout["error"] = clean(exc)
+                result["layouts"].append(layout)
+            binary = source.read("classes.dex")
+        dex = DEX(binary)
+        for cls in dex.get_classes():
+            name = cls.get_name()
+            if not any(name.startswith(prefix) for prefix in (
+                "Lcom/seedling/maze/", "Lcom/example/zac/editmaze/",
+                "Lcom/seedling/androidunityplugin/")):
+                continue
+            methods = []
+            fields = []
+            try:
+                methods = [clean(method.get_name()) + clean(method.get_descriptor()) for method in cls.get_methods()]
+                fields = [clean(field.get_name()) for field in cls.get_fields()]
+            except Exception as exc:
+                result["errors"].append({"class": name, "error": clean(exc)})
+            result["classes"].append({"name": name, "methods": methods, "fields": fields})
+    except Exception as exc:
+        result["errors"].append({"stage": "dex", "error": clean(exc)})
+    result["class_count"] = len(result["classes"])
+    return result
+
+def preset_info(apk):
+    result = {"files": [], "errors": []}
+    with zipfile.ZipFile(apk) as source:
+        for name in sorted(source.namelist()):
+            if not (name.startswith("assets/json/") and name.endswith(".json")):
+                continue
+            try:
+                data = json.loads(source.read(name).decode("utf-8-sig"))
+            except Exception as exc:
+                result["errors"].append({"file": name, "error": clean(exc)})
+                continue
+            paths = collections.defaultdict(lambda: {"kinds": [], "lengths": [], "examples": []})
+            def inspect(value, path, level=0):
+                if level > 7 or len(paths) > 650:
+                    return
+                row = paths[path]
+                kind = type(value).__name__
+                if kind not in row["kinds"]:
+                    row["kinds"].append(kind)
+                if isinstance(value, dict):
+                    if len(row["examples"]) < 2:
+                        row["examples"].append({"keys": list(value)[:65]})
+                    for key, child in value.items():
+                        inspect(child, path + "." + str(key), level + 1)
+                elif isinstance(value, list):
+                    if len(row["lengths"]) < 6 and len(value) not in row["lengths"]:
+                        row["lengths"].append(len(value))
+                    for child in value[:35]:
+                        inspect(child, path + "[]", level + 1)
+                elif isinstance(value, (int, float, bool)) and not isinstance(value, bool):
+                    if len(row["examples"]) < 5 and value not in row["examples"]:
+                        row["examples"].append(value)
+                elif isinstance(value, str):
+                    if len(row["examples"]) < 3 and len(value) < 70 and TERMS.search(path):
+                        row["examples"].append(clean(value))
+            inspect(data, "$")
+            result["files"].append({"file": name, "schema": dict(paths)})
+    result["file_count"] = len(result["files"])
+    return result
+
+
 def main():
     source, destination = sys.argv[1:3]
     Path(destination).mkdir(parents=True, exist_ok=True)
@@ -195,6 +288,10 @@ def main():
             save(Path(destination) / "managed-types.json", code)
             images = image_info(apk)
             save(Path(destination) / "images.json", images)
+            java = dex_info(apk)
+            save(Path(destination) / "android-code.json", java)
+            presets = preset_info(apk)
+            save(Path(destination) / "presets-schema.json", presets)
             unity = unity_info(apk, obb)
             save(Path(destination) / "unity-assets.json", unity)
             print("PACKAGE", json.dumps(package, ensure_ascii=False)[:1200])
@@ -202,6 +299,12 @@ def main():
             for x in code.get("interesting_types", [])[:120]:
                 print("CODE HIGHLIGHT", x["assembly"], x["name"], ", ".join(x["methods"][:16]))
             print("IMAGES", json.dumps({"count": images["count"], "interesting": len(images["interesting"])}))
+            print("ANDROID CODE", json.dumps({"class_count": java["class_count"], "native_libraries": java["native_libraries"], "errors": java["errors"][:10]}))
+            for x in java["classes"]:
+                print("ANDROID CLASS", x["name"], "FIELDS", ", ".join(x["fields"][:15]), "METHODS", ", ".join(x["methods"][:25]))
+            print("PRESET FILES", presets["file_count"], "ERRORS", presets["errors"])
+            for x in presets["files"]:
+                print("PRESET", x["file"], "SCHEMA", json.dumps({k:v for k,v in x["schema"].items() if k.count(".") < 4})[:1700])
             print("UNITY", json.dumps({"files_parsed": unity.get("files_parsed"), "total_types": unity.get("total_types"), "errors": unity.get("errors", [])[:12]})[:2500])
             for x in unity.get("interesting_names", [])[:120]:
                 print("UNITY HIGHLIGHT", json.dumps(x, ensure_ascii=False))

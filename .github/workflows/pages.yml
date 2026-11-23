@@ -1,0 +1,51 @@
+name: Publish Maze web prototype
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "index.html"
+      - "style.css"
+      - "manifest.webmanifest"
+      - "sw.js"
+      - "src/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "maze-pages"
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    environment:
+      name: github-pages
+      url: \${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check JavaScript and gameplay tests
+        run: |
+          node --check src/app.mjs
+          node --check src/maze-world.mjs
+          node --check src/maze-play.mjs
+          node --check src/maze-capture.mjs
+          node --check sw.js
+          node --test tests/*.test.mjs
+      - name: Assemble static site without forensic or copyrighted binaries
+        run: |
+          mkdir -p public/src
+          cp index.html style.css manifest.webmanifest sw.js public/
+          cp src/*.mjs public/src/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: public/
+      - id: deployment
+        uses: actions/deploy-pages@v4

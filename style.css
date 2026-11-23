@@ -105,6 +105,17 @@ select{width:100%;min-height:36px;border:1px solid #3b4650;border-radius:9px;
   border:1px solid #4b5860;background:#2c3941;font-weight:600}
 #traceButton,.primary{background:var(--accent)!important;color:#1b2023!important;
   border-color:var(--accent)!important}
+.scan-stage{margin-top:18px;border:1px solid #58656b;border-radius:12px;background:#202a31;padding:14px}
+.scan-stage h2{font-size:18px;margin:2px 0 6px}
+.scan-stage p{font-size:12px;line-height:1.5;color:#c4c9c6;margin:0 0 12px}
+#scanCanvas{display:block;width:min(100%,440px);height:auto;aspect-ratio:1;margin:0 auto 14px;border:1px solid #7a8a8f;touch-action:none}
+.scan-slider{display:grid;gap:5px;margin:7px 0 13px}
+.scan-slider label{font-size:13px;font-weight:620}
+.scan-slider input{width:100%;accent-color:var(--accent);min-height:40px}
+.scan-slider span{font-size:11px;color:var(--dim);display:block;text-align:center}
+.scan-actions{display:flex;gap:8px;flex-wrap:wrap}
+.scan-actions button{border:1px solid #56626a;background:#2f3d46;border-radius:10px;padding:12px 13px;min-height:44px;font-weight:600}
+.scan-actions button:disabled{opacity:.4}
 .capture-note{font-size:12px;line-height:1.6;color:#aab7bc;border-left:2px solid #7d8790;
   padding-left:12px;margin-top:18px}
 .sheet{border:1px solid #4f5e68;background:#1d262e;color:var(--text);

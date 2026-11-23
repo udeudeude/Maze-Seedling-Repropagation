@@ -1,17 +1,7 @@
 name: Inspect original Android archive
 
 on:
-  push:
-    paths:
-      - .github/workflows/inspect-original.yml
-      - scripts/forensic_inspect.py
-      - scripts/verify-original-presets.mjs
   workflow_dispatch:
-    inputs:
-      download_url:
-        description: "Dropbox link to the original XAPK ZIP (no login required)"
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -26,7 +16,7 @@ jobs:
         run: python3 -m pip install --quiet --disable-pip-version-check 'dnfile>=0.15,<1' 'UnityPy>=1.20,<2' 'androguard>=4,<5'
       - name: Fetch public archive
         env:
-          DOWNLOAD_URL: ${{ github.event_name == 'workflow_dispatch' && inputs.download_url || 'https://d.apkpure.com/b/XAPK/com.seedling.maze?version=latest' }}
+          DOWNLOAD_URL: https://d.apkpure.com/b/XAPK/com.seedling.maze?version=latest
         run: |
           python3 - <<'PY'
           import hashlib

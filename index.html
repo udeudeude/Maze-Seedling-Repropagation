@@ -79,11 +79,18 @@
       <section class="view view-photo" id="photoView" hidden aria-labelledby="photoTitle">
         <div class="section-top"><div><p class="eyebrow">FROM WOOD TO WORLD</p><h1 id="photoTitle">Capture your maze</h1></div></div>
         <p class="capture-intro">Photograph your physical Seedling maze. Align its four corners to trace the design into the digital grid.</p>
-        <label class="photo-picker">
-          <input id="photoInput" type="file" accept="image/*" capture="environment">
-          <span class="photo-icon" aria-hidden="true">◎</span><strong>Choose or take a photograph</strong>
-          <small>Processed locally on your phone.</small>
-        </label>
+        <div class="photo-pickers">
+          <label class="photo-picker">
+            <input id="photoInput" type="file" accept="image/*,.heic,.heif">
+            <span class="photo-icon" aria-hidden="true">▧</span><strong>Choose a photograph</strong>
+            <small>Photos or Files</small>
+          </label>
+          <label class="photo-picker">
+            <input id="cameraInput" type="file" accept="image/*" capture="environment">
+            <span class="photo-icon" aria-hidden="true">◎</span><strong>Take a photograph</strong>
+            <small>Open the camera</small>
+          </label>
+        </div>
         <div class="photo-stage" id="photoStage" hidden>
           <canvas id="photoCanvas" aria-label="Photograph of physical maze with four adjustable corners"></canvas>
           <span class="photo-hint">Drag the numbered corners onto the board's four corners.</span>

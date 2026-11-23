@@ -21,5 +21,12 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
+      - name: Validate browser and worker JavaScript syntax
+        run: |
+          node --check src/app.mjs
+          node --check src/maze-world.mjs
+          node --check src/maze-play.mjs
+          node --check src/maze-capture.mjs
+          node --check sw.js
       - name: Run native Node.js tests
         run: node --test tests/*.test.mjs

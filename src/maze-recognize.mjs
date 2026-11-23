@@ -42,107 +42,134 @@ export function sampleGrid(image,columns=18,rows=18) {
   return cells;
 }
 
-function rectangleSum(table,stride,x0,y0,x1,y1){
-  return table[y1*stride+x1]-table[y0*stride+x1]
-    -table[y1*stride+x0]+table[y0*stride+x0];
-}
-function integralOf(values,width,height){
-  const stride=width+1,table=new Float64Array(stride*(height+1));
-  for(let y=0;y<height;y++){
-    let row=0;
-    for(let x=0;x<width;x++){
-      row+=values[y*width+x];
-      table[(y+1)*stride+x+1]=table[y*stride+x+1]+row;
-    }
+/** Select a conservative threshold that follows the dark/bright populations.
+ * A global threshold retains uniformly charcoal interiors, which a local
+ * threshold can mistakenly turn white. */
+function percentileHistogram(histogram,total,fraction){
+  const target=total*fraction;let count=0;
+  for(let i=0;i<histogram.length;i++){
+    count+=histogram[i];if(count>=target)return i;
   }
-  return table;
+  return 255;
 }
-
-/**
- * Locally adaptive dark-pixel segmentation. Using a local brightness reference
- * helps preserve contrast in uneven lighting, rather than treating all shadows
- * as blocks. This is a candidate mask, not a hole/marker classifier.
- */
-export function darkPixelMask(image,columns=18){
+function otsu(histogram,total){
+  let sum=0;for(let i=0;i<256;i++)sum+=i*histogram[i];
+  let lowWeight=0,lowSum=0,best=-1,threshold=0;
+  for(let i=0;i<256;i++){
+    lowWeight+=histogram[i];
+    if(!lowWeight)continue;
+    const highWeight=total-lowWeight;
+    if(!highWeight)break;
+    lowSum+=i*histogram[i];
+    const difference=lowSum/lowWeight-(sum-lowSum)/highWeight;
+    const score=lowWeight*highWeight*difference*difference;
+    if(score>best){best=score;threshold=i;}
+  }
+  return threshold;
+}
+export function darkPixelMask(image){
   validatePixels(image);
-  const {width:w,height:h}=image,gray=new Float64Array(w*h);
-  for(let p=0;p<w*h;p++){
+  const {width,height,data}=image,total=width*height;
+  const luminance=new Uint8Array(total),histogram=new Uint32Array(256);
+  for(let p=0;p<total;p++){
     const i=p*4;
-    gray[p]=image.data[i+3]<160?255:
-      image.data[i]*.2126+image.data[i+1]*.7152+image.data[i+2]*.0722;
+    const y=Math.round(data[i]*.2126+data[i+1]*.7152+data[i+2]*.0722);
+    const value=data[i+3]<160?255:y;
+    luminance[p]=value;histogram[value]++;
   }
-  const integral=integralOf(gray,w,h),stride=w+1;
-  const radius=Math.max(7,Math.round(w/columns*.9));
-  const mask=new Uint8Array(w*h);
+  const p8=percentileHistogram(histogram,total,.08);
+  const p85=percentileHistogram(histogram,total,.85);
+  const otsuThreshold=otsu(histogram,total);
+  const threshold=Math.min(150,otsuThreshold+17,p8+.30*(p85-p8));
+  const mask=new Uint8Array(total);
   let count=0;
-  for(let y=0;y<h;y++){
-    const top=Math.max(0,y-radius),bottom=Math.min(h,y+radius+1);
-    for(let x=0;x<w;x++){
-      const left=Math.max(0,x-radius),right=Math.min(w,x+radius+1);
-      const avg=rectangleSum(integral,stride,left,top,right,bottom)/
-        ((right-left)*(bottom-top));
-      const isDark=gray[y*w+x]<Math.min(177,Math.max(32,avg*.67));
-      if(isDark){mask[y*w+x]=1;count++;}
+  for(let p=0;p<total;p++){
+    const i=p*4;
+    const chroma=Math.max(data[i],data[i+1],data[i+2])-
+      Math.min(data[i],data[i+1],data[i+2]);
+    if(luminance[p]<threshold && chroma<75){
+      mask[p]=1;count++;
     }
   }
-  return {mask,width:w,height:h,darkFraction:count/(w*h)};
+  return {mask,width,height,darkFraction:count/total,
+    threshold,contrast:p85-p8};
 }
-
-const offsets=[.10,.20,.30,.40,.50,.60,.70,.80,.90];
 
 /**
- * The wall is a narrow extended strip, so measure elongated vertical and
- * horizontal bands. A round hole occupies only a short fraction of those bands.
+ * Keep only dark pixels belonging to LONG horizontal or vertical runs. This
+ * rejects round punched holes, ink dots, and tiny photographic artifacts.
+ * Runs are collected independently for each axis and unioned.
  */
-export function shapeScoreForTile(integral,width,height,columns,rows,x,z){
-  const sx=width/columns,sy=height/rows,stride=width+1;
-  function fraction(cx,cy,halfWidth,halfHeight){
-    const x0=clamp(Math.floor(cx-halfWidth),0,width-1),
-      x1=clamp(Math.ceil(cx+halfWidth),x0+1,width),
-      y0=clamp(Math.floor(cy-halfHeight),0,height-1),
-      y1=clamp(Math.ceil(cy+halfHeight),y0+1,height);
-    return rectangleSum(integral,stride,x0,y0,x1,y1)/((x1-x0)*(y1-y0));
+export function extendedStripMask(mask,width,height,minimumLength){
+  const result=new Uint8Array(width*height);
+  const horizontal=Math.max(2,Math.round(minimumLength));
+  const vertical=horizontal;
+  for(let y=0;y<height;y++){
+    let x=0;
+    while(x<width){
+      const start=x;
+      while(x<width&&!mask[y*width+x])x++;
+      if(x!==start)continue;
+      while(x<width&&mask[y*width+x])x++;
+      if(x-start>=horizontal){
+        for(let at=start;at<x;at++)result[y*width+at]=1;
+      }
+    }
   }
-  let vertical=0,horizontal=0;
-  for(const offset of offsets){
-    vertical=Math.max(vertical,fraction(
-      (x+offset)*sx,(z+.5)*sy,sx*.09,sy*.39));
-    horizontal=Math.max(horizontal,fraction(
-      (x+.5)*sx,(z+offset)*sy,sx*.39,sy*.09));
+  for(let x=0;x<width;x++){
+    let y=0;
+    while(y<height){
+      const start=y;
+      while(y<height&&!mask[y*width+x])y++;
+      if(y!==start)continue;
+      while(y<height&&mask[y*width+x])y++;
+      if(y-start>=vertical){
+        for(let at=start;at<y;at++)result[at*width+x]=1;
+      }
+    }
   }
-  return {score:Math.max(vertical,horizontal),orientation:vertical>=horizontal?"vertical":"horizontal"};
+  return result;
 }
 
-/** Candidate walls only; caller must offer a review and correction stage. */
+/** Provisional physical-wall coordinates, to be reviewed before changing a maze. */
 export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
   if(!Number.isFinite(sensitivity)||sensitivity<0||sensitivity>1)
     throw new RangeError("Sensitivity must be from 0 to 1");
-  // Validate all sampling dimensions and image data.
   sampleGrid(image,columns,rows);
-  const {width,height,mask,darkFraction}=darkPixelMask(image,columns);
-  if(darkFraction<.0015 || darkFraction>.73){
+  const {width,height,mask,darkFraction,threshold,contrast}=darkPixelMask(image);
+  if(darkFraction<.0015||darkFraction>.72||contrast<25){
     return {suggestions:[],grid:[columns,rows],quality:"low-contrast",
-      message:"No reliable dark wall contours found. Adjust lighting or board corners.",
-      threshold:null,darkFraction};
+      message:"Insufficient separation between dark walls and paper. Check lighting and corners.",
+      threshold,darkFraction};
   }
-  const integral=integralOf(mask,width,height);
-  const threshold=.79-.30*sensitivity; // Default 0.64; fewer at low sensitivity.
+  const tileWidth=width/columns,tileHeight=height/rows;
+  const minLength=Math.max(8,Math.round(Math.min(tileWidth,tileHeight)*.70));
+  const extended=extendedStripMask(mask,width,height,minLength);
+  const tileCount=columns*rows;
+  const totals=new Uint32Array(tileCount);
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    if(!extended[y*width+x])continue;
+    const column=Math.min(columns-1,Math.floor(x/tileWidth));
+    const row=Math.min(rows-1,Math.floor(y/tileHeight));
+    totals[row*columns+column]++;
+  }
+  const minimumCoverage=.235-.27*sensitivity; // 0.10 at default; 0.235 at minimum
   const suggestions=[];
   for(let z=0;z<rows;z++)for(let x=0;x<columns;x++){
-    const shape=shapeScoreForTile(integral,width,height,columns,rows,x,z);
-    if(shape.score>=threshold)suggestions.push({
-      x,z,orientation:shape.orientation,
-      score:Number(shape.score.toFixed(3)),
-      confidence:Number(clamp((shape.score-threshold)/Math.max(.08,1-threshold),0,1).toFixed(2))
-    });
+    const x0=Math.ceil(x*tileWidth),x1=Math.ceil((x+1)*tileWidth);
+    const z0=Math.ceil(z*tileHeight),z1=Math.ceil((z+1)*tileHeight);
+    const coverage=totals[z*columns+x]/Math.max(1,(x1-x0)*(z1-z0));
+    if(coverage>=minimumCoverage)suggestions.push({x,z,
+      score:Number(coverage.toFixed(3)),
+      confidence:Number(clamp((coverage-minimumCoverage)/(1-minimumCoverage),0,1).toFixed(2))});
   }
-  const ratio=suggestions.length/(columns*rows);
+  const ratio=suggestions.length/tileCount;
   const quality=ratio>.55?"too-many":ratio<.008?"very-few":"review";
   const message=quality==="too-many"
-    ?"Too many dark squares. Check alignment or use fewer-wall sensitivity."
+    ?"Too many cells are dark. Recheck all four corners; the photograph may include the frame or background."
     :quality==="very-few"
-      ?"Only a few dark strips could be identified. Check the corners and lighting."
-      :"Review all proposals. Large holes, shadows and printed patterns can still fool this detector.";
+      ?"Few wall strips found. Check corner placement and try a higher sensitivity."
+      :"Proposals are provisional. Correct missing walls and mistakes before adding them.";
   return {suggestions,grid:[columns,rows],threshold,darkFraction,quality,message};
 }
 

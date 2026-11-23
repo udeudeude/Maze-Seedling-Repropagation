@@ -96,10 +96,25 @@
           <span class="photo-hint">Drag the numbered corners onto the board's four corners.</span>
         </div>
         <div class="photo-actions">
-          <button type="button" id="traceButton" disabled>Use as tracing guide</button>
+          <button type="button" class="primary" id="detectButton" disabled>Suggest wall positions</button>
+          <button type="button" id="traceButton" disabled>Trace manually</button>
           <button type="button" id="clearPhotoButton" disabled>Discard photo</button>
         </div>
-        <p class="capture-note">Automatic recognition is being reconstructed from the original scanner. Corner alignment and manual tracing are available first. Do not assume the original physical grid is identical to the game's 18 × 18 digital grid.</p>
+        <div class="scan-stage" id="scanStage" hidden>
+          <h2>Review detected walls</h2>
+          <p id="scanStatus" role="status">Suggestions will appear here.</p>
+          <canvas id="scanCanvas" tabindex="0" aria-label="Corrected board photograph with proposed wall tiles; tap a square to select or deselect a wall."></canvas>
+          <div class="scan-slider">
+            <label for="sensitivitySlider">Detection sensitivity</label>
+            <input id="sensitivitySlider" type="range" min="0" max="100" step="5" value="50">
+            <span>Fewer walls <span aria-hidden="true">·</span> More walls</span>
+          </div>
+          <div class="scan-actions">
+            <button type="button" id="applyScanButton" class="primary">Add reviewed walls</button>
+            <button type="button" id="cancelScanButton">Return to photograph</button>
+          </div>
+        </div>
+        <p class="capture-note">Wall suggestions are experimental, not the original scanner. Align corners carefully, inspect the suggestions, and correct mistakes before applying them. This first pass cannot reliably identify holes, start or finish markers, or the physical board grid independently.</p>
       </section>
     </main>
     <nav class="tabbar" aria-label="Main navigation">

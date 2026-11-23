@@ -58,7 +58,19 @@ export function tickPlayer(state,seconds) {
   return {...state,remaining,boostUntil:Math.max(0,state.boostUntil-seconds),
     ended:remaining===0,won:false,message:remaining===0?"Time is up":state.message};
 }
-export function castRay(maze,x,z,heading,maxDistance=28) {
+/** Build one collision index for all rays in a rendered frame. */
+export function createWallIndex(maze,keys=[]) {
+  const width=Number(maze.data.scale[0]),height=Number(maze.data.scale[2]);
+  const tiles=new Array(width*height).fill(null);
+  for(const cell of maze.data.cells) {
+    const x=Number(cell.position[0]),z=Number(cell.position[2]);
+    if(!Number.isInteger(x)||!Number.isInteger(z)||x<0||z<0||x>=width||z>=height)continue;
+    if(cell.type==="wall"||(cell.type==="gate"&&!keys.includes(String(cell.variant??"0"))))
+      tiles[z*width+x]=cell.type;
+  }
+  return {width,height,tiles};
+}
+export function castRay(maze,x,z,heading,maxDistance=28,wallIndex=null) {
   const dx=Math.cos(heading),dz=Math.sin(heading);
   let cellX=Math.floor(x),cellZ=Math.floor(z);
   const stepX=dx>=0?1:-1,stepZ=dz>=0?1:-1;
@@ -70,10 +82,13 @@ export function castRay(maze,x,z,heading,maxDistance=28) {
     if(sideX<sideZ){dist=sideX;sideX+=tdeltaX;cellX+=stepX;side=0;}
     else{dist=sideZ;sideZ+=tdeltaZ;cellZ+=stepZ;side=1;}
     if(dist>maxDistance)break;
-    if(!passable(maze,cellX,cellZ)) {
-      const contents=primaryCell(maze,cellX,cellZ)?.cell;
+    const indexed=wallIndex && cellX>=0&&cellZ>=0&&cellX<wallIndex.width&&cellZ<wallIndex.height;
+    const outside=wallIndex&&(cellX<0||cellZ<0||cellX>=wallIndex.width||cellZ>=wallIndex.height);
+    const obstacle=wallIndex ? (outside?"wall":wallIndex.tiles[cellZ*wallIndex.width+cellX])
+      : (!passable(maze,cellX,cellZ)?(primaryCell(maze,cellX,cellZ)?.cell.type??"wall"):null);
+    if(obstacle) {
       const face=side===0?z+dist*dz:x+dist*dx;
-      return {distance:Math.max(0.015,dist),cellX,cellZ,side,texture:face-Math.floor(face),kind:contents?.type??"wall"};
+      return {distance:Math.max(0.015,dist),cellX,cellZ,side,texture:face-Math.floor(face),kind:obstacle};
     }
   }
   return null;
@@ -83,6 +98,8 @@ export function renderScene(ctx,maze,player,{stereo=false}={}) {
   const canvas=ctx.canvas,{width:w,height:h}=canvas;
   const color=THEMATIC[maze.data.theme]??THEMATIC.marble_maze;
   const views=stereo?2:1;
+  const walls=createWallIndex(maze,player.keys);
+  const lateral=player.heading+Math.PI/2;
   ctx.fillStyle=color.sky;ctx.fillRect(0,0,w,h/2);
   ctx.fillStyle=color.floor;ctx.fillRect(0,h/2,w,h/2);
   for(let eye=0;eye<views;eye++){
@@ -93,9 +110,8 @@ export function renderScene(ctx,maze,player,{stereo=false}={}) {
     for(let px=0;px<vw;px+=beamStep){
       const screen=px/vw*2-1;
       const angle=player.heading+Math.atan(screen*Math.tan(fov/2));
-      const side=player.heading+Math.PI/2;
-      const ox=player.x+Math.cos(side)*eyeOffset,oz=player.z+Math.sin(side)*eyeOffset;
-      const hit=castRay(maze,ox,oz,angle);
+      const ox=player.x+Math.cos(lateral)*eyeOffset,oz=player.z+Math.sin(lateral)*eyeOffset;
+      const hit=castRay(maze,ox,oz,angle,28,walls);
       if(!hit)continue;
       const corrected=hit.distance*Math.cos(angle-player.heading);
       const wallHeight=Math.min(h*4,(h*.86)/Math.max(.08,corrected));

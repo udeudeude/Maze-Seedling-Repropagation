@@ -1,0 +1,15 @@
+{
+  "name": "Maze by Seedling · Repropagation",
+  "short_name": "Maze",
+  "description": "An independent companion for the original Seedling wooden maze",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#171b21",
+  "theme_color": "#171b21",
+  "orientation": "any",
+  "categories": [
+    "games",
+    "education"
+  ]
+}

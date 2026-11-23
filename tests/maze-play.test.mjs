@@ -12,7 +12,10 @@ test("walls stop movement and raycasts see the first obstacle",()=>{
   let maze=newMaze();
   maze=paintTile(maze,2,1,"wall");
   const p=startPlay(maze);
-  assert.equal(movePlayer(maze,p,1).x,p.x);
+  let stopped=p;
+  for(let i=0;i<10;i++)stopped=movePlayer(maze,stopped,1);
+  assert.ok(stopped.x>p.x,"Player must approach the wall");
+  assert.ok(stopped.x<1.82,"Player must not cross the wall collision margin");
   const hit=castRay(maze,p.x,p.z,0);
   assert.equal(hit.cellX,2);assert.equal(hit.cellZ,1);
   assert.ok(hit.distance>.49&&hit.distance<.51);

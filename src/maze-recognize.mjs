@@ -1,24 +1,25 @@
 /**
- * Experimental local wall candidate classifier for perspective-corrected photos.
- * Looks for dark, relatively warm wooden blocks on a pale paper grid.
- * NOT Seedling's native OpenCV implementation; requires review before applying.
- * Does not yet identify holes, starts, finishes, or the actual scanning grid.
+ * Experimental wall classifier for the original Seedling kit's DARK WALL STRIPS.
+ *
+ * The actual wooden walls are dark charcoal strips in 3 lengths, mounted on a
+ * light gridded paper board. Here we look for long dark bands, not brown wood.
+ * Round punched holes tend to have much shorter one-axis run lengths.
+ *
+ * This does not reproduce the original OpenCV implementation and cannot
+ * recover starts, finishes, holes or the physical grid automatically.
+ * User approval is always required before any change to the maze.
  */
-function bound(value,min,max){return Math.max(min,Math.min(max,value));}
-function percentile(sorted,fraction){
-  if(!sorted.length)return 0;
-  const at=(sorted.length-1)*fraction,i=Math.floor(at),part=at-i;
-  return sorted[i]*(1-part)+sorted[Math.min(i+1,sorted.length-1)]*part;
-}
-function median(values){return percentile([...values].sort((a,b)=>a-b),.5);}
+
+const clamp=(n,min,max)=>Math.max(min,Math.min(max,n));
+
 function validatePixels(image){
   if(!image||!Number.isInteger(image.width)||!Number.isInteger(image.height)
     ||image.width<16||image.height<16||image.data?.length!==image.width*image.height*4)
-    throw new TypeError("Image requires at least 16 by 16 RGBA pixels");
+    throw new TypeError("Expected RGBA image data at least 16 by 16 pixels");
 }
 
-/** Sample centers to avoid the photographed grid's dark printed lines. */
-export function sampleGrid(image,columns=18,rows=18){
+/** Center-color samples help diagnostics and future empirical calibration. */
+export function sampleGrid(image,columns=18,rows=18) {
   validatePixels(image);
   if(!Number.isInteger(columns)||!Number.isInteger(rows)||columns<2||rows<2
     ||columns>60||rows>60||image.width<columns*3||image.height<rows*3)
@@ -41,55 +42,114 @@ export function sampleGrid(image,columns=18,rows=18){
   return cells;
 }
 
-/** Returns provisional tile coordinates and diagnostic, never mutates a maze. */
-export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
-  if(!Number.isFinite(sensitivity)||sensitivity<0||sensitivity>1)
-    throw new RangeError("Sensitivity must be between zero and one");
-  const cells=sampleGrid(image,columns,rows),valid=cells.filter(c=>c.count>0);
-  if(valid.length<columns*rows*.7)
-    return {suggestions:[],grid:[columns,rows],quality:"insufficient-image",
-      message:"The aligned board is partly outside the photograph.",threshold:null};
-  const bg={r:median(valid.map(c=>c.r)),g:median(valid.map(c=>c.g)),b:median(valid.map(c=>c.b))};
-  const luminosity=v=>.2126*v.r+.7152*v.g+.0722*v.b;
-  const light=luminosity(bg),warm=(bg.r-bg.b)/255;
-  const measured=cells.map(cell=>{
-    if(!cell.count)return {...cell,score:0};
-    const darkness=Math.max(0,(light-luminosity(cell))/255);
-    const tint=(cell.r-cell.b)/255;
-    const extraWarm=Math.max(0,tint-warm);
-    const relativeTint=bound((tint-warm*.45)/Math.max(.06,warm+.035),0,1.45);
-    // Neutral black trap holes should not automatically become walls.
-    const woodScore=darkness*(.08+.58*relativeTint)+extraWarm*1.08;
-    return {...cell,score:woodScore};
-  });
-  const scores=measured.map(c=>c.score).sort((a,b)=>a-b);
-  const baseline=percentile(scores,.5);
-  const spread=Math.max((percentile(scores,.95)-baseline)*.85,
-    (percentile(scores,.99)-baseline)*.60);
-  if(spread<.044)
-    return {suggestions:[],grid:[columns,rows],quality:"low-contrast",
-      message:"Wooden walls could not be separated reliably from the board.",
-      threshold:baseline+.044,background:bg,contrast:spread};
-  const threshold=baseline+Math.max(.039,spread*(.54-(sensitivity-.5)*.65));
-  const suggestions=measured.filter(c=>c.count>0&&c.score>threshold).map(c=>({
-    x:c.x,z:c.z,score:Number(c.score.toFixed(3)),
-    confidence:Number(bound((c.score-threshold)/Math.max(.08,spread),0,1).toFixed(2))
-  }));
-  const fraction=suggestions.length/cells.length;
-  const quality=fraction>.55?"too-many":fraction<.008?"very-few":"review";
-  const message=quality==="too-many"
-    ?"Many tiles were selected. Check the board corners or lower sensitivity."
-    :quality==="very-few"
-      ?"Only a few possible walls were found. Check the board corners."
-      :"Review every suggested wall; dark shadows and holes may be mistaken for blocks.";
-  return {suggestions,grid:[columns,rows],threshold,background:bg,
-    contrast:spread,quality,message};
+function rectangleSum(table,stride,x0,y0,x1,y1){
+  return table[y1*stride+x1]-table[y0*stride+x1]
+    -table[y1*stride+x0]+table[y0*stride+x0];
+}
+function integralOf(values,width,height){
+  const stride=width+1,table=new Float64Array(stride*(height+1));
+  for(let y=0;y<height;y++){
+    let row=0;
+    for(let x=0;x<width;x++){
+      row+=values[y*width+x];
+      table[(y+1)*stride+x+1]=table[y*stride+x+1]+row;
+    }
+  }
+  return table;
 }
 
-/** Add suggestions to empty cells only, preserving original metadata and all existing tiles. */
+/**
+ * Locally adaptive dark-pixel segmentation. Using a local brightness reference
+ * helps preserve contrast in uneven lighting, rather than treating all shadows
+ * as blocks. This is a candidate mask, not a hole/marker classifier.
+ */
+export function darkPixelMask(image,columns=18){
+  validatePixels(image);
+  const {width:w,height:h}=image,gray=new Float64Array(w*h);
+  for(let p=0;p<w*h;p++){
+    const i=p*4;
+    gray[p]=image.data[i+3]<160?255:
+      image.data[i]*.2126+image.data[i+1]*.7152+image.data[i+2]*.0722;
+  }
+  const integral=integralOf(gray,w,h),stride=w+1;
+  const radius=Math.max(7,Math.round(w/columns*.9));
+  const mask=new Uint8Array(w*h);
+  let count=0;
+  for(let y=0;y<h;y++){
+    const top=Math.max(0,y-radius),bottom=Math.min(h,y+radius+1);
+    for(let x=0;x<w;x++){
+      const left=Math.max(0,x-radius),right=Math.min(w,x+radius+1);
+      const avg=rectangleSum(integral,stride,left,top,right,bottom)/
+        ((right-left)*(bottom-top));
+      const isDark=gray[y*w+x]<Math.min(177,Math.max(32,avg*.67));
+      if(isDark){mask[y*w+x]=1;count++;}
+    }
+  }
+  return {mask,width:w,height:h,darkFraction:count/(w*h)};
+}
+
+const offsets=[.10,.20,.30,.40,.50,.60,.70,.80,.90];
+
+/**
+ * The wall is a narrow extended strip, so measure elongated vertical and
+ * horizontal bands. A round hole occupies only a short fraction of those bands.
+ */
+export function shapeScoreForTile(integral,width,height,columns,rows,x,z){
+  const sx=width/columns,sy=height/rows,stride=width+1;
+  function fraction(cx,cy,halfWidth,halfHeight){
+    const x0=clamp(Math.floor(cx-halfWidth),0,width-1),
+      x1=clamp(Math.ceil(cx+halfWidth),x0+1,width),
+      y0=clamp(Math.floor(cy-halfHeight),0,height-1),
+      y1=clamp(Math.ceil(cy+halfHeight),y0+1,height);
+    return rectangleSum(integral,stride,x0,y0,x1,y1)/((x1-x0)*(y1-y0));
+  }
+  let vertical=0,horizontal=0;
+  for(const offset of offsets){
+    vertical=Math.max(vertical,fraction(
+      (x+offset)*sx,(z+.5)*sy,sx*.09,sy*.39));
+    horizontal=Math.max(horizontal,fraction(
+      (x+.5)*sx,(z+offset)*sy,sx*.39,sy*.09));
+  }
+  return {score:Math.max(vertical,horizontal),orientation:vertical>=horizontal?"vertical":"horizontal"};
+}
+
+/** Candidate walls only; caller must offer a review and correction stage. */
+export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
+  if(!Number.isFinite(sensitivity)||sensitivity<0||sensitivity>1)
+    throw new RangeError("Sensitivity must be from 0 to 1");
+  // Validate all sampling dimensions and image data.
+  sampleGrid(image,columns,rows);
+  const {width,height,mask,darkFraction}=darkPixelMask(image,columns);
+  if(darkFraction<.0015 || darkFraction>.73){
+    return {suggestions:[],grid:[columns,rows],quality:"low-contrast",
+      message:"No reliable dark wall contours found. Adjust lighting or board corners.",
+      threshold:null,darkFraction};
+  }
+  const integral=integralOf(mask,width,height);
+  const threshold=.79-.30*sensitivity; // Default 0.64; fewer at low sensitivity.
+  const suggestions=[];
+  for(let z=0;z<rows;z++)for(let x=0;x<columns;x++){
+    const shape=shapeScoreForTile(integral,width,height,columns,rows,x,z);
+    if(shape.score>=threshold)suggestions.push({
+      x,z,orientation:shape.orientation,
+      score:Number(shape.score.toFixed(3)),
+      confidence:Number(clamp((shape.score-threshold)/Math.max(.08,1-threshold),0,1).toFixed(2))
+    });
+  }
+  const ratio=suggestions.length/(columns*rows);
+  const quality=ratio>.55?"too-many":ratio<.008?"very-few":"review";
+  const message=quality==="too-many"
+    ?"Too many dark squares. Check alignment or use fewer-wall sensitivity."
+    :quality==="very-few"
+      ?"Only a few dark strips could be identified. Check the corners and lighting."
+      :"Review all proposals. Large holes, shadows and printed patterns can still fool this detector.";
+  return {suggestions,grid:[columns,rows],threshold,darkFraction,quality,message};
+}
+
+/** Adds only on empty cells; never deletes imported tiles, metadata or markers. */
 export function applyWallSuggestions(document,suggestions){
   if(!document||!Array.isArray(document.data?.cells))
-    throw new TypeError("Expected a maze document");
+    throw new TypeError("Expected maze document with data.cells");
   const cloned=JSON.parse(JSON.stringify(document));
   const width=Number(cloned.data.scale[0]),height=Number(cloned.data.scale[2]);
   const occupied=new Set(cloned.data.cells.map(cell=>cell.position[0]+","+cell.position[2]));

@@ -163,10 +163,18 @@
     <form method="dialog" class="sheet-header"><h2 id="tileDialogTitle">Tile details</h2><button aria-label="Close tile details" class="icon-button">✕</button></form>
     <div class="sheet-body">
       <p id="tileDetailType"></p>
-      <label class="field-label" for="variantInput">Variant / gate identifier</label>
+      <label class="field-label" for="variantInput" id="variantInputLabel">Variant / gate identifier</label>
       <input id="variantInput" placeholder="0">
-      <label class="field-label" for="messageInput">Message or riddle note</label>
+      <label class="field-label" for="messageInput" id="messageInputLabel">Message or note</label>
       <textarea id="messageInput" rows="3" placeholder="Optional note"></textarea>
+      <div class="riddle-editor" id="riddleEditor" hidden>
+        <label class="field-label" for="riddleQuestionInput">Question</label>
+        <textarea id="riddleQuestionInput" rows="3" maxlength="600" placeholder="What has keys but no locks?"></textarea>
+        <label class="field-label" for="riddleAnswerInput">Accepted answer</label>
+        <input id="riddleAnswerInput" maxlength="160" autocomplete="off" placeholder="A piano">
+        <p class="sheet-hint">Answers ignore capitalization, extra spaces, and Unicode character width. Original imported riddle fields stay untouched.</p>
+      </div>
+      <p class="sheet-hint" id="passageHelp" hidden>Give exactly two secret passages the same pairing code. Entering either transports the explorer to the other.</p>
       <button type="button" class="full-button primary" id="saveTileButton">Save tile</button>
       <div class="tile-transfer-actions">
         <button id="moveTileButton" type="button">Move tile</button>
@@ -175,6 +183,20 @@
       <p class="sheet-hint">Move or copy onto an empty square. Imported layers and tile details are preserved. Undo reverses the change.</p>
       <button type="button" class="full-button" id="deleteTileButton">Erase this tile</button>
     </div>
+  </dialog>
+  <dialog id="riddleDialog" class="riddle-dialog" aria-labelledby="riddleHeading">
+    <form id="riddleForm">
+      <p class="eyebrow">A CHALLENGE</p>
+      <h2 id="riddleHeading">Solve the riddle</h2>
+      <p id="riddlePrompt"></p>
+      <label class="field-label" for="riddleResponse">Your answer</label>
+      <input id="riddleResponse" type="text" maxlength="160" autocomplete="off" enterkeyhint="done" required>
+      <p id="riddleFeedback" class="riddle-feedback" role="status" aria-live="polite"></p>
+      <div class="riddle-actions">
+        <button type="button" id="skipRiddleButton">Continue without answering</button>
+        <button type="submit" class="primary">Check answer</button>
+      </div>
+    </form>
   </dialog>
   <script type="module" src="./src/app.mjs"></script>
 </body></html>

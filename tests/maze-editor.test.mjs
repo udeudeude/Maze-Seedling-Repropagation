@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-import {newMaze,paintTile,primaryCell,transferTile,cellsAt} from "../src/maze-world.mjs";
+import {newMaze,paintTile,primaryCell,transferTile,cellsAt,changeCellDetails} from "../src/maze-world.mjs";
 
 test("moving the top layer preserves all source metadata and lower layers",()=>{
   const source=newMaze();
@@ -55,4 +55,28 @@ test("Build exposes magnification, deliberate pan, keyboard access and reversibl
   assert.match(app,/transferTile\(maze,\.\.\.placement.source,x,z,\{copy\}\)/);
   assert.match(app,/setBoardPan\(!boardPanning\)/);
   assert.match(css,/#boardCanvas\.pan-mode\{touch-action:pan-x pan-y/);
+});
+
+test("riddle customization preserves opaque imported data and round trips via JSON",()=>{
+  const source=paintTile(newMaze(),4,5,"riddle");
+  const before=primaryCell(source,4,5).cell;
+  before.riddle={originalOpaque:["preserve",7]};
+  before.otherField={nested:true};
+  const changed=changeCellDetails(source,4,5,{repropagation:{
+    riddle:{question:"Who?",answer:"You"}}});
+  const restored=JSON.parse(JSON.stringify(changed));
+  assert.deepEqual(primaryCell(restored,4,5).cell.riddle,{originalOpaque:["preserve",7]});
+  assert.deepEqual(primaryCell(restored,4,5).cell.otherField,{nested:true});
+  assert.equal(primaryCell(restored,4,5).cell.repropagation.riddle.answer,"You");
+  assert.equal(before.repropagation,undefined);
+});
+test("riddle authoring and play prompt are wired to accessible dialogs",()=>{
+  const html=readFileSync(new URL("../index.html",import.meta.url),"utf8");
+  const app=readFileSync(new URL("../src/app.mjs",import.meta.url),"utf8");
+  for(const id of ["riddleEditor","riddleQuestionInput","riddleAnswerInput",
+    "riddleDialog","riddleForm","riddlePrompt","riddleResponse","riddleFeedback",
+    "skipRiddleButton","passageHelp"])
+    assert.ok(html.includes('id="'+id+'"'),"Missing "+id);
+  assert.match(app,/play=answerRiddle\(play,response\)/);
+  assert.match(app,/riddleDialog\.showModal\(\)/);
 });

@@ -105,7 +105,7 @@ export function changeCellDetails(source,x,z,updates) {
   const maze=parseMaze(source);
   const selected=primaryCell(maze,x,z);
   if (!selected) throw new Error("Nothing at that location");
-  const allowed=new Set(["variant","text","message","audioPath","photoPath","riddle","info"]);
+  const allowed=new Set(["variant","text","message","audioPath","photoPath","riddle","info","repropagation"]);
   for (const key of Object.keys(updates)) {
     if (!allowed.has(key)) throw new TypeError("Unsupported detail: "+key);
   }

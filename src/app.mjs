@@ -3,7 +3,7 @@ import {
   SIZE,TILE_NAMES,newMaze,sampleMaze,paintTile,eraseAt,changeCellDetails,transferTile,
   cellCoordinates,primaryCell,locate,findRoute,examineMaze
 } from "./maze-world.mjs";
-import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC} from "./maze-play.mjs";
+import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answerRiddle} from "./maze-play.mjs";
 import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
@@ -392,6 +392,20 @@ function openTileDialog(x,z) {
   el("tileDialogTitle").textContent="Tile "+(x+1)+", "+(z+1);
   el("tileDetailType").textContent=labels[present.type]??present.type;
   el("variantInput").value=present.variant??"";
+  el("variantInputLabel").textContent=present.type==="secret_passage"?
+    "Passage pairing code":present.type==="gate"?"Gate identifier":"Variant / identifier";
+  el("passageHelp").hidden=present.type!=="secret_passage";
+  const isRiddle=present.type==="riddle";
+  el("riddleEditor").hidden=!isRiddle;
+  el("messageInputLabel").hidden=isRiddle;
+  el("messageInput").hidden=isRiddle;
+  const imported=present.riddle;
+  const authored=present.repropagation?.riddle;
+  el("riddleQuestionInput").value=authored?.question??(
+    typeof imported==="string"?imported:
+    typeof imported?.prompt==="string"?imported.prompt:
+    present.text??"");
+  el("riddleAnswerInput").value=authored?.answer??"";
   el("messageInput").value=present.text??present.message??"";
   el("copyTileButton").disabled=present.type==="entrance"||present.type==="exit";
   el("tileDialog").showModal();
@@ -460,8 +474,23 @@ function initializeDialogs() {
     const edits={};
     const variant=el("variantInput").value.trim();
     if(variant)edits.variant=variant;
-    const text=el("messageInput").value.trim();
-    if(text)edits.text=text;
+    else if(original.type==="secret_passage"&&original.variant!==undefined)
+      edits.variant="";
+    if(original.type==="riddle"){
+      const question=el("riddleQuestionInput").value.trim();
+      const answer=el("riddleAnswerInput").value.trim();
+      if(Boolean(question)!==Boolean(answer)){
+        notice("Add both a riddle question and answer, or leave both empty.");
+        return;
+      }
+      const extension={...original.repropagation};
+      if(question)extension.riddle={question,answer};
+      else delete extension.riddle;
+      edits.repropagation=extension;
+    }else{
+      const text=el("messageInput").value.trim();
+      if(text)edits.text=text;
+    }
     commit(changeCellDetails(maze,x,z,edits));
     el("tileDialog").close();notice("Tile details saved");
   });
@@ -474,6 +503,10 @@ function initializeDialogs() {
 
 function setView(next) {
   if(next!=="build")clearPlacement();
+  if(next!=="explore"&&el("riddleDialog").open){
+    el("riddleDialog").close();
+    play=answerRiddle(play,"",{skip:true});
+  }
   view=next;
   for(const name of ["build","photo","explore"]){
     el(name+"View").hidden=name!==next;
@@ -522,6 +555,14 @@ function renderMapOverlay(ctx) {
 }
 function renderPlay() {
   if(view!=="explore")return;
+  const riddleDialog=el("riddleDialog");
+  if(play.pendingRiddle&&!riddleDialog.open){
+    holding.clear();
+    el("riddlePrompt").textContent=play.pendingRiddle.question;
+    el("riddleResponse").value="";
+    el("riddleFeedback").textContent="";
+    riddleDialog.showModal();
+  }else if(!play.pendingRiddle&&riddleDialog.open)riddleDialog.close();
   const canvas=el("sceneCanvas");
   if(canvas.offsetParent===null)return;
   canvasSize(canvas,1024);
@@ -534,7 +575,25 @@ function renderPlay() {
   el("playMessage").textContent=play.message;
 }
 function initializePlay() {
-  el("restartButton").addEventListener("click",()=>{play=startPlay(maze);renderPlay();});
+  el("restartButton").addEventListener("click",()=>{
+    holding.clear();play=startPlay(maze);renderPlay();
+  });
+  el("riddleForm").addEventListener("submit",event=>{
+    event.preventDefault();
+    const response=el("riddleResponse").value;
+    play=answerRiddle(play,response);
+    if(play.pendingRiddle){
+      el("riddleFeedback").textContent=play.message;
+      el("riddleResponse").select();
+    }else renderPlay();
+  });
+  const skipRiddle=()=>{
+    play=answerRiddle(play,"",{skip:true});renderPlay();
+  };
+  el("skipRiddleButton").addEventListener("click",skipRiddle);
+  el("riddleDialog").addEventListener("cancel",event=>{
+    event.preventDefault();skipRiddle();
+  });
   el("mapButton").addEventListener("click",event=>{
     showMap=!showMap;event.currentTarget.setAttribute("aria-pressed",String(showMap));
     renderPlay();

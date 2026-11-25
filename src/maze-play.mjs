@@ -11,13 +11,14 @@ const clamp=(number,lo,hi)=>Math.min(hi,Math.max(lo,number));
 export function startPlay(maze) {
   const entry=locate(maze,"entrance")[0]??[1,1];
   return {x:entry[0]+0.5,z:entry[1]+0.5,heading:0,remaining:Math.max(1,Number(maze.data.duration)||300),
-    ended:false,won:false,visited:[],message:"Find the exit.",keys:[],boostUntil:0};
+    ended:false,won:false,visited:[],message:"Find the exit.",keys:[],boostUntil:0,
+    passageLatch:null,pendingRiddle:null,solvedRiddles:[]};
 }
 export function rotatePlayer(state,delta) {
   return {...state,heading:(state.heading+delta+Math.PI*8)%(Math.PI*2)};
 }
 export function movePlayer(maze,state,forward,strafe=0) {
-  if(state.ended)return state;
+  if(state.ended||state.pendingRiddle)return state;
   const speed=state.boostUntil>0?0.35:0.24;
   const dx=Math.cos(state.heading)*forward*speed+
     Math.cos(state.heading+Math.PI/2)*strafe*speed;
@@ -33,16 +34,64 @@ export function movePlayer(maze,state,forward,strafe=0) {
   const next={...state,x,z};
   return collectAt(maze,next);
 }
+/**
+ * Optional reconstructed interactions. Never reinterpret unknown native riddle
+ * objects or invent an original tile type: user-authored puzzles are namespaced.
+ */
+export function riddleAt(cell) {
+  const extension=cell?.repropagation?.riddle;
+  if(!extension||typeof extension.question!=="string"||
+      typeof extension.answer!=="string"||!extension.question.trim()||
+      !extension.answer.trim())return null;
+  return {question:extension.question.trim(),answer:extension.answer.trim()};
+}
+export function answerRiddle(state,response,{skip=false}={}) {
+  if(!state.pendingRiddle)return state;
+  const {key,answer}=state.pendingRiddle;
+  if(skip)return {...state,pendingRiddle:null,message:"Riddle left unanswered"};
+  const normalize=text=>String(text).normalize("NFKC").trim().replace(/\s+/g," ").toLocaleLowerCase();
+  if(normalize(response)!==normalize(answer))
+    return {...state,message:"Not quite. Try again or continue without answering."};
+  return {...state,pendingRiddle:null,
+    solvedRiddles:[...(state.solvedRiddles??[]),key],
+    message:"Riddle solved!"};
+}
 export function collectAt(maze,state) {
+  if(state.ended||state.pendingRiddle)return state;
   const x=Math.floor(state.x),z=Math.floor(state.z),key=x+","+z;
-  if(state.visited.includes(key))return state;
+  // The latch prevents an immediate return trip on arrival at the other end.
+  // Stepping off a passage arms it again for a later visit.
+  const active=state.passageLatch&&state.passageLatch!==key
+    ?{...state,passageLatch:null}:state;
   const isPhysicalHole=(maze.repropagation?.physicalHoles??[])
     .some(item=>Number(item.position?.[0])===x&&Number(item.position?.[2])===z);
-  if(isPhysicalHole)return {...state,ended:true,won:false,
+  if(isPhysicalHole)return {...active,ended:true,won:false,
     message:"Fell into a physical maze hole (provisional simulation)"};
   const cell=primaryCell(maze,x,z)?.cell;
-  if(!cell)return state;
-  const next={...state,visited:[...state.visited,key]};
+  if(cell?.type==="secret_passage") {
+    if(active.passageLatch===key)return active;
+    const id=String(cell.variant??"").trim();
+    const destinations=id?maze.data.cells.filter(other=>
+      other!==cell&&other.type==="secret_passage"&&
+      String(other.variant??"").trim()===id):[];
+    if(destinations.length===1) {
+      const target=cellCoordinates(destinations[0]);
+      const targetKey=target.join(",");
+      const blocked=(maze.repropagation?.physicalHoles??[]).some(hole=>
+        Number(hole.position?.[0])===target[0]&&
+        Number(hole.position?.[2])===target[1]);
+      if(!blocked&&passable(maze,...target,active.keys))
+        return {...active,x:target[0]+.5,z:target[1]+.5,
+          passageLatch:targetKey,visited:[...new Set([...active.visited,key,targetKey])],
+          message:"Secret passage: transported to "+(target[0]+1)+", "+(target[1]+1)};
+    }
+    if(active.visited.includes(key))return active;
+    return {...active,visited:[...active.visited,key],
+      message:"This passage needs exactly one safe matching partner."};
+  }
+  if(active.visited.includes(key))return active;
+  if(!cell)return active;
+  const next={...active,visited:[...active.visited,key]};
   if(cell.type==="exit")return {...next,ended:true,won:true,message:"Maze completed!"};
   if(cell.type==="timer_powerup")return {...next,remaining:next.remaining+30,message:"+30 seconds"};
   if(cell.type==="timer_hazard")return {...next,remaining:Math.max(0,next.remaining-30),message:"−30 seconds"};
@@ -50,14 +99,17 @@ export function collectAt(maze,state) {
   if(cell.type==="speed_hazard")return {...next,boostUntil:0,message:"Speed boost lost"};
   if(cell.type==="shadow")return {...next,ended:true,won:false,message:"A shadow caught you"};
   if(cell.type==="info")return {...next,message:cell.text??cell.message??"A message"};
-  if(cell.type==="riddle")return {...next,message:"Riddle ahead. Open the map to inspect it."};
+  if(cell.type==="riddle") {
+    const puzzle=riddleAt(cell);
+    return puzzle?{...next,pendingRiddle:{key,...puzzle},message:"Answer the riddle"}
+      :{...next,message:"Riddle tile has no playable question and answer yet"};
+  }
   if(cell.type==="gate")return {...next,message:"Gate"};
   if(cell.type==="map")return {...next,message:"Map discovered"};
-  if(cell.type==="secret_passage")return {...next,message:"Secret passage"};
   return next;
 }
 export function tickPlayer(state,seconds) {
-  if(state.ended||seconds<=0)return state;
+  if(state.ended||state.pendingRiddle||seconds<=0)return state;
   const remaining=Math.max(0,state.remaining-seconds);
   return {...state,remaining,boostUntil:Math.max(0,state.boostUntil-seconds),
     ended:remaining===0,won:false,message:remaining===0?"Time is up":state.message};

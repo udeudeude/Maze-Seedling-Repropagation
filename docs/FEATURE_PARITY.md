@@ -11,8 +11,8 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 | Edit maze by categories and variants | **Partial** 15 types, paint/erase, undo/redo, magnification and safe tile moving/copying | Original selection gestures, native zoom behavior, object limits, theme-specific variants, device validation |
 | Start/end, hazards, moving chasers | Start and finish placeable; time/speed hazards rudimentary; physical holes trigger provisional loss | Recognize markers, correct trap effects, shadow patrol/chase and animations |
 | Gates, collectible keys, inventory | **Incomplete** gate collision only | Functional keys, matching gate variants, placement, unlocking and inventory |
-| Secret passages | **Not implemented** | Actual traversal/transport and audio/visual treatment |
-| Riddles/questions/answers | Riddle tile placement only | Authoring, correct/wrong responses, effects, in-world answer interaction |
+| Secret passages | **Partial:** paired variant codes transport in exploration with return-trip latch | Verify original linkage rules and add original sound/visual treatment |
+| Riddles/questions/answers | **Partial:** authored questions and answers with playable, skippable interaction | Recover original answer consequences, scoring and native data mapping |
 | Time and speed power-ups | **Partial** simplified effects | Accurate timing/duration, configuration, sound and notifications |
 | Message and photo wall content | Text field only | Recorded audio/text messages, custom pictures/selfies, playback/display |
 | Four original environments | Four **palette placeholders** | Rebuild original models, geometry, animation, textures, environmental details, and lighting |
@@ -81,3 +81,10 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - The existing **Inspect tile** sheet now offers **Move tile** and **Copy tile**. Choose an empty destination on the board or cancel. Both operations are undoable; copying a start or finish is disallowed. Occupied squares and photographed physical holes are rejected rather than silently overwritten.
 - Tile movement/copying preserves the complete original cell object, coordinate representation, unknown fields and other overlapping imported cells; no new original tile categories are invented. Browser and original-device gesture fidelity are still unverified.
 - Coverage: model tests for transfers, import metadata, occupancy and bounds, and an interface-contract test for the zoom/pan and move/copy wiring. Physical iPhone testing remains outstanding.
+
+## November 25, 2026: interactive riddles and paired passages
+
+- The tile inspector now provides distinct question and answer fields for Riddle tiles; answers accept case and whitespace variation. The in-world prompt pauses movement and the countdown until answered or explicitly skipped, offers immediate retry feedback, and records solved riddles for that run. Skipping has no penalty; original scoring, rewards, and wrong-answer consequences are not yet established.
+- Newly authored riddle content is in each cell's `repropagation.riddle` extension. Imported, potentially opaque native `riddle` objects and all other original cell fields remain untouched; the new extension is intentionally not claimed to be the historical format.
+- **Secret passage** tiles can be linked by the same variant code; a unique, safe pair transports a player in either direction. A latch prevents instant bounce-back. Blank, ambiguous, blocked or physical-hole destinations are rejected. Historical linking behavior, animation and audio are still unknown.
+- Unit and interface-contract tests cover modal interaction wiring, answer normalization, replay/skipping, paired passage behavior, invalid links, and original metadata preservation. Actual mobile-browser interaction still needs testing.

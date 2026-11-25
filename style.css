@@ -166,6 +166,21 @@ select{width:100%;min-height:36px;border:1px solid #3b4650;border-radius:9px;
   background:#394751;border:1px solid #65717b;border-radius:8px;padding:6px 9px}
 .library-controls button[disabled]{opacity:.4}
 .sheet-hint{font-size:12px;line-height:1.55;color:var(--dim);margin:4px 0}
+.riddle-editor{display:grid;gap:9px}
+.riddle-dialog{border:1px solid #697782;border-radius:17px;
+  width:min(calc(100% - 32px),470px);max-height:calc(100dvh - 40px);
+  overflow:auto;padding:22px;background:#202b34;color:var(--text);
+  box-shadow:0 20px 80px #000b}
+.riddle-dialog::backdrop{background:#030709d9}
+.riddle-dialog form{display:grid;gap:12px}
+.riddle-dialog h2{font-size:23px;margin:0}
+#riddlePrompt{font-size:18px;line-height:1.5;margin:4px 0 6px;white-space:pre-wrap}
+#riddleResponse{width:100%;min-height:48px;padding:10px 13px;
+  border:1px solid #697782;border-radius:10px;background:#111b22}
+.riddle-feedback{min-height:1.4em;color:#f0c48c;margin:0}
+.riddle-actions{display:flex;gap:9px;flex-wrap:wrap}
+.riddle-actions button{flex:1;min-width:130px;min-height:46px;padding:10px;
+  border-radius:10px;border:1px solid #5b6b75;background:#35424d;font-weight:600}
 .tile-transfer-actions{display:grid;grid-template-columns:1fr 1fr;gap:9px}
 .tile-transfer-actions button{min-height:45px;border:1px solid #596873;border-radius:10px;
   background:#2b3942;font-weight:650}

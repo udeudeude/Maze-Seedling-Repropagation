@@ -29,7 +29,7 @@ export function separateRoundHoles(mask,width,height,columns=18,rows=18){
     // Real block dimensions have not been recovered. Only generic
     // elongated-versus-circular geometry is applied at present.
     if(diameter<tile*.25||diameter>tile*1.05||
-      ratio>1.32||fill<.46||fill>.88||tail<12)continue;
+      ratio>1.32||fill<.63||fill>.88||tail<12)continue;
     const cx=sumX/tail,cy=sumY/tail;
     const x=Math.floor(cx/(width/columns)),z=Math.floor(cy/(height/rows));
     if(x<0||z<0||x>=columns||z>=rows)continue;

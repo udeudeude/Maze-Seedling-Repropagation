@@ -242,14 +242,18 @@ export function applyWallSuggestions(document,suggestions){
  * inventing an original cell-type mapping would corrupt interoperability.
  * This supports lossless saved reviews without claiming original-app parity.
  */
-export function applyCaptureFindings(document,wallSuggestions,holeSuggestions){
+export function applyCaptureFindings(document,wallSuggestions,holeSuggestions,markers={}){
   const holeTiles=new Set((holeSuggestions??[])
     .filter(h=>Number.isInteger(h.x)&&Number.isInteger(h.z))
     .map(h=>h.x+","+h.z));
   for(const entry of document.repropagation?.physicalHoles??[]){
     holeTiles.add(String(entry.position?.[0])+","+String(entry.position?.[2]));
   }
-  const safeWalls=wallSuggestions.filter(w=>!holeTiles.has(w.x+","+w.z));
+  const markerTiles=new Set(Object.values(markers??{})
+    .filter(m=>m&&Number.isInteger(m.x)&&Number.isInteger(m.z))
+    .map(m=>m.x+","+m.z));
+  const safeWalls=wallSuggestions.filter(w=>
+    !holeTiles.has(w.x+","+w.z)&&!markerTiles.has(w.x+","+w.z));
   const {maze,applied}=applyWallSuggestions(document,safeWalls);
   const width=Number(maze.data.scale[0]),height=Number(maze.data.scale[2]);
   const existing=Array.isArray(maze.repropagation?.physicalHoles)
@@ -268,5 +272,24 @@ export function applyCaptureFindings(document,wallSuggestions,holeSuggestions){
   }
   maze.repropagation={...maze.repropagation,
     physicalHoles:[...byPosition.values()]};
-  return {maze,appliedWalls:applied,annotatedHoles:added};
+  let movedMarkers=0;
+  for(const type of ["entrance","exit"]){
+    const point=markers?.[type];
+    if(!point||!Number.isInteger(point.x)||!Number.isInteger(point.z)||
+      point.x<0||point.z<0||point.x>=width||point.z>=height)continue;
+    const key=point.x+","+point.z;
+    if(holeTiles.has(key))continue;
+    // Marker placement is an explicit user-reviewed replacement; never erase
+    // an unrelated original cell to make a location appear available.
+    if(maze.data.cells.some(cell=>
+      Number(cell.position[0])===point.x&&Number(cell.position[2])===point.z&&
+      cell.type!=="entrance"&&cell.type!=="exit"))continue;
+    const already=maze.data.cells.some(cell=>cell.type===type&&
+      Number(cell.position[0])===point.x&&Number(cell.position[2])===point.z);
+    if(already)continue;
+    maze.data.cells=maze.data.cells.filter(cell=>cell.type!==type);
+    maze.data.cells.push({position:[String(point.x),"0",String(point.z)],type});
+    movedMarkers++;
+  }
+  return {maze,appliedWalls:applied,annotatedHoles:added,movedMarkers};
 }

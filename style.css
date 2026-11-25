@@ -88,7 +88,7 @@ select{width:100%;min-height:36px;border:1px solid #3b4650;border-radius:9px;
 .touch-controls button.pressed{background:#6e6557;border-color:var(--accent);transform:translateY(2px);box-shadow:none}
 .play-message{color:var(--dim);font-size:13px;min-height:24px;text-align:center}
 .capture-intro{font-size:14px;color:#c3c9c6;line-height:1.6;margin:12px 0 18px}
-.photo-pickers{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.photo-picker-single{min-height:155px;margin-bottom:4px}
 .photo-picker{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;text-align:center;min-width:0;
   border:1px dashed #65717a;border-radius:16px;padding:20px 10px;
   background:#252f37;cursor:pointer}

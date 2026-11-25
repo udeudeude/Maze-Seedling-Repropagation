@@ -131,3 +131,83 @@ export function findRoundHolesByEdges(image,columns=18,rows=18){
   }
   return accepted;
 }
+
+
+/**
+ * Recover straight physical-wall spans from a binary image, independent of
+ * the assumed 18-by-18 virtual game grid. Lengths are expressed in tentative
+ * image grid pitches. They are NOT claims about the three factory piece sizes.
+ */
+export function findStraightWallSpans(mask,width,height,pitch){
+  if(mask.length!==width*height||!Number.isFinite(pitch)||pitch<=1)
+    throw new TypeError("Invalid binary image or grid pitch");
+  const minimum=Math.max(5,Math.floor(pitch*.67));
+  const output=[];
+  for(const axis of ["horizontal","vertical"]){
+    const lines=axis==="horizontal"?height:width;
+    const length=axis==="horizontal"?width:height;
+    const runs=[];
+    // Find contiguous candidate foreground runs on each scan line.
+    for(let row=0;row<lines;row++){
+      const found=[];
+      for(let at=0;at<length;){
+        const index=axis==="horizontal"?row*width+at:at*width+row;
+        if(!mask[index]){at++;continue;}
+        const start=at;
+        do{at++;}while(at<length&&mask[axis==="horizontal"?row*width+at:at*width+row]);
+        if(at-start>=minimum)found.push({start,end:at,last:row,first:row,row});
+      }
+      runs.push(found);
+    }
+    const tracks=[];
+    let active=[];
+    for(let row=0;row<lines;row++){
+      const next=[];
+      const used=new Set();
+      for(const run of runs[row]){
+        let match=-1,best=0;
+        for(let i=0;i<active.length;i++){
+          if(used.has(i))continue;
+          const track=active[i];
+          const overlap=Math.max(0,Math.min(track.end,run.end)-
+            Math.max(track.start,run.start));
+          const agreement=overlap/Math.max(1,Math.min(run.end-run.start,track.end-track.start));
+          if(agreement>.55&&agreement>best){best=agreement;match=i;}
+        }
+        if(match<0){
+          const track={...run,maxEnd:run.end,minStart:run.start};
+          tracks.push(track);next.push(track);
+        }else{
+          used.add(match);
+          const track=active[match];
+          track.last=row;
+          // Moderate endpoint averaging avoids a single intersection row
+          // wildly extending an otherwise straight piece.
+          track.start=(track.start*3+run.start)/4;
+          track.end=(track.end*3+run.end)/4;
+          track.minStart=Math.min(track.minStart,run.start);
+          track.maxEnd=Math.max(track.maxEnd,run.end);
+          next.push(track);
+        }
+      }
+      active=next;
+    }
+    for(const track of tracks){
+      const depth=track.last-track.first+1;
+      const start=track.start,end=track.end,span=end-start;
+      // Reject large dark blobs and nearly square marks.
+      if(span<Math.max(minimum*1.4,depth*1.45)||
+        depth>pitch*1.5)continue;
+      const middle=(track.first+track.last+1)/2;
+      const segment=axis==="horizontal"?
+        {x0:start,y0:middle,x1:end,y1:middle}:
+        {x0:middle,y0:start,x1:middle,y1:end};
+      output.push({...segment,axis,
+        widthPixels:depth,lengthPixels:Number(span.toFixed(1)),
+        lengthInGridUnits:Number((span/pitch).toFixed(2))});
+    }
+  }
+  // Prefer long, well-supported spans, retaining shorter spans as evidence.
+  output.sort((a,b)=>b.lengthPixels-a.lengthPixels);
+  return output;
+}

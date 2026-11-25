@@ -36,6 +36,10 @@ export function movePlayer(maze,state,forward,strafe=0) {
 export function collectAt(maze,state) {
   const x=Math.floor(state.x),z=Math.floor(state.z),key=x+","+z;
   if(state.visited.includes(key))return state;
+  const isPhysicalHole=(maze.repropagation?.physicalHoles??[])
+    .some(item=>Number(item.position?.[0])===x&&Number(item.position?.[2])===z);
+  if(isPhysicalHole)return {...state,ended:true,won:false,
+    message:"Fell into a physical maze hole (provisional simulation)"};
   const cell=primaryCell(maze,x,z)?.cell;
   if(!cell)return state;
   const next={...state,visited:[...state.visited,key]};
@@ -107,6 +111,27 @@ export function renderScene(ctx,maze,player,{stereo=false}={}) {
     ctx.save();ctx.beginPath();ctx.rect(left,0,vw,h);ctx.clip();
     const beamStep=2;
     const fov=stereo?1.05:1.15;
+    // Lightweight floor-hole silhouettes, hidden behind the wall columns
+    // painted afterward. This is a provisional effect, not original art.
+    for(const hole of maze.repropagation?.physicalHoles??[]){
+      const dx=Number(hole.position?.[0])+.5-player.x-
+        Math.cos(lateral)*eyeOffset;
+      const dz=Number(hole.position?.[2])+.5-player.z-
+        Math.sin(lateral)*eyeOffset;
+      if(!Number.isFinite(dx)||!Number.isFinite(dz))continue;
+      const forward=dx*Math.cos(player.heading)+dz*Math.sin(player.heading);
+      const sideways=-dx*Math.sin(player.heading)+dz*Math.cos(player.heading);
+      if(forward<.35||forward>19||
+          Math.abs(sideways)>forward*1.8)continue;
+      const sx=left+vw/2+(sideways/forward)*vw/(2*Math.tan(fov/2));
+      const sy=h/2+h*.39/forward;
+      const rx=Math.min(vw*.4,h*.18/forward),ry=rx*.31;
+      if(sy>h+ry||sx<left-rx||sx>left+vw+rx)continue;
+      ctx.beginPath();ctx.ellipse(sx,sy,rx,ry,0,0,Math.PI*2);
+      ctx.fillStyle="#101011";ctx.fill();
+      ctx.strokeStyle="rgba(238,183,104,.35)";
+      ctx.lineWidth=Math.max(1,w/1000);ctx.stroke();
+    }
     for(let px=0;px<vw;px+=beamStep){
       const screen=px/vw*2-1;
       const angle=player.heading+Math.atan(screen*Math.tan(fov/2));

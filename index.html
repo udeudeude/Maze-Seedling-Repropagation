@@ -110,6 +110,12 @@
           <div class="scan-modes" role="group" aria-label="Select what to correct">
             <button id="reviewWallsButton" type="button" aria-pressed="true">Review walls</button>
             <button id="reviewHolesButton" type="button" aria-pressed="false">Review holes</button>
+            <button id="reviewMarkersButton" type="button" aria-pressed="false">Markers</button>
+          </div>
+          <div class="marker-controls" id="markerControls" hidden>
+            <button id="placeStartButton" type="button" aria-pressed="true">Place start</button>
+            <button id="placeFinishButton" type="button" aria-pressed="false">Place finish</button>
+            <button id="clearMarkersButton" type="button">Clear markers</button>
           </div>
           <canvas id="scanCanvas" tabindex="0" aria-label="Corrected photograph with green wall traces and amber possible holes. Tap to correct the selected feature type."></canvas>
           <div class="scan-slider">

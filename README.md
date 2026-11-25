@@ -27,6 +27,12 @@ The scanner now **suggests** both dark wall strips and circular floor holes. Wal
 
 See the evidence-led [original feature parity audit](docs/FEATURE_PARITY.md) for the major missing systems.
 
+### Capture and save designs
+
+In **Capture**, a single **Choose or take a photograph** button opens iPhone's native photo library, camera, or file picker. It replaces the redundant dedicated camera button.
+
+The **Maze files** menu now includes **My mazes**, an offline collection: open, duplicate, rename or delete designs; import a JSON maze as a separate entry; create fresh blank and practice mazes without replacing earlier work. The old single-maze autosave remains available as a local backup. Export is still recommended before clearing browser data or changing devices.
+
 ## Implemented
 
 - `src/maze-document.mjs`: validates, imports, edits and exports the original maze-document structure. Preserves unknown fields and original numeric-string representations.

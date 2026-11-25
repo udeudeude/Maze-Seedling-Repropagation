@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {sampleGrid,suggestWalls,applyWallSuggestions} from "../src/maze-recognize.mjs";
+import {sampleGrid,suggestWalls,applyWallSuggestions,applyCaptureFindings} from "../src/maze-recognize.mjs";
 import {separateRoundHoles,findRoundHolesByEdges} from "../src/maze-shapes.mjs";
 import {newMaze,primaryCell} from "../src/maze-world.mjs";
 
@@ -145,4 +145,20 @@ test("a round hole next to a wall is still reported independently",()=>{
   const found=findRoundHolesByEdges(image);
   assert.ok(found.some(entry=>entry.x===8&&entry.z===8),
     "Hole touching the adjacent wall was not found");
+});
+
+
+test("reviewed hole annotations are retained without inventing original cell types",()=>{
+  const source=newMaze();
+  const capture=applyCaptureFindings(source,[{x:3,z:4}],
+    [{x:7,z:7},{x:10,z:10},{x:7,z:7},{x:-1,z:9}]);
+  assert.equal(capture.appliedWalls,1);
+  assert.equal(capture.annotatedHoles,2);
+  assert.equal(capture.maze.data.cells.length,source.data.cells.length+1);
+  assert.deepEqual(capture.maze.repropagation.physicalHoles.map(x=>x.position),
+    [["7","0","7"],["10","0","10"]]);
+  assert.ok(!source.repropagation,"Original maze must remain untouched");
+  const again=applyCaptureFindings(capture.maze,[],[{x:7,z:7}]);
+  assert.equal(again.annotatedHoles,0);
+  assert.equal(again.maze.repropagation.physicalHoles.length,2);
 });

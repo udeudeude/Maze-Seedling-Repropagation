@@ -109,6 +109,11 @@ select{width:100%;min-height:36px;border:1px solid #3b4650;border-radius:9px;
 .scan-modes{display:flex;gap:8px;margin:10px 0}
 .scan-modes button{min-height:42px;flex:1;background:#26343b;border:1px solid #55656f;border-radius:9px;padding:9px 10px;font-weight:600}
 .scan-modes button[aria-pressed="true"]{color:#161d20;background:#edb974;border-color:#edb974}
+.marker-controls{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 12px}
+.marker-controls button{min-height:38px;border:1px solid #596873;border-radius:8px;
+  padding:7px 10px;font-size:12px;background:#25353d}
+.marker-controls button[aria-pressed="true"]{background:#d5a66e;color:#171d22;border-color:#d5a66e}
+
 .scan-stage h2{font-size:18px;margin:2px 0 6px}
 .scan-stage p{font-size:12px;line-height:1.5;color:#c4c9c6;margin:0 0 12px}
 #scanCanvas{display:block;width:min(100%,440px);height:auto;aspect-ratio:1;margin:0 auto 14px;border:1px solid #7a8a8f;touch-action:none}

@@ -107,7 +107,11 @@
             <button type="button" id="applyScanButton" class="primary">Add reviewed walls</button>
             <button type="button" id="cancelScanButton">Return to photograph</button>
           </div>
-          <canvas id="scanCanvas" tabindex="0" aria-label="Corrected board photograph with proposed wall tiles; tap a square to select or deselect a wall."></canvas>
+          <div class="scan-modes" role="group" aria-label="Select what to correct">
+            <button id="reviewWallsButton" type="button" aria-pressed="true">Review walls</button>
+            <button id="reviewHolesButton" type="button" aria-pressed="false">Review holes</button>
+          </div>
+          <canvas id="scanCanvas" tabindex="0" aria-label="Corrected photograph with green wall traces and amber possible holes. Tap to correct the selected feature type."></canvas>
           <div class="scan-slider">
             <label for="sensitivitySlider">Detection sensitivity</label>
             <input id="sensitivitySlider" type="range" min="0" max="100" step="5" value="50">

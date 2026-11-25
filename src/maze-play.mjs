@@ -12,7 +12,10 @@ export function startPlay(maze) {
   const entry=locate(maze,"entrance")[0]??[1,1];
   return {x:entry[0]+0.5,z:entry[1]+0.5,heading:0,remaining:Math.max(1,Number(maze.data.duration)||300),
     ended:false,won:false,visited:[],message:"Find the exit.",keys:[],boostUntil:0,
-    passageLatch:null,pendingRiddle:null,solvedRiddles:[]};
+    passageLatch:null,pendingRiddle:null,solvedRiddles:[],
+    // Original shadow spawn tiles are never moved in the maze document.
+    shadows:locate(maze,"shadow").filter(([x,z])=>passable(maze,x,z))
+      .map(([x,z])=>({x:x+.5,z:z+.5,target:null}))};
 }
 export function rotatePlayer(state,delta) {
   return {...state,heading:(state.heading+delta+Math.PI*8)%(Math.PI*2)};
@@ -32,7 +35,7 @@ export function movePlayer(maze,state,forward,strafe=0) {
   if(free(x,z+dz+Math.sign(dz)*cushion) && free(x+cushion,z+dz+Math.sign(dz)*cushion)
     && free(x-cushion,z+dz+Math.sign(dz)*cushion))z+=dz;
   const next={...state,x,z};
-  return collectAt(maze,next);
+  return catchShadow(collectAt(maze,next));
 }
 /**
  * Optional reconstructed interactions. Never reinterpret unknown native riddle
@@ -63,6 +66,7 @@ export function keyPickupId(cell) {
 }
 export function collectAt(maze,state) {
   if(state.ended||state.pendingRiddle)return state;
+  if(shadowTouches(state))return catchShadow(state);
   const x=Math.floor(state.x),z=Math.floor(state.z),key=x+","+z;
   // The latch prevents an immediate return trip on arrival at the other end.
   // Stepping off a passage arms it again for a later visit.
@@ -86,9 +90,9 @@ export function collectAt(maze,state) {
         Number(hole.position?.[0])===target[0]&&
         Number(hole.position?.[2])===target[1]);
       if(!blocked&&passable(maze,...target,active.keys))
-        return {...active,x:target[0]+.5,z:target[1]+.5,
+        return catchShadow({...active,x:target[0]+.5,z:target[1]+.5,
           passageLatch:targetKey,visited:[...new Set([...active.visited,key,targetKey])],
-          message:"Secret passage: transported to "+(target[0]+1)+", "+(target[1]+1)};
+          message:"Secret passage: transported to "+(target[0]+1)+", "+(target[1]+1)});
     }
     if(active.visited.includes(key))return active;
     return {...active,visited:[...active.visited,key],
@@ -102,7 +106,6 @@ export function collectAt(maze,state) {
   if(cell.type==="timer_hazard")return {...next,remaining:Math.max(0,next.remaining-30),message:"−30 seconds"};
   if(cell.type==="speed_powerup")return {...next,boostUntil:25,message:"Speed boost"};
   if(cell.type==="speed_hazard")return {...next,boostUntil:0,message:"Speed boost lost"};
-  if(cell.type==="shadow")return {...next,ended:true,won:false,message:"A shadow caught you"};
   if(cell.type==="info") {
     const id=keyPickupId(cell);
     if(id) {
@@ -123,6 +126,73 @@ export function collectAt(maze,state) {
   if(cell.type==="map")return {...next,message:"Map discovered"};
   return next;
 }
+
+/**
+ * Reconstructed shadow chasers, not a claim about the original Unity rules.
+ * Spawn markers stay in the maze; moving actors exist only in play state.
+ * Pursuit respects walls, locked gates and photographed physical holes.
+ */
+export function shadowTouches(state) {
+  return (state.shadows??[]).some(actor=>
+    Math.hypot(actor.x-state.x,actor.z-state.z)<.39);
+}
+function catchShadow(state) {
+  return state.ended||!shadowTouches(state)?state:
+    {...state,ended:true,won:false,message:"A shadow caught you"};
+}
+function nextShadowCell(maze,fromX,fromZ,toX,toZ,keys,holes) {
+  const start=fromX+","+fromZ,goal=toX+","+toZ;
+  if(start===goal)return null;
+  const queue=[[fromX,fromZ]],parents=new Map([[start,null]]);
+  for(let head=0;head<queue.length;head++) {
+    const [x,z]=queue[head],here=x+","+z;
+    if(here===goal) {
+      let node=here,parent=parents.get(node);
+      while(parent!==start&&parent!==null) {
+        node=parent;parent=parents.get(node);
+      }
+      return parent===null?null:node.split(",").map(Number);
+    }
+    for(const [dx,dz] of [[0,-1],[-1,0],[1,0],[0,1]]) {
+      const nx=x+dx,nz=z+dz,key=nx+","+nz;
+      if(parents.has(key)||holes.has(key)||!passable(maze,nx,nz,keys))continue;
+      parents.set(key,here);queue.push([nx,nz]);
+    }
+  }
+  return null;
+}
+export function advanceShadows(maze,state,seconds) {
+  if(state.ended||state.pendingRiddle||!state.shadows?.length||!(seconds>0))return state;
+  const shadows=state.shadows.map(actor=>({...actor,target:actor.target?[...actor.target]:null}));
+  const next={...state,shadows};
+  if(shadowTouches(next))return catchShadow(next);
+  const holes=new Set((maze.repropagation?.physicalHoles??[]).map(item=>
+    Number(item.position?.[0])+","+Number(item.position?.[2])));
+  // Split longer updates for consistent speed and collision detection.
+  const elapsed=Math.min(seconds,5),steps=Math.ceil(elapsed/.075),step=elapsed/steps;
+  for(let frame=0;frame<steps;frame++) {
+    for(const actor of shadows) {
+      if(!actor.target) {
+        const target=nextShadowCell(maze,Math.floor(actor.x),Math.floor(actor.z),
+          Math.floor(state.x),Math.floor(state.z),state.keys,holes);
+        if(target)actor.target=[target[0]+.5,target[1]+.5];
+      }
+      if(actor.target) {
+        const dx=actor.target[0]-actor.x,dz=actor.target[1]-actor.z;
+        const distance=Math.hypot(dx,dz),travel=Math.min(distance,.84*step);
+        if(distance>0) {
+          actor.x+=dx/distance*travel;actor.z+=dz/distance*travel;
+        }
+        if(distance<=travel+1e-9) {
+          actor.x=actor.target[0];actor.z=actor.target[1];actor.target=null;
+        }
+      }
+      if(shadowTouches(next))return catchShadow(next);
+    }
+  }
+  return next;
+}
+
 export function tickPlayer(state,seconds) {
   if(state.ended||state.pendingRiddle||seconds<=0)return state;
   const remaining=Math.max(0,state.remaining-seconds);
@@ -219,6 +289,32 @@ export function renderScene(ctx,maze,player,{stereo=false}={}) {
         ctx.fillStyle=color.accent;ctx.globalAlpha=.55;
         ctx.fillRect(left+px,top,beamStep+1,wallHeight);ctx.globalAlpha=1;
       }
+    }
+
+    // First-person shadow sprites share the camera and raycast wall occlusion.
+    for(const actor of player.shadows??[]) {
+      const ox=player.x+Math.cos(lateral)*eyeOffset;
+      const oz=player.z+Math.sin(lateral)*eyeOffset;
+      const dx=actor.x-ox,dz=actor.z-oz;
+      const forward=dx*Math.cos(player.heading)+dz*Math.sin(player.heading);
+      const sideways=-dx*Math.sin(player.heading)+dz*Math.cos(player.heading);
+      if(forward<=.16||forward>16)continue;
+      const distance=Math.hypot(dx,dz);
+      const obstruction=castRay(maze,ox,oz,Math.atan2(dz,dx),distance,walls);
+      if(obstruction&&obstruction.distance<distance-.22)continue;
+      const sx=left+vw/2+(sideways/forward)*vw/(2*Math.tan(fov/2));
+      const height=Math.min(h*1.5,h*.78/Math.max(forward,.35));
+      if(sx<left-height||sx>left+vw+height)continue;
+      const baseY=h/2+h*.31/Math.max(forward,.35);
+      ctx.save();
+      ctx.globalAlpha=.92;ctx.fillStyle="#181b28";
+      ctx.beginPath();ctx.ellipse(sx,baseY-height*.46,height*.26,
+        height*.48,0,0,2*Math.PI);ctx.fill();
+      ctx.globalAlpha=.95;ctx.fillStyle=color.accent;
+      const eye=Math.max(1.3,height*.045);
+      ctx.fillRect(sx-height*.105,baseY-height*.58,eye,eye);
+      ctx.fillRect(sx+height*.06,baseY-height*.58,eye,eye);
+      ctx.restore();
     }
     ctx.restore();
   }

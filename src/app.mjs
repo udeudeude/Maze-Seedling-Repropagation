@@ -3,7 +3,7 @@ import {
   SIZE,TILE_NAMES,newMaze,sampleMaze,paintTile,eraseAt,changeCellDetails,transferTile,
   cellCoordinates,primaryCell,locate,findRoute,examineMaze
 } from "./maze-world.mjs";
-import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answerRiddle,keyPickupId} from "./maze-play.mjs";
+import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answerRiddle,keyPickupId,advanceShadows} from "./maze-play.mjs";
 import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
@@ -561,6 +561,11 @@ function renderMapOverlay(ctx) {
     ctx.fillStyle="#101113";ctx.fill();
     ctx.strokeStyle="#f2b765";ctx.lineWidth=1;ctx.stroke();
   }
+  for(const shadow of play.shadows??[]) {
+    ctx.beginPath();ctx.arc(x+shadow.x*tw,y+shadow.z*th,Math.max(2.5,tw*.48),0,Math.PI*2);
+    ctx.fillStyle="#8f3e55";ctx.fill();
+    ctx.strokeStyle="#ffd4a0";ctx.lineWidth=Math.max(1,tw*.1);ctx.stroke();
+  }
   ctx.fillStyle="#fdf7e4";ctx.beginPath();
   ctx.arc(x+play.x*tw,y+play.z*th,Math.max(3,tw*.65),0,Math.PI*2);ctx.fill();
   ctx.restore();
@@ -657,6 +662,7 @@ function initializePlay() {
         if(turn)play=rotatePlayer(play,turn*dt*1.9);
         if(forward||strafe)play=movePlayer(maze,play,forward*dt*6,strafe*dt*6);
         play=tickPlayer(play,dt);
+        play=advanceShadows(maze,play,dt);
       }
       renderPlay();
     }else lastFrame=0;

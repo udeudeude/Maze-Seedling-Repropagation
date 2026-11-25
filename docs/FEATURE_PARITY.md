@@ -9,7 +9,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 | Detect walls of three physical lengths | **Partial:** straight spans and image-space lengths measured | Segment touching blocks individually, recover exact short/medium/long dimensions, calibrate against the physical grid |
 | Live camera feedback and overlay | **Missing** | Guided preview, auto-detect boundaries, illumination and tilt advice |
 | Edit maze by categories and variants | **Partial** 15 types, paint/erase, undo/redo, magnification and safe tile moving/copying | Original selection gestures, native zoom behavior, object limits, theme-specific variants, device validation |
-| Start/end, hazards, moving chasers | Start and finish placeable; time/speed hazards rudimentary; physical holes trigger provisional loss | Recognize markers, correct trap effects, shadow patrol/chase and animations |
+| Start/end, hazards, moving chasers | Start and finish placeable; time/speed hazards rudimentary; physical holes trigger provisional loss; **experimental moving shadow chasers** | Recognize markers, correct trap effects, original shadow patrol speeds and animations |
 | Gates, collectible keys, inventory | **Partial:** opt-in collectible keys on Message tiles, matching gate variants, collision unlocking and visible inventory | Recover historical key representation, original pickup effects, gate behavior and 3D visuals |
 | Secret passages | **Partial:** paired variant codes transport in exploration with return-trip latch | Verify original linkage rules and add original sound/visual treatment |
 | Riddles/questions/answers | **Partial:** authored questions and answers with playable, skippable interaction | Recover original answer consequences, scoring and native data mapping |
@@ -94,3 +94,10 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - A Message (native `info`) tile can optionally carry a **key identifier**, authored in its inspector. This is deliberately a `repropagation.keyId` extension, **not a fabricated original key tile category**: the recovered native tile enumeration does not have a separate key type.
 - Exploration collects the key on entry. Matching gate identifiers become passable; the key opens multiple gates, remains in the run's inventory and resets on restart. The raycaster and map recognize unlocked gates; the inventory is visible on-screen.
 - This is reconstructed gameplay, not a claim about the historical key data format, gate mechanics, or effects. Existing native `info` fields and unknown metadata are preserved. Tests cover collection, mismatched keys, collision/raycast behavior, repeated gates, restart and source integrity. Physical iPhone testing is outstanding.
+
+## November 25, 2026: moving shadow chasers
+
+- **Shadow tiles now spawn moving chasers**, rather than remaining permanently lethal squares. Shadows appear as projected silhouettes in first-person corridors and moving map markers. No recovered proprietary 3D assets are shipped.
+- Chasers follow deterministic four-direction shortest walkable routes toward the player and move continuously. Walls, locked gates and annotated physical trap holes block pursuit; matching collected keys reopen gates. Physical contact ends the run, including when the player approaches a shadow or teleports next to one.
+- Riddle prompts and game-over states suspend shadow movement. Restart restores original positions. The original JSON document is not changed. New tests cover pursuit, barriers, gate keys, collisions, resets, paused state and data preservation.
+- **Historical limitation:** Recovered code evidence supports following shadows and shortest-path logic, but not exact movement speeds, patrol and detection behavior, original three-dimensional models, sound or scoring. Physical iPhone validation remains necessary.

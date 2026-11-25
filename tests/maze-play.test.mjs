@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {newMaze,paintTile,passable} from "../src/maze-world.mjs";
-import {startPlay,movePlayer,rotatePlayer,tickPlayer,castRay,collectAt,answerRiddle,keyPickupId,createWallIndex} from "../src/maze-play.mjs";
+import {startPlay,movePlayer,rotatePlayer,tickPlayer,castRay,collectAt,answerRiddle,keyPickupId,createWallIndex,advanceShadows,shadowTouches} from "../src/maze-play.mjs";
 
 test("player spawns at original entrance and faces east",()=>{
   const maze=newMaze();
@@ -154,4 +154,51 @@ test("several matching gates share a key without consuming it",()=>{
   assert.equal(passable(maze,4,1,pickup.keys),true);
   const through=movePlayer(maze,pickup,8);
   assert.deepEqual(through.keys,["A"]);
+});
+
+test("shadow spawns are independent actors, preserving original cells",()=>{
+  const maze=paintTile(newMaze(),8,8,"shadow"),original=JSON.stringify(maze);
+  const first=startPlay(maze);
+  assert.deepEqual(first.shadows,[{x:8.5,z:8.5,target:null}]);
+  const later=advanceShadows(maze,first,1.3);
+  assert.notDeepEqual(later.shadows,first.shadows);
+  assert.equal(JSON.stringify(maze),original);
+  assert.deepEqual(startPlay(maze).shadows,first.shadows,"Restart resets chasers");
+});
+test("shadows pursue by walkable corridors, avoiding walls and physical holes",()=>{
+  let maze=paintTile(newMaze(),4,1,"shadow");
+  maze=paintTile(maze,3,1,"wall");
+  maze.repropagation={physicalHoles:[{position:["4","0","0"]}]};
+  const progressed=advanceShadows(maze,startPlay(maze),2);
+  assert.ok(progressed.shadows[0].z>1.5,"Must detour below the wall and hole");
+  assert.ok(progressed.shadows[0].x>3.5,"Must not cut through a wall");
+  assert.equal(progressed.ended,false);
+});
+test("closed gates block shadow pursuit until a key unlocks them",()=>{
+  let maze=paintTile(newMaze(),4,1,"shadow");
+  for(let z=0;z<18;z++)maze=paintTile(maze,3,z,"wall");
+  maze=paintTile(maze,3,1,"gate","blue");
+  const initial=startPlay(maze);
+  const blocked=advanceShadows(maze,initial,4);
+  assert.deepEqual(blocked.shadows,initial.shadows);
+  const opened=advanceShadows(maze,{...blocked,keys:["blue"]},2.5);
+  assert.ok(opened.shadows[0].x<4.5,"Unlocked gate permits pursuit");
+});
+test("moving into a shadow or being caught ends the run",()=>{
+  const maze=paintTile(newMaze(),2,1,"shadow");
+  let state=startPlay(maze);
+  for(let i=0;i<8&&!state.ended;i++)state=movePlayer(maze,state,1);
+  assert.equal(state.ended,true);
+  assert.equal(state.won,false);
+  assert.match(state.message,/shadow caught/);
+  assert.equal(shadowTouches(state),true);
+  assert.equal(advanceShadows(maze,startPlay(maze),1.4).ended,true);
+});
+test("shadows pause during riddles and after the run ends",()=>{
+  const maze=paintTile(newMaze(),4,1,"shadow"),state=startPlay(maze);
+  const paused={...state,pendingRiddle:{key:"p",answer:"yes",question:"?"}};
+  assert.equal(advanceShadows(maze,paused,3),paused);
+  const ended={...state,ended:true};
+  assert.equal(advanceShadows(maze,ended,3),ended);
+  assert.equal(advanceShadows(maze,state,0),state);
 });

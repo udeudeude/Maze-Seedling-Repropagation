@@ -504,8 +504,11 @@ function initializePhoto() {
     const description=scanResult.quality==="review"
       ? "Tap green tiles to deselect mistakes; tap another square to add one."
       : scanResult.message+" Tap squares to correct suggestions.";
+    const holeCount=scanResult.holes?.length??0;
     el("scanStatus").textContent=scanSelected.size+
-      " selected wall tiles. "+description+" Existing cells are protected. Physical starts and holes are not recognized yet.";
+      " selected wall tiles (green outlines), "+holeCount+
+      " possible holes (amber rings). "+description+
+      " Hole suggestions are diagnostic only and will not change your maze.";
     el("applyScanButton").disabled=scanSelected.size===0;
     el("applyScanButton").textContent="Add "+scanSelected.size+" reviewed wall tiles";
   }
@@ -521,8 +524,24 @@ function initializePhoto() {
     context.save();
     for(let z=0;z<rows;z++)for(let x=0;x<cols;x++){
       if(!scanSelected.has(x+","+z))continue;
-      context.fillStyle="rgba(48,189,116,.35)";
+      context.fillStyle="rgba(48,189,116,.09)";
       context.fillRect(x*tw,z*th,tw,th);
+      context.strokeStyle="#45e59f";
+      context.lineWidth=Math.max(1.5,width/350);
+      context.strokeRect(x*tw+2,z*th+2,tw-4,th-4);
+    }
+    // Candidate floor holes are circles, not green wall squares.
+    for(const hole of scanResult?.holes??[]){
+      const r=Math.max(5,hole.radius+2);
+      context.beginPath();
+      context.arc(hole.cx,hole.cy,r,0,Math.PI*2);
+      context.strokeStyle="#ffd178";
+      context.lineWidth=Math.max(2,width/220);
+      context.stroke();
+      context.beginPath();
+      context.arc(hole.cx,hole.cy,2,0,Math.PI*2);
+      context.fillStyle="#ffd178";
+      context.fill();
     }
     context.beginPath();context.lineWidth=Math.max(.6,width/900);
     context.strokeStyle="rgba(255,250,232,.60)";

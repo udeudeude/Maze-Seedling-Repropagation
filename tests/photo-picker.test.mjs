@@ -46,3 +46,12 @@ test("reviewed physical holes have independent editing and imported preservation
   assert.match(app,/applyCaptureFindings/);
   assert.match(app,/physicalHoles/);
 });
+
+// Controls and scene affordances for the non-native key system.
+test("key editor and visible inventory are wired without a new native cell type",()=>{
+  for(const id of ["keyEditor","keyIdInput","gateHelp","keyInventory"])
+    assert.match(page,new RegExp('id="'+id+'"'));
+  assert.match(app,/edits\.repropagation=extension/);
+  assert.match(app,/keyPickupId\(item\)/);
+  assert.match(app,/inventory\.textContent/);
+});

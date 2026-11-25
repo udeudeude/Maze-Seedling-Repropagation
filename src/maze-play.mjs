@@ -56,6 +56,11 @@ export function answerRiddle(state,response,{skip=false}={}) {
     solvedRiddles:[...(state.solvedRiddles??[]),key],
     message:"Riddle solved!"};
 }
+/** An opt-in reconstructed pickup on an original info cell, never a new native tile type. */
+export function keyPickupId(cell) {
+  const id=cell?.type==="info"?cell.repropagation?.keyId:null;
+  return typeof id==="string"&&id.trim()?id.trim():null;
+}
 export function collectAt(maze,state) {
   if(state.ended||state.pendingRiddle)return state;
   const x=Math.floor(state.x),z=Math.floor(state.z),key=x+","+z;
@@ -98,13 +103,23 @@ export function collectAt(maze,state) {
   if(cell.type==="speed_powerup")return {...next,boostUntil:25,message:"Speed boost"};
   if(cell.type==="speed_hazard")return {...next,boostUntil:0,message:"Speed boost lost"};
   if(cell.type==="shadow")return {...next,ended:true,won:false,message:"A shadow caught you"};
-  if(cell.type==="info")return {...next,message:cell.text??cell.message??"A message"};
+  if(cell.type==="info") {
+    const id=keyPickupId(cell);
+    if(id) {
+      const keys=next.keys.includes(id)?next.keys:[...next.keys,id];
+      const message=typeof cell.text==="string"?cell.text:
+        typeof cell.message==="string"?cell.message:"";
+      return {...next,keys,message:"Picked up key "+id+(message?" · "+message:"")};
+    }
+    return {...next,message:cell.text??cell.message??"A message"};
+  }
   if(cell.type==="riddle") {
     const puzzle=riddleAt(cell);
     return puzzle?{...next,pendingRiddle:{key,...puzzle},message:"Answer the riddle"}
       :{...next,message:"Riddle tile has no playable question and answer yet"};
   }
-  if(cell.type==="gate")return {...next,message:"Gate"};
+  if(cell.type==="gate")return {...next,
+    message:"Opened gate "+String(cell.variant??"0").trim()};
   if(cell.type==="map")return {...next,message:"Map discovered"};
   return next;
 }

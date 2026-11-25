@@ -10,7 +10,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 | Live camera feedback and overlay | **Missing** | Guided preview, auto-detect boundaries, illumination and tilt advice |
 | Edit maze by categories and variants | **Partial** 15 types, paint/erase, undo/redo, magnification and safe tile moving/copying | Original selection gestures, native zoom behavior, object limits, theme-specific variants, device validation |
 | Start/end, hazards, moving chasers | Start and finish placeable; time/speed hazards rudimentary; physical holes trigger provisional loss | Recognize markers, correct trap effects, shadow patrol/chase and animations |
-| Gates, collectible keys, inventory | **Incomplete** gate collision only | Functional keys, matching gate variants, placement, unlocking and inventory |
+| Gates, collectible keys, inventory | **Partial:** opt-in collectible keys on Message tiles, matching gate variants, collision unlocking and visible inventory | Recover historical key representation, original pickup effects, gate behavior and 3D visuals |
 | Secret passages | **Partial:** paired variant codes transport in exploration with return-trip latch | Verify original linkage rules and add original sound/visual treatment |
 | Riddles/questions/answers | **Partial:** authored questions and answers with playable, skippable interaction | Recover original answer consequences, scoring and native data mapping |
 | Time and speed power-ups | **Partial** simplified effects | Accurate timing/duration, configuration, sound and notifications |
@@ -88,3 +88,9 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - Newly authored riddle content is in each cell's `repropagation.riddle` extension. Imported, potentially opaque native `riddle` objects and all other original cell fields remain untouched; the new extension is intentionally not claimed to be the historical format.
 - **Secret passage** tiles can be linked by the same variant code; a unique, safe pair transports a player in either direction. A latch prevents instant bounce-back. Blank, ambiguous, blocked or physical-hole destinations are rejected. Historical linking behavior, animation and audio are still unknown.
 - Unit and interface-contract tests cover modal interaction wiring, answer normalization, replay/skipping, paired passage behavior, invalid links, and original metadata preservation. Actual mobile-browser interaction still needs testing.
+
+## November 25, 2026: collectible keys and functional gates
+
+- A Message (native `info`) tile can optionally carry a **key identifier**, authored in its inspector. This is deliberately a `repropagation.keyId` extension, **not a fabricated original key tile category**: the recovered native tile enumeration does not have a separate key type.
+- Exploration collects the key on entry. Matching gate identifiers become passable; the key opens multiple gates, remains in the run's inventory and resets on restart. The raycaster and map recognize unlocked gates; the inventory is visible on-screen.
+- This is reconstructed gameplay, not a claim about the historical key data format, gate mechanics, or effects. Existing native `info` fields and unknown metadata are preserved. Tests cover collection, mismatched keys, collision/raycast behavior, repeated gates, restart and source integrity. Physical iPhone testing is outstanding.

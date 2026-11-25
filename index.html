@@ -67,7 +67,7 @@
         </div>
         <div class="scene-wrap">
           <canvas id="sceneCanvas" aria-label="First-person view into your maze"></canvas>
-          <div class="scene-data"><span id="timeReadout">5:00</span><span id="playReadout" aria-live="polite">Find the exit</span></div>
+          <div class="scene-data"><span id="timeReadout">5:00</span><span id="keyInventory" aria-live="polite" hidden></span><span id="playReadout" aria-live="polite">Find the exit</span></div>
         </div>
         <div class="explore-actions">
           <button id="mapButton" type="button" aria-pressed="false">Map</button>
@@ -167,6 +167,12 @@
       <input id="variantInput" placeholder="0">
       <label class="field-label" for="messageInput" id="messageInputLabel">Message or note</label>
       <textarea id="messageInput" rows="3" placeholder="Optional note"></textarea>
+      <div class="key-editor" id="keyEditor" hidden>
+        <label class="field-label" for="keyIdInput">Key identifier (optional)</label>
+        <input id="keyIdInput" maxlength="60" autocomplete="off" placeholder="Example: copper">
+        <p class="sheet-hint">A Message tile with a key identifier becomes a collectible key. Use the same identifier on a Gate tile to unlock it. Leave blank for a normal message. Original file data is preserved.</p>
+      </div>
+      <p class="sheet-hint" id="gateHelp" hidden>A Gate blocks movement until a matching key is collected. Place a Message / key tile and give it the same identifier. An empty gate identifier means 0.</p>
       <div class="riddle-editor" id="riddleEditor" hidden>
         <label class="field-label" for="riddleQuestionInput">Question</label>
         <textarea id="riddleQuestionInput" rows="3" maxlength="600" placeholder="What has keys but no locks?"></textarea>

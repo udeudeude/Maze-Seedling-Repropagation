@@ -3,7 +3,7 @@ import {
   SIZE,TILE_NAMES,newMaze,sampleMaze,paintTile,eraseAt,changeCellDetails,transferTile,
   cellCoordinates,primaryCell,locate,findRoute,examineMaze
 } from "./maze-world.mjs";
-import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answerRiddle} from "./maze-play.mjs";
+import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answerRiddle,keyPickupId} from "./maze-play.mjs";
 import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
@@ -18,7 +18,7 @@ const glyphs={
   shadow:"◉",speed_hazard:"−",speed_powerup:"+",
   timer_hazard:"−30",timer_powerup:"+30"
 };
-const labels={...TILE_NAMES,hole:"Physical hole"};
+const labels={...TILE_NAMES,info:"Message / key",hole:"Physical hole"};
 const tileColors={
   entrance:"#316c4c",exit:"#a16a2e",wall:"#9e7955",gate:"#a35755",
   info:"#617c85",map:"#77949a",riddle:"#8966a2",secret_passage:"#617667",
@@ -210,11 +210,11 @@ function renderBoard() {
       ctx.fillStyle="rgba(255,255,255,.22)";ctx.fillRect(xx+tw*.1,yy+th*.1,tw*.8,th*.8);
     }else{
       const size=Math.min(tw,th);
-      ctx.beginPath();ctx.fillStyle=tileColors[type]??"#67717c";
+      ctx.beginPath();ctx.fillStyle=keyPickupId(cell)?"#97713d":tileColors[type]??"#67717c";
       ctx.arc(xx+tw/2,yy+th/2,size*.36,0,Math.PI*2);ctx.fill();
       ctx.fillStyle="#fff8e8";ctx.font="bold "+Math.max(10,size*.38)+"px -apple-system, sans-serif";
       ctx.textAlign="center";ctx.textBaseline="middle";
-      ctx.fillText(glyphs[type]??"•",xx+tw/2,yy+th/2+size*.01);
+      ctx.fillText(keyPickupId(cell)?"K":glyphs[type]??"•",xx+tw/2,yy+th/2+size*.01);
     }
   }
   // Physical holes are preserved in our own namespace until their original
@@ -390,11 +390,14 @@ function openTileDialog(x,z) {
   if(!present){notice("No tile at "+(x+1)+", "+(z+1));return;}
   currentTile=[x,z];
   el("tileDialogTitle").textContent="Tile "+(x+1)+", "+(z+1);
-  el("tileDetailType").textContent=labels[present.type]??present.type;
+  el("tileDetailType").textContent=keyPickupId(present)?"Key pickup":labels[present.type]??present.type;
   el("variantInput").value=present.variant??"";
   el("variantInputLabel").textContent=present.type==="secret_passage"?
     "Passage pairing code":present.type==="gate"?"Gate identifier":"Variant / identifier";
   el("passageHelp").hidden=present.type!=="secret_passage";
+  el("gateHelp").hidden=present.type!=="gate";
+  el("keyEditor").hidden=present.type!=="info";
+  el("keyIdInput").value=keyPickupId(present)??"";
   const isRiddle=present.type==="riddle";
   el("riddleEditor").hidden=!isRiddle;
   el("messageInputLabel").hidden=isRiddle;
@@ -490,6 +493,13 @@ function initializeDialogs() {
     }else{
       const text=el("messageInput").value.trim();
       if(text)edits.text=text;
+      if(original.type==="info"){
+        const extension={...original.repropagation};
+        const id=el("keyIdInput").value.trim();
+        if(id)extension.keyId=id;
+        else delete extension.keyId;
+        edits.repropagation=extension;
+      }
     }
     commit(changeCellDetails(maze,x,z,edits));
     el("tileDialog").close();notice("Tile details saved");
@@ -537,7 +547,9 @@ function renderMapOverlay(ctx) {
   for(const item of maze.data.cells){
     const [cx,cz]=cellCoordinates(item);
     if(cx<0||cz<0||cx>=gw||cz>=gh)continue;
-    ctx.fillStyle=item.type==="wall"?"#3d4448":item.type==="gate"?"#e7bd78":
+    ctx.fillStyle=keyPickupId(item)?"#f4d08b":
+      item.type==="wall"?"#3d4448":item.type==="gate"?
+      (play.keys.includes(String(item.variant??"0").trim())?"#5daf87":"#e7bd78"):
       item.type==="exit"?"#ffc67e":item.type==="entrance"?"#356b4c":"#829697";
     ctx.fillRect(x+cx*tw,y+cz*th,tw,th);
   }
@@ -572,6 +584,10 @@ function renderPlay() {
   const seconds=Math.ceil(play.remaining);
   el("timeReadout").textContent=Math.floor(seconds/60)+":"+String(seconds%60).padStart(2,"0");
   el("playReadout").textContent=play.ended?(play.won?"Completed":"Game over"):play.message;
+  const inventory=el("keyInventory");
+  inventory.hidden=!play.keys.length;
+  inventory.textContent=play.keys.length?"Keys: "+play.keys.join(", "):"";
+  inventory.title=play.keys.length?"Collected gate keys: "+play.keys.join(", "):"";
   el("playMessage").textContent=play.message;
 }
 function initializePlay() {

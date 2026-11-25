@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {newMaze,paintTile} from "../src/maze-world.mjs";
-import {startPlay,movePlayer,rotatePlayer,tickPlayer,castRay,collectAt,answerRiddle} from "../src/maze-play.mjs";
+import {newMaze,paintTile,passable} from "../src/maze-world.mjs";
+import {startPlay,movePlayer,rotatePlayer,tickPlayer,castRay,collectAt,answerRiddle,keyPickupId,createWallIndex} from "../src/maze-play.mjs";
 
 test("player spawns at original entrance and faces east",()=>{
   const maze=newMaze();
@@ -108,4 +108,50 @@ test("unpaired, ambiguous, blocked or hole-linked passages never teleport",()=>{
   maze.repropagation={physicalHoles:[{position:["3","0","1"],kind:"physical_floor_hole"}]};
   player=collectAt(maze,{...startPlay(maze),x:2.5,z:1.5});
   assert.equal(player.x,2.5);
+});
+
+// Reconstructed pickups use original info tiles with optional namespaced data.
+test("collected keys unlock gates, update collisions, and preserve original documents",()=>{
+  let maze=paintTile(newMaze(),2,1,"info");
+  const info=maze.data.cells.find(c=>c.type==="info");
+  info.text="Take this key";
+  info.repropagation={keyId:" copper ",untouched:{future:17}};
+  maze=paintTile(maze,3,1,"gate","copper");
+  const original=JSON.stringify(maze),entry=startPlay(maze);
+  assert.equal(keyPickupId(info),"copper");
+  assert.equal(passable(maze,3,1,entry.keys),false);
+  assert.equal(castRay(maze,2.5,1.5,0).kind,"gate");
+  const picked=collectAt(maze,{...entry,x:2.5,z:1.5});
+  assert.deepEqual(picked.keys,["copper"]);
+  assert.match(picked.message,/Picked up key copper/);
+  assert.equal(passable(maze,3,1,picked.keys),true);
+  assert.notEqual(createWallIndex(maze,picked.keys).tiles[1*18+3],"gate");
+  assert.equal(castRay(maze,2.5,1.5,0,28,createWallIndex(maze,picked.keys)).kind,"wall");
+  const entered=movePlayer(maze,picked,4);
+  assert.ok(entered.x>3,"The collected key permits crossing its gate");
+  assert.equal(entered.keys.length,1);
+  assert.equal(JSON.stringify(maze),original,"The original maze document is unchanged");
+  assert.deepEqual(startPlay(maze).keys,[],"Restart clears the inventory");
+});
+test("unrelated keys never unlock a gate",()=>{
+  let maze=paintTile(newMaze(),2,1,"info");
+  maze=paintTile(maze,3,1,"gate","blue");
+  const player=collectAt(maze,{...startPlay(maze),x:2.5,z:1.5});
+  assert.deepEqual(player.keys,[]);
+  assert.equal(passable(maze,3,1,["red"]),false);
+  assert.equal(passable(maze,3,1,[]),false);
+  assert.equal(keyPickupId({type:"info",repropagation:{keyId:"   "}}),null);
+  assert.equal(keyPickupId({type:"map",repropagation:{keyId:"blue"}}),null);
+  assert.ok(movePlayer(maze,player,4).x<3);
+});
+test("several matching gates share a key without consuming it",()=>{
+  let maze=paintTile(newMaze(),2,1,"info");
+  maze.data.cells.find(c=>c.type==="info").repropagation={keyId:"A"};
+  maze=paintTile(maze,3,1,"gate","A");
+  maze=paintTile(maze,4,1,"gate","A");
+  const pickup=collectAt(maze,{...startPlay(maze),x:2.5,z:1.5});
+  assert.equal(passable(maze,3,1,pickup.keys),true);
+  assert.equal(passable(maze,4,1,pickup.keys),true);
+  const through=movePlayer(maze,pickup,8);
+  assert.deepEqual(through.keys,["A"]);
 });

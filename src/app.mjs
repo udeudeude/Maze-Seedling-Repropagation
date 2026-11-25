@@ -359,6 +359,14 @@ function renderMapOverlay(ctx) {
       item.type==="exit"?"#ffc67e":item.type==="entrance"?"#356b4c":"#829697";
     ctx.fillRect(x+cx*tw,y+cz*th,tw,th);
   }
+  for(const hole of maze.repropagation?.physicalHoles??[]){
+    const hx=Number(hole.position?.[0]),hz=Number(hole.position?.[2]);
+    if(!Number.isInteger(hx)||!Number.isInteger(hz)||hx<0||hz<0||hx>=gw||hz>=gh)continue;
+    ctx.beginPath();ctx.arc(x+(hx+.5)*tw,y+(hz+.5)*th,
+      Math.max(1.8,tw*.32),0,Math.PI*2);
+    ctx.fillStyle="#101113";ctx.fill();
+    ctx.strokeStyle="#f2b765";ctx.lineWidth=1;ctx.stroke();
+  }
   ctx.fillStyle="#fdf7e4";ctx.beginPath();
   ctx.arc(x+play.x*tw,y+play.z*th,Math.max(3,tw*.65),0,Math.PI*2);ctx.fill();
   ctx.restore();

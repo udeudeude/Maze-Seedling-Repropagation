@@ -38,3 +38,17 @@ test("timer and goal handling are deterministic",()=>{
   assert.equal(finished.ended,true);
   assert.equal(finished.won,true);
 });
+
+
+test("reviewed physical holes end a run without mutating original maze cells",()=>{
+  const maze=newMaze();
+  maze.repropagation={physicalHoles:[
+    {position:["2","0","1"],kind:"physical_floor_hole"}]};
+  const initial=startPlay(maze);
+  const fallen=collectAt(maze,{...initial,x:2.5,z:1.5});
+  assert.equal(fallen.ended,true);
+  assert.equal(fallen.won,false);
+  assert.match(fallen.message,/physical maze hole/);
+  assert.equal(maze.data.cells.length,2);
+  assert.equal(movePlayer(maze,fallen,1),fallen);
+});

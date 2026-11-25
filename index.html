@@ -78,19 +78,13 @@
       </section>
       <section class="view view-photo" id="photoView" hidden aria-labelledby="photoTitle">
         <div class="section-top"><div><p class="eyebrow">FROM WOOD TO WORLD</p><h1 id="photoTitle">Capture your maze</h1></div></div>
-        <p class="capture-intro">Choose a photo or use the camera, then align the four board corners. Review suggested walls before adding them to your maze, or trace manually.</p>
-        <div class="photo-pickers">
-          <label class="photo-picker">
-            <input id="photoInput" type="file" accept="image/*,.heic,.heif">
-            <span class="photo-icon" aria-hidden="true">▧</span><strong>Choose a photograph</strong>
-            <small>Photos or Files</small>
-          </label>
-          <label class="photo-picker">
-            <input id="cameraInput" type="file" accept="image/*" capture="environment">
-            <span class="photo-icon" aria-hidden="true">◎</span><strong>Take a photograph</strong>
-            <small>Open the camera</small>
-          </label>
-        </div>
+        <p class="capture-intro">Choose or take a photograph, then align the four board corners. Review suggested walls before adding them to your maze, or trace manually.</p>
+        <label class="photo-picker photo-picker-single">
+          <input id="photoInput" type="file" accept="image/*,.heic,.heif">
+          <span class="photo-icon" aria-hidden="true">▧</span>
+          <strong>Choose or take a photograph</strong>
+          <small>Photo Library · Camera · Files</small>
+        </label>
         <div class="photo-stage" id="photoStage" hidden>
           <canvas id="photoCanvas" aria-label="Photograph of physical maze with four adjustable corners"></canvas>
           <span class="photo-hint">Drag the numbered corners onto the board's four corners.</span>
@@ -125,7 +119,7 @@
           </div>
 
         </div>
-        <p class="capture-note">Wall suggestions are experimental, not the original scanner. Align corners carefully, inspect the suggestions, and correct mistakes before applying them. This first pass cannot reliably identify holes, start or finish markers, or the physical board grid independently.</p>
+        <p class="capture-note">Wall suggestions are experimental, not the original scanner. Align corners carefully, inspect the suggestions, and correct mistakes before applying them. Detection of holes and colored start/finish markers is provisional. Exact physical board calibration and recognition accuracy are not yet established.</p>
       </section>
     </main>
     <nav class="tabbar" aria-label="Main navigation">

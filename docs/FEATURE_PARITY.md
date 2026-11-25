@@ -5,7 +5,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 | Original function | Current status | Remaining work |
 | --- | --- | --- |
 | Photograph-to-maze automatic scanning | **Experimental** continuous dark-wall spans and editable wall-tile suggestions, manually aligned | Automatic board corner finding, true physical grid calibration, actual-photo evaluation |
-| Detect physical trap holes and start/finish | **Partial:** circular-hole proposals, review/edit, saved non-original annotations, provisional trap effect; start/finish scanner missing | Calibrate hole size, resolve original hole data semantics, recognize original sticker markers |
+| Detect physical trap holes and start/finish | **Experimental:** circle and colored-sticker candidates, separate review/correction, marker import, namespaced hole annotations and provisional trap effect | Verify actual marker colors, capture calibration, original hole representation, classification precision on real photos |
 | Detect walls of three physical lengths | **Partial:** straight spans and image-space lengths measured | Segment touching blocks individually, recover exact short/medium/long dimensions, calibrate against the physical grid |
 | Live camera feedback and overlay | **Missing** | Guided preview, auto-detect boundaries, illumination and tilt advice |
 | Edit maze by categories and variants | **Partial** 15 tile types, paint, erase, undo/redo | Original selection, moving/copying, zoom/pan, object limits, theme-specific variant controls |
@@ -57,10 +57,12 @@ The original application's proprietary assets and code are not included in this 
 - Separate photo library and camera controls on iPhone.
 - Candidate wall positions and their continuous straight spans, with measured image-space lengths (not inferred official block sizes).
 - Circular hole candidates from connected components and radial-edge voting, with the ability to add or remove candidate holes manually.
-- Separate review modes for walls and holes. Approval cannot add a new wall to a selected hole square; existing maze cells and imported metadata remain untouched.
+- Separate review modes for walls, holes, and start/finish stickers. Red and blue-green sticker guesses are editable; the inferred color-to-role association is **not historically verified**. Approving import cannot add a new wall to a selected hole or marker square; unrelated existing maze cells and imported metadata remain untouched.
 - Reviewed holes persist in a namespaced extension, show as black circles in the board and map, and end an exploratory run as **provisional** simulated traps.
 - Sensitivity slider reuses the photo-analysis result instead of re-running the expensive circle and segment detectors every time it moves.
 - Tests cover synthetic wall lengths, isolated/touching holes, correction persistence, data compatibility and collision. **Field validation on unmarked, original-camera photographs remains necessary.**
+
+- Candidate sticker positions can be approved as verified original `entrance` and `exit` cell types, subject to collision checks; the physical-to-digital mapping is still provisional.
 
 ### Interpretation caveat
 

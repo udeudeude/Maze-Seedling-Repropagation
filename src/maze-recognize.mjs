@@ -1,4 +1,4 @@
-import {separateRoundHoles} from "./maze-shapes.mjs";
+import {separateRoundHoles,findRoundHolesByEdges} from "./maze-shapes.mjs";
 
 /**
  * Experimental wall classifier for the original Seedling kit's DARK WALL STRIPS.
@@ -146,7 +146,20 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
   }
   const tileWidth=width/columns,tileHeight=height/rows;
   const separated=separateRoundHoles(mask,width,height,columns,rows);
-  const minLength=Math.max(8,Math.round(Math.min(tileWidth,tileHeight)*.90));
+  const holes=[...separated.holes];
+  // Recover circles that touch walls or printed lines, without turning a
+  // touching component into a long false wall.
+  for(const proposed of findRoundHolesByEdges(image,columns,rows)){
+    if(holes.some(old=>Math.hypot(old.cx-proposed.cx,old.cy-proposed.cy)<
+        Math.max(old.radius,proposed.radius)))continue;
+    holes.push(proposed);
+    const r=Math.max(2,proposed.radius*.89);
+    for(let yy=Math.max(0,Math.floor(proposed.cy-r));yy<Math.min(height,Math.ceil(proposed.cy+r));yy++)
+      for(let xx=Math.max(0,Math.floor(proposed.cx-r));xx<Math.min(width,Math.ceil(proposed.cx+r));xx++)
+        if((xx-proposed.cx)**2+(yy-proposed.cy)**2<r*r)
+          separated.mask[yy*width+xx]=0;
+  }
+  const minLength=Math.max(8,Math.round(Math.min(tileWidth,tileHeight)*.70));
   const extended=extendedStripMask(separated.mask,width,height,minLength);
   const tileCount=columns*rows;
   const totals=new Uint32Array(tileCount);
@@ -173,7 +186,7 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
     :quality==="very-few"
       ?"Few wall strips found. Check corner placement and try a higher sensitivity."
       :"Proposals are provisional. Correct missing walls and mistakes before adding them.";
-  return {suggestions,holes:separated.holes,grid:[columns,rows],threshold,darkFraction,quality,message};
+  return {suggestions,holes,grid:[columns,rows],threshold,darkFraction,quality,message};
 }
 
 /** Adds only on empty cells; never deletes imported tiles, metadata or markers. */

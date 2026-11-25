@@ -505,10 +505,11 @@ function initializePhoto() {
       ? "Tap green tiles to deselect mistakes; tap another square to add one."
       : scanResult.message+" Tap squares to correct suggestions.";
     const holeCount=scanResult.holes?.length??0;
+    const spanCount=scanResult.segments?.length??0;
     el("scanStatus").textContent=scanSelected.size+
-      " selected wall tiles (green outlines), "+holeCount+
-      " possible holes (amber rings). "+description+
-      " Hole suggestions are diagnostic only and will not change your maze.";
+      " selected wall tiles, "+spanCount+" candidate straight wall spans and "+
+      holeCount+" possible holes. Green traces show walls; amber rings show possible holes. "+
+      description+" Hole suggestions are diagnostic only.";
     el("applyScanButton").disabled=scanSelected.size===0;
     el("applyScanButton").textContent="Add "+scanSelected.size+" reviewed wall tiles";
   }
@@ -529,6 +530,17 @@ function initializePhoto() {
       context.strokeStyle="#45e59f";
       context.lineWidth=Math.max(1.5,width/350);
       context.strokeRect(x*tw+2,z*th+2,tw-4,th-4);
+    }
+    // Real wall traces: these show continuous straight spans and measured
+    // image geometry, not arbitrarily named factory block sizes.
+    for(const segment of scanResult?.segments??[]){
+      context.beginPath();
+      context.moveTo(segment.x0,segment.y0);
+      context.lineTo(segment.x1,segment.y1);
+      context.strokeStyle="rgba(40,235,158,.82)";
+      context.lineWidth=Math.max(2,Math.min(5,segment.widthPixels*.18));
+      context.lineCap="round";
+      context.stroke();
     }
     // Candidate floor holes are circles, not green wall squares.
     for(const hole of scanResult?.holes??[]){

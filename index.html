@@ -131,16 +131,20 @@
   <dialog id="menuDialog" class="sheet">
     <form method="dialog" class="sheet-header"><h2>Maze files</h2><button aria-label="Close menu" class="icon-button">✕</button></form>
     <div class="sheet-body">
-      <label class="field-label" for="mazeNameInput">Maze name</label>
+      <div class="library-heading"><h3>My mazes</h3><span id="libraryCount"></span></div>
+      <div id="libraryList" class="library-list" aria-label="Saved mazes"></div>
+      <button id="duplicateButton" class="full-button" type="button">Duplicate current maze</button>
+      <div class="separator"></div>
+      <label class="field-label" for="mazeNameInput">Current maze name</label>
       <input id="mazeNameInput" maxlength="80" placeholder="My maze" autocomplete="off">
       <button id="renameButton" type="button" class="full-button primary">Rename maze</button>
       <div class="separator"></div>
       <button id="importButton" class="full-button" type="button">Import Seedling maze file</button>
       <input type="file" id="importInput" accept=".json,application/json" hidden>
       <button id="exportButton" class="full-button" type="button">Export maze JSON</button>
-      <button id="newButton" class="full-button" type="button">New blank maze</button>
-      <button id="practiceButton" class="full-button" type="button">Load practice maze</button>
-      <p class="sheet-hint">Your board is autosaved locally, not uploaded to a server. Export makes a portable backup.</p>
+      <button id="newButton" class="full-button" type="button">Create new blank maze</button>
+      <button id="practiceButton" class="full-button" type="button">Create maze from practice layout</button>
+      <p class="sheet-hint">Each maze is saved locally on this device. Export a copy for a portable backup. Removing browser data can erase the collection.</p>
     </div>
   </dialog>
   <dialog id="tileDialog" class="sheet">

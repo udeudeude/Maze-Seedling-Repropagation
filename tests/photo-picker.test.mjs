@@ -23,7 +23,9 @@ test("capture uses independent, reversible wall review",()=>{
   assert.match(page,/id="scanCanvas"/);
   assert.match(page,/id="applyScanButton"/);
   assert.match(page,/id="cancelScanButton"/);
-  assert.match(app,/applyWallSuggestions/);
+  assert.match(app,/applyCaptureFindings/);
+  assert.match(page,/id="reviewWallsButton"/);
+  assert.match(page,/id="reviewHolesButton"/);
   assert.match(app,/scanSelected\.has\(key\)/);
 });
 

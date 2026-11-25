@@ -133,61 +133,85 @@ export function extendedStripMask(mask,width,height,minimumLength){
   return result;
 }
 
-/** Provisional physical-wall coordinates, to be reviewed before changing a maze. */
+// Reuse expensive edge/shape analysis while the user moves the sensitivity
+// slider. The photo is immutable; new corner alignment creates a new image.
+const captureCache=new WeakMap();
+
+/** Candidate physical walls and holes; analysis is local and provisional. */
 export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
   if(!Number.isFinite(sensitivity)||sensitivity<0||sensitivity>1)
     throw new RangeError("Sensitivity must be from 0 to 1");
   sampleGrid(image,columns,rows);
-  const {width,height,mask,darkFraction,threshold,contrast}=darkPixelMask(image);
+  let computed=captureCache.get(image);
+  if(!computed||computed.columns!==columns||computed.rows!==rows){
+    const {width,height,mask,darkFraction,threshold,contrast}=darkPixelMask(image);
+    computed={columns,rows,width,height,darkFraction,threshold,contrast,
+      holes:[],segments:[],coverage:new Float32Array(columns*rows)};
+    if(darkFraction>=.0015&&darkFraction<=.72&&contrast>=25){
+      const tw=width/columns,th=height/rows;
+      const separated=separateRoundHoles(mask,width,height,columns,rows);
+      const holes=[...separated.holes];
+      // Circle-edge voting finds holes that are merged with nearby wall pixels.
+      for(const proposed of findRoundHolesByEdges(image,columns,rows)){
+        if(holes.some(previous=>Math.hypot(previous.cx-proposed.cx,
+            previous.cy-proposed.cy)<Math.max(previous.radius,proposed.radius)))continue;
+        holes.push(proposed);
+        const radius=Math.max(2,proposed.radius*.89);
+        for(let y=Math.max(0,Math.floor(proposed.cy-radius));
+            y<Math.min(height,Math.ceil(proposed.cy+radius));y++)
+          for(let x=Math.max(0,Math.floor(proposed.cx-radius));
+              x<Math.min(width,Math.ceil(proposed.cx+radius));x++)
+            if((x-proposed.cx)**2+(y-proposed.cy)**2<radius*radius)
+              separated.mask[y*width+x]=0;
+      }
+      const runLength=Math.max(8,Math.round(Math.min(tw,th)*.70));
+      const extended=extendedStripMask(separated.mask,width,height,runLength);
+      const segments=findStraightWallSpans(extended,width,height,Math.min(tw,th));
+      const totals=new Uint32Array(columns*rows);
+      for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+        if(!extended[y*width+x])continue;
+        const cx=Math.min(columns-1,Math.floor(x/tw));
+        const cz=Math.min(rows-1,Math.floor(y/th));
+        totals[cz*columns+cx]++;
+      }
+      for(let z=0;z<rows;z++)for(let x=0;x<columns;x++){
+        const x0=Math.ceil(x*tw),x1=Math.ceil((x+1)*tw);
+        const z0=Math.ceil(z*th),z1=Math.ceil((z+1)*th);
+        computed.coverage[z*columns+x]=totals[z*columns+x]/
+          Math.max(1,(x1-x0)*(z1-z0));
+      }
+      computed.holes=holes;computed.segments=segments;
+    }
+    captureCache.set(image,computed);
+  }
+  const {threshold,darkFraction,contrast,holes,segments,coverage}=computed;
   if(darkFraction<.0015||darkFraction>.72||contrast<25){
-    return {suggestions:[],grid:[columns,rows],quality:"low-contrast",
+    return {suggestions:[],holes:[],segments:[],grid:[columns,rows],
+      quality:"low-contrast",
       message:"Insufficient separation between dark walls and paper. Check lighting and corners.",
       threshold,darkFraction};
   }
-  const tileWidth=width/columns,tileHeight=height/rows;
-  const separated=separateRoundHoles(mask,width,height,columns,rows);
-  const holes=[...separated.holes];
-  // Recover circles that touch walls or printed lines, without turning a
-  // touching component into a long false wall.
-  for(const proposed of findRoundHolesByEdges(image,columns,rows)){
-    if(holes.some(old=>Math.hypot(old.cx-proposed.cx,old.cy-proposed.cy)<
-        Math.max(old.radius,proposed.radius)))continue;
-    holes.push(proposed);
-    const r=Math.max(2,proposed.radius*.89);
-    for(let yy=Math.max(0,Math.floor(proposed.cy-r));yy<Math.min(height,Math.ceil(proposed.cy+r));yy++)
-      for(let xx=Math.max(0,Math.floor(proposed.cx-r));xx<Math.min(width,Math.ceil(proposed.cx+r));xx++)
-        if((xx-proposed.cx)**2+(yy-proposed.cy)**2<r*r)
-          separated.mask[yy*width+xx]=0;
-  }
-  const minLength=Math.max(8,Math.round(Math.min(tileWidth,tileHeight)*.70));
-  const extended=extendedStripMask(separated.mask,width,height,minLength);
-  const segments=findStraightWallSpans(extended,width,height,Math.min(tileWidth,tileHeight));
-  const tileCount=columns*rows;
-  const totals=new Uint32Array(tileCount);
-  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
-    if(!extended[y*width+x])continue;
-    const column=Math.min(columns-1,Math.floor(x/tileWidth));
-    const row=Math.min(rows-1,Math.floor(y/tileHeight));
-    totals[row*columns+column]++;
-  }
-  const minimumCoverage=.31-.26*sensitivity; // 0.18 at default; lower is stricter
+  const minimumCoverage=.31-.26*sensitivity;
+  const holeTiles=new Set(holes.map(h=>h.x+","+h.z));
   const suggestions=[];
   for(let z=0;z<rows;z++)for(let x=0;x<columns;x++){
-    const x0=Math.ceil(x*tileWidth),x1=Math.ceil((x+1)*tileWidth);
-    const z0=Math.ceil(z*tileHeight),z1=Math.ceil((z+1)*tileHeight);
-    const coverage=totals[z*columns+x]/Math.max(1,(x1-x0)*(z1-z0));
-    if(coverage>=minimumCoverage)suggestions.push({x,z,
-      score:Number(coverage.toFixed(3)),
-      confidence:Number(clamp((coverage-minimumCoverage)/(1-minimumCoverage),0,1).toFixed(2))});
+    const filled=coverage[z*columns+x];
+    // A convincing hole takes precedence over a wall occupying its square.
+    // The user can override either decision in the review.
+    if(filled<minimumCoverage||holeTiles.has(x+","+z))continue;
+    suggestions.push({x,z,score:Number(filled.toFixed(3)),
+      confidence:Number(clamp((filled-minimumCoverage)/
+        (1-minimumCoverage),0,1).toFixed(2))});
   }
-  const ratio=suggestions.length/tileCount;
+  const ratio=suggestions.length/(columns*rows);
   const quality=ratio>.55?"too-many":ratio<.008?"very-few":"review";
   const message=quality==="too-many"
-    ?"Too many cells are dark. Recheck all four corners; the photograph may include the frame or background."
+    ?"Too many cells are dark. Recheck all four corners."
     :quality==="very-few"
-      ?"Few wall strips found. Check corner placement and try a higher sensitivity."
-      :"Proposals are provisional. Correct missing walls and mistakes before adding them.";
-  return {suggestions,holes,segments,grid:[columns,rows],threshold,darkFraction,quality,message};
+      ?"Few walls found. Check alignment and increase sensitivity if needed."
+      :"Review candidate strips and circles before importing.";
+  return {suggestions,holes,segments,grid:[columns,rows],
+    threshold,darkFraction,quality,message};
 }
 
 /** Adds only on empty cells; never deletes imported tiles, metadata or markers. */

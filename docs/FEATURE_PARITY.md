@@ -4,12 +4,12 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 
 | Original function | Current status | Remaining work |
 | --- | --- | --- |
-| Photograph-to-maze automatic scanning | **Experimental** local wooden-wall suggestions after manual corner alignment | Exact board tracking, native grid/marker recognition, actual photo validation |
-| Detect physical trap holes and start/finish | **Missing** in camera scanner | Restore these three recognition targets and map to original virtual cells |
-| Detect walls of three physical lengths | Partial cell classifier; **no compound-wall detection** | Match three wooden wall lengths and physical grid before translating to 18 × 18 digital cells |
+| Photograph-to-maze automatic scanning | **Experimental** continuous dark-wall spans and editable wall-tile suggestions, manually aligned | Automatic board corner finding, true physical grid calibration, actual-photo evaluation |
+| Detect physical trap holes and start/finish | **Partial:** circular-hole proposals, review/edit, saved non-original annotations, provisional trap effect; start/finish scanner missing | Calibrate hole size, resolve original hole data semantics, recognize original sticker markers |
+| Detect walls of three physical lengths | **Partial:** straight spans and image-space lengths measured | Segment touching blocks individually, recover exact short/medium/long dimensions, calibrate against the physical grid |
 | Live camera feedback and overlay | **Missing** | Guided preview, auto-detect boundaries, illumination and tilt advice |
 | Edit maze by categories and variants | **Partial** 15 tile types, paint, erase, undo/redo | Original selection, moving/copying, zoom/pan, object limits, theme-specific variant controls |
-| Start/end, hazards, moving chasers | Start and finish placeable; hazards **rudimentary** | Recognize markers, animate holes/traps, shadow patrol, chase and restart |
+| Start/end, hazards, moving chasers | Start and finish placeable; time/speed hazards rudimentary; physical holes trigger provisional loss | Recognize markers, correct trap effects, shadow patrol/chase and animations |
 | Gates, collectible keys, inventory | **Incomplete** gate collision only | Functional keys, matching gate variants, placement, unlocking and inventory |
 | Secret passages | **Not implemented** | Actual traversal/transport and audio/visual treatment |
 | Riddles/questions/answers | Riddle tile placement only | Authoring, correct/wrong responses, effects, in-world answer interaction |
@@ -32,7 +32,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 - Original native symbols: TileReader::getBoardCorners, computeBoard, drawGrid, getWalls, setBoardDimensions, removeBoardEdges; native board model can identify start and end.
 - The first-hand Toy Insider review explicitly confirms automatic wall, punched-hole, start and finish recognition.
 - [Original kit contents photograph](https://www.vat19.com/item/design-your-own-marble-maze-virtual-reality) shows charcoal-black walls, not tan wood. The original kit has 45 wall blocks in three lengths; the 18 × 18 size is VERIFIED FOR THE DIGITAL PRESETS only, not the physical camera scanning grid.
-- Current classifier is a provisional locally adaptive dark-strip shape detector, designed after examining photos of the actual charcoal wall pieces. It preserves existing tiles, allows sensitivity adjustment and manual review, and does not yet recognize all original features. Accuracy on real Seedling photos is NOT independently established.
+- The experimental classifier uses histogram-based dark segmentation, elongated straight runs, connected-component circularity and radial-edge voting to suggest dark wall strips and hole positions. Hole marks are kept in the `repropagation.physicalHoles` field, **not** a fabricated original cell category. Changing sensitivity reuses cached geometry. Exact short/medium/long wall dimensions and real-photo accuracy are **not established**.
 
 ## High-priority order
 
@@ -51,3 +51,17 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 - [Physical kit and wall-length review](https://www.youtube.com/watch?v=9Os-oESeG1Q)
 
 The original application's proprietary assets and code are not included in this public reconstruction.
+
+## Verified implementation update: November 25, 2026
+
+- Separate photo library and camera controls on iPhone.
+- Candidate wall positions and their continuous straight spans, with measured image-space lengths (not inferred official block sizes).
+- Circular hole candidates from connected components and radial-edge voting, with the ability to add or remove candidate holes manually.
+- Separate review modes for walls and holes. Approval cannot add a new wall to a selected hole square; existing maze cells and imported metadata remain untouched.
+- Reviewed holes persist in a namespaced extension, show as black circles in the board and map, and end an exploratory run as **provisional** simulated traps.
+- Sensitivity slider reuses the photo-analysis result instead of re-running the expensive circle and segment detectors every time it moves.
+- Tests cover synthetic wall lengths, isolated/touching holes, correction persistence, data compatibility and collision. **Field validation on unmarked, original-camera photographs remains necessary.**
+
+### Interpretation caveat
+
+Although the physical kit has three wall lengths and the bundled digital mazes have 18 × 18 coordinate maps, the exact physical grid pitch and mapping are still unknown. A continuous dark span might represent several touching factory pieces. The current code measures image-space straight spans and does **not** assert that each is exactly one factory part.

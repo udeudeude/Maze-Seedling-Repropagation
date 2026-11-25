@@ -234,15 +234,17 @@ export function castRay(maze,x,z,heading,maxDistance=28,wallIndex=null) {
   }
   return null;
 }
-export function renderScene(ctx,maze,player,{stereo=false}={}) {
+export function renderScene(ctx,maze,player,{stereo=false,pitch=0}={}) {
   if(!ctx)return;
   const canvas=ctx.canvas,{width:w,height:h}=canvas;
   const color=THEMATIC[maze.data.theme]??THEMATIC.marble_maze;
   const views=stereo?2:1;
   const walls=createWallIndex(maze,player.keys);
   const lateral=player.heading+Math.PI/2;
-  ctx.fillStyle=color.sky;ctx.fillRect(0,0,w,h/2);
-  ctx.fillStyle=color.floor;ctx.fillRect(0,h/2,w,h/2);
+  // Looking upward lowers the apparent horizon, without changing gameplay.
+  const horizon=h/2+clamp(Math.tan(pitch),-1,1)*h*.38;
+  ctx.fillStyle=color.sky;ctx.fillRect(0,0,w,horizon);
+  ctx.fillStyle=color.floor;ctx.fillRect(0,horizon,w,h-horizon);
   for(let eye=0;eye<views;eye++){
     const left=eye*(w/views),vw=w/views,eyeOffset=stereo?(eye===0?-0.022:0.022):0;
     ctx.save();ctx.beginPath();ctx.rect(left,0,vw,h);ctx.clip();
@@ -261,7 +263,7 @@ export function renderScene(ctx,maze,player,{stereo=false}={}) {
       if(forward<.35||forward>19||
           Math.abs(sideways)>forward*1.8)continue;
       const sx=left+vw/2+(sideways/forward)*vw/(2*Math.tan(fov/2));
-      const sy=h/2+h*.39/forward;
+      const sy=horizon+h*.39/forward;
       const rx=Math.min(vw*.4,h*.18/forward),ry=rx*.31;
       if(sy>h+ry||sx<left-rx||sx>left+vw+rx)continue;
       ctx.beginPath();ctx.ellipse(sx,sy,rx,ry,0,0,Math.PI*2);
@@ -277,7 +279,7 @@ export function renderScene(ctx,maze,player,{stereo=false}={}) {
       if(!hit)continue;
       const corrected=hit.distance*Math.cos(angle-player.heading);
       const wallHeight=Math.min(h*4,(h*.86)/Math.max(.08,corrected));
-      const top=(h-wallHeight)/2;
+      const top=horizon-wallHeight/2;
       ctx.fillStyle=color.wall;ctx.globalAlpha=clamp(1-hit.distance/39,.37,1)*(hit.side===0?1:.8);
       ctx.fillRect(left+px,top,beamStep+1,wallHeight);
       ctx.globalAlpha=1;
@@ -305,7 +307,7 @@ export function renderScene(ctx,maze,player,{stereo=false}={}) {
       const sx=left+vw/2+(sideways/forward)*vw/(2*Math.tan(fov/2));
       const height=Math.min(h*1.5,h*.78/Math.max(forward,.35));
       if(sx<left-height||sx>left+vw+height)continue;
-      const baseY=h/2+h*.31/Math.max(forward,.35);
+      const baseY=horizon+h*.31/Math.max(forward,.35);
       ctx.save();
       ctx.globalAlpha=.92;ctx.fillStyle="#181b28";
       ctx.beginPath();ctx.ellipse(sx,baseY-height*.46,height*.26,

@@ -4,6 +4,7 @@ import {
   cellCoordinates,primaryCell,locate,findRoute,examineMaze
 } from "./maze-world.mjs";
 import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answerRiddle,keyPickupId,advanceShadows} from "./maze-play.mjs";
+import {orientationPose,relativePose,shortestAngle} from "./maze-orientation.mjs";
 import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
@@ -50,6 +51,8 @@ let scanSelectedHoles=new Map(),scanAddedHoles=new Map(),scanRejectedHoles=new S
 let scanMode="walls",markerBrush="entrance";
 let scanMarkers=new Map(),scanMarkerEdits=new Map();
 let play=startPlay(maze),stereo=false,showMap=false,holding=new Set();
+let motionPose=null,motionAnchor=null,motionHeading=0,motionPitch=0;
+let motionActive=false,motionRotation=null;
 let lastFrame=0,lastBoardRect=null,boardPainting=false,boardLastCell=null;
 let placement=null,boardZoom=1,boardPanning=false,panDrag=null;
 const toolOrder=["wall","empty","hole","entrance","exit","gate","riddle","info","map",
@@ -513,6 +516,7 @@ function initializeDialogs() {
 
 function setView(next) {
   if(next!=="build")clearPlacement();
+  if(next!=="explore"&&stereo)leaveCardboard();
   if(next!=="explore"&&el("riddleDialog").open){
     el("riddleDialog").close();
     play=answerRiddle(play,"",{skip:true});
@@ -531,7 +535,8 @@ function setView(next) {
   holding.clear();lastFrame=0;
   if(next==="build")requestAnimationFrame(renderBoard);
   if(next==="explore"){
-    play=startPlay(maze);requestAnimationFrame(renderPlay);
+    play=startPlay(maze);motionAnchor=null;motionPitch=0;motionHeading=0;
+    requestAnimationFrame(renderPlay);
   }
   if(next==="photo")requestAnimationFrame(renderPhoto);
 }
@@ -570,6 +575,82 @@ function renderMapOverlay(ctx) {
   ctx.arc(x+play.x*tw,y+play.z*th,Math.max(3,tw*.65),0,Math.PI*2);ctx.fill();
   ctx.restore();
 }
+function screenRotation() {
+  const value=Number(window.screen?.orientation?.angle??window.orientation??0);
+  return Number.isFinite(value)?value:0;
+}
+function motionMessage(message) {
+  const status=el("motionStatus");status.hidden=!stereo;status.textContent=message;
+}
+function onDeviceOrientation(event) {
+  if(!stereo||view!=="explore"||document.hidden)return;
+  const rotation=screenRotation();
+  if(motionRotation!==rotation) {
+    motionRotation=rotation;motionAnchor=null;motionHeading=play.heading;
+  }
+  const pose=orientationPose(event,rotation);
+  if(!pose)return;
+  motionPose=pose;
+  if(!motionAnchor){motionAnchor=pose;motionHeading=play.heading;}
+  const next=relativePose(pose,motionAnchor,motionHeading);
+  if(!next)return;
+  play={...play,heading:next.heading};motionPitch=next.pitch;
+  if(!motionActive){
+    motionActive=true;
+    motionMessage("Head tracking active · Recenter if the view drifts.");
+  }
+}
+function leaveCardboard() {
+  window.removeEventListener("deviceorientation",onDeviceOrientation);
+  stereo=false;motionActive=false;motionPose=null;motionAnchor=null;
+  motionHeading=0;motionPitch=0;motionRotation=null;
+  el("stereoButton").textContent="Cardboard";
+  el("stereoButton").setAttribute("aria-pressed","false");
+  el("recenterButton").hidden=true;
+  el("mapButton").disabled=false;
+  el("exploreView").classList.remove("cardboard-view");
+  motionMessage("");
+}
+async function enterCardboard() {
+  stereo=true;motionActive=false;motionPose=null;motionAnchor=null;
+  motionHeading=play.heading;motionPitch=0;motionRotation=null;
+  showMap=false;el("mapButton").setAttribute("aria-pressed","false");
+  el("mapButton").disabled=true;
+  el("stereoButton").textContent="Exit Cardboard";
+  el("stereoButton").setAttribute("aria-pressed","true");
+  el("recenterButton").hidden=false;
+  el("exploreView").classList.add("cardboard-view");
+  motionMessage("Allow motion access to look around. Landscape works best.");
+  renderPlay();
+  if(typeof window.DeviceOrientationEvent!=="function"){
+    motionMessage("Motion sensors unavailable. Use the turn buttons.");
+    return;
+  }
+  let permission="granted";
+  try{
+    // Safari requires this call directly within the tap's user activation.
+    if(typeof window.DeviceOrientationEvent.requestPermission==="function")
+      permission=await window.DeviceOrientationEvent.requestPermission();
+  }catch(error){permission="denied";}
+  if(!stereo||view!=="explore")return;
+  if(permission!=="granted"){
+    motionMessage("Motion access denied. Use the turn buttons.");
+    return;
+  }
+  window.addEventListener("deviceorientation",onDeviceOrientation,{passive:true});
+  motionMessage("Move the phone to begin head tracking · Rotate to landscape.");
+}
+function recenterHeadset() {
+  if(!motionPose){
+    motionMessage("Move the phone to initialize tracking, or turn manually.");
+    return;
+  }
+  // Physical forward is re-aligned with the maze's starting heading.
+  motionAnchor=motionPose;motionHeading=startPlay(maze).heading;
+  play={...play,heading:motionHeading};
+  motionMessage("Forward direction reset · Turn your head to look around.");
+  renderPlay();
+}
 function renderPlay() {
   if(view!=="explore")return;
   const riddleDialog=el("riddleDialog");
@@ -584,7 +665,7 @@ function renderPlay() {
   if(canvas.offsetParent===null)return;
   canvasSize(canvas,1024);
   const ctx=canvas.getContext("2d");
-  renderScene(ctx,maze,play,{stereo});
+  renderScene(ctx,maze,play,{stereo,pitch:stereo?motionPitch:0});
   if(showMap)renderMapOverlay(ctx);
   const seconds=Math.ceil(play.remaining);
   el("timeReadout").textContent=Math.floor(seconds/60)+":"+String(seconds%60).padStart(2,"0");
@@ -619,11 +700,11 @@ function initializePlay() {
     showMap=!showMap;event.currentTarget.setAttribute("aria-pressed",String(showMap));
     renderPlay();
   });
-  el("stereoButton").addEventListener("click",event=>{
-    stereo=!stereo;event.currentTarget.setAttribute("aria-pressed",String(stereo));
-    event.currentTarget.textContent=stereo?"Exit Cardboard":"Cardboard";
-    renderPlay();
+  el("stereoButton").addEventListener("click",()=>{
+    if(stereo){leaveCardboard();renderPlay();}
+    else enterCardboard();
   });
+  el("recenterButton").addEventListener("click",recenterHeadset);
   document.querySelectorAll("[data-control]").forEach(button=>{
     const name=button.dataset.control;
     const release=()=>{holding.delete(name);button.classList.remove("pressed");};
@@ -648,9 +729,16 @@ function initializePlay() {
   canvas.addEventListener("pointerdown",event=>{lookX=event.clientX;canvas.setPointerCapture(event.pointerId);});
   canvas.addEventListener("pointermove",event=>{
     if(lookX===null)return;
-    play=rotatePlayer(play,(event.clientX-lookX)*.008);lookX=event.clientX;renderPlay();
+    const delta=(event.clientX-lookX)*.008;
+    play=rotatePlayer(play,delta);
+    if(motionActive&&motionAnchor)motionHeading=shortestAngle(motionHeading+delta);
+    lookX=event.clientX;renderPlay();
   });
   const endLook=()=>{lookX=null;};
+  window.addEventListener("blur",()=>holding.clear());
+  document.addEventListener("visibilitychange",()=>{
+    if(document.hidden){holding.clear();lastFrame=0;}
+  });
   canvas.addEventListener("pointerup",endLook);canvas.addEventListener("pointercancel",endLook);
   const frame=time=>{
     if(view==="explore" && !document.hidden){
@@ -659,7 +747,11 @@ function initializePlay() {
         const turn=Number(holding.has("turnRight"))-Number(holding.has("turnLeft"));
         const forward=Number(holding.has("forward"))-Number(holding.has("backward"));
         const strafe=Number(holding.has("strafeRight"))-Number(holding.has("strafeLeft"));
-        if(turn)play=rotatePlayer(play,turn*dt*1.9);
+        if(turn){
+          const delta=turn*dt*1.9;
+          play=rotatePlayer(play,delta);
+          if(motionActive&&motionAnchor)motionHeading=shortestAngle(motionHeading+delta);
+        }
         if(forward||strafe)play=movePlayer(maze,play,forward*dt*6,strafe*dt*6);
         play=tickPlayer(play,dt);
         play=advanceShadows(maze,play,dt);

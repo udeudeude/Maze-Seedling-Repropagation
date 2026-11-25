@@ -18,7 +18,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 | Four original environments | Four **palette placeholders** | Rebuild original models, geometry, animation, textures, environmental details, and lighting |
 | Original sound/music | **Missing** | Four themed scores/ambient sound, spatial effects, volume/music toggles |
 | Flat-screen game | **Partial** raycast corridors and touch controls | Original movement speed, physics, controls, collectibles, map behavior |
-| True Google Cardboard mode | Two side-by-side images only | Gyroscope head tracking, eye projection, lens correction, gaze interaction, recentering |
+| True Google Cardboard mode | **Partial:** stereo, permission-based relative head yaw/pitch, recenter and landscape layout | Calibrated optics/lens distortion, gaze/trigger interaction, actual iPhone tests |
 | Race nearby friends | **Missing** | Nearby Wi-Fi/Bluetooth or an equivalent direct peer system, synchronization, races |
 | Selfie player avatars and screenshots | **Missing** | Avatar photos, player markers, in-world screenshot and sharing |
 | Eight built-in mazes in four themes | One independently created practice maze | Historically accurate tutorial and standard/hard experiences; original distribution rights review |
@@ -101,3 +101,9 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - Chasers follow deterministic four-direction shortest walkable routes toward the player and move continuously. Walls, locked gates and annotated physical trap holes block pursuit; matching collected keys reopen gates. Physical contact ends the run, including when the player approaches a shadow or teleports next to one.
 - Riddle prompts and game-over states suspend shadow movement. Restart restores original positions. The original JSON document is not changed. New tests cover pursuit, barriers, gate keys, collisions, resets, paused state and data preservation.
 - **Historical limitation:** Recovered code evidence supports following shadows and shortest-path logic, but not exact movement speeds, patrol and detection behavior, original three-dimensional models, sound or scoring. Physical iPhone validation remains necessary.
+
+## November 25, 2026: Cardboard orientation groundwork
+
+- Cardboard previously just drew two side-by-side images. It now requests browser motion permission from the initiating tap, then combines alpha/beta/gamma and screen rotation to track yaw and pitch. Head orientation is relative to the user's direction at activation, not an invented compass bearing. Recenter maps the current physical direction to the maze's starting heading.
+- The two-eye scene gains a landscape layout, a clear exit and motion-status feedback. Denied or absent sensors leave manual turning available. Motion listeners are removed on exit; pausing the browser releases held movement controls.
+- Added tests for quaternion yaw, pitch, screen rotation, wraparound, invalid readings and browser interface wiring. **Still not calibrated Cardboard:** lens projection/distortion, viewer calibration, gaze trigger, positional tracking and real iPhone validation remain unfinished.

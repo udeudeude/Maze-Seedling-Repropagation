@@ -1,11 +1,11 @@
 /* Maze Repropagation: offline shell; photographs remain on the user's device. */
-const VERSION="maze-shell-2026-11-25-7";
+const VERSION="maze-shell-2026-11-25-8";
 const ASSETS=[
   "./","./index.html","./style.css","./manifest.webmanifest",
   "./src/app.mjs","./src/maze-document.mjs","./src/maze-world.mjs",
   "./src/maze-play.mjs","./src/maze-capture.mjs","./src/maze-recognize.mjs",
   "./src/maze-shapes.mjs",
-  "./src/maze-markers.mjs","./src/maze-library.mjs"
+  "./src/maze-markers.mjs","./src/maze-library.mjs","./src/maze-orientation.mjs"
 ];
 self.addEventListener("install",event=>{
   event.waitUntil(caches.open(VERSION)

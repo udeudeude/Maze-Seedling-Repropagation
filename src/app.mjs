@@ -491,7 +491,7 @@ function initializePhoto() {
     image.src=url;
     event.target.value="";
   }
-  for(const id of ["photoInput","cameraInput"])el(id).addEventListener("change",loadPhoto);
+  el("photoInput").addEventListener("change",loadPhoto);
   let activeCorner=-1;
   const coord=event=>{
     const r=canvas.getBoundingClientRect();

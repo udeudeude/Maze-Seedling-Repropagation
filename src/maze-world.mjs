@@ -70,6 +70,33 @@ export function paintTile(source,x,z,type,variant) {
   return maze;
 }
 
+/**
+ * Move or duplicate exactly the topmost editable cell. Never silently overwrite
+ * another cell or rewrite the original imported document's other layers.
+ * Physical floor holes are independent annotations, not ordinary cells.
+ */
+export function transferTile(source,fromX,fromZ,toX,toZ,{copy=false}={}) {
+  const maze=parseMaze(source);
+  if(!isValid(fromX,fromZ,maze)||!isValid(toX,toZ,maze))
+    throw new RangeError("Tile position is outside the maze");
+  const original=primaryCell(maze,fromX,fromZ);
+  if(!original)throw new Error("There is no tile to move or copy");
+  if(fromX===toX&&fromZ===toZ)
+    throw new Error("Choose a different destination square");
+  if(primaryCell(maze,toX,toZ))
+    throw new Error("That square already contains a tile");
+  if((maze.repropagation?.physicalHoles??[]).some(item=>
+    Number(item.position?.[0])===toX&&Number(item.position?.[2])===toZ))
+    throw new Error("That square contains a physical hole");
+  if(copy&&["entrance","exit"].includes(original.cell.type))
+    throw new Error("Start and Finish cannot be duplicated");
+  const moved=clone(original.cell);
+  moved.position=preservePosition(original.cell,toX,toZ);
+  if(!copy)maze.data.cells.splice(original.index,1);
+  maze.data.cells.push(moved);
+  return maze;
+}
+
 export function eraseAt(source,x,z) {
   return paintTile(source,x,z,"empty");
 }

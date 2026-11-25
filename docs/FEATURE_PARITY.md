@@ -8,7 +8,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 | Detect physical trap holes and start/finish | **Experimental:** circle and colored-sticker candidates, separate review/correction, marker import, namespaced hole annotations and provisional trap effect | Verify actual marker colors, capture calibration, original hole representation, classification precision on real photos |
 | Detect walls of three physical lengths | **Partial:** straight spans and image-space lengths measured | Segment touching blocks individually, recover exact short/medium/long dimensions, calibrate against the physical grid |
 | Live camera feedback and overlay | **Missing** | Guided preview, auto-detect boundaries, illumination and tilt advice |
-| Edit maze by categories and variants | **Partial** 15 tile types, paint, erase, undo/redo | Original selection, moving/copying, zoom/pan, object limits, theme-specific variant controls |
+| Edit maze by categories and variants | **Partial** 15 types, paint/erase, undo/redo, magnification and safe tile moving/copying | Original selection gestures, native zoom behavior, object limits, theme-specific variants, device validation |
 | Start/end, hazards, moving chasers | Start and finish placeable; time/speed hazards rudimentary; physical holes trigger provisional loss | Recognize markers, correct trap effects, shadow patrol/chase and animations |
 | Gates, collectible keys, inventory | **Incomplete** gate collision only | Functional keys, matching gate variants, placement, unlocking and inventory |
 | Secret passages | **Not implemented** | Actual traversal/transport and audio/visual treatment |
@@ -74,3 +74,10 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - Added a separately saved local maze collection. Users can open, rename, duplicate and delete individual designs, create a blank or practice design without overwriting the previous one, and import external original-format JSON as another saved maze.
 - Migrates the legacy single-maze autosave, preserves unknown document keys and keeps the old key as an independent recovery copy. No photograph or maze is uploaded by this feature.
 - Unit tests cover collection creation, switching, copying, deletion, invalid-data recovery, legacy migration and document metadata preservation. Browser-specific storage durability still requires device testing.
+
+## November 25, 2026: magnified editing and lossless tile transfer
+
+- Build board can be zoomed from 1× to 4× with a stable viewport center. **Pan** is a distinct, clearly indicated mode: touch scrolling or mouse dragging moves the enlarged board without painting. Return to drawing by deselecting Pan; normal canvas cell mapping remains based on the displayed board bounds.
+- The existing **Inspect tile** sheet now offers **Move tile** and **Copy tile**. Choose an empty destination on the board or cancel. Both operations are undoable; copying a start or finish is disallowed. Occupied squares and photographed physical holes are rejected rather than silently overwritten.
+- Tile movement/copying preserves the complete original cell object, coordinate representation, unknown fields and other overlapping imported cells; no new original tile categories are invented. Browser and original-device gesture fidelity are still unverified.
+- Coverage: model tests for transfers, import metadata, occupancy and bounds, and an interface-contract test for the zoom/pan and move/copy wiring. Physical iPhone testing remains outstanding.

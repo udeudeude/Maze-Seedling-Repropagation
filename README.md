@@ -29,7 +29,7 @@ See the evidence-led [original feature parity audit](docs/FEATURE_PARITY.md) for
 
 ### Capture and save designs
 
-In **Capture**, a single **Choose or take a photograph** button opens iPhone's native photo library, camera, or file picker. It replaces the redundant dedicated camera button.
+In **Capture**, a single **Choose or take a photograph** button opens iPhone's native photo library, camera, or file picker. It replaces the redundant dedicated camera button. In **Build**, use the 1×–4× zoom buttons for precise editing and **Pan** to move the zoomed board without drawing. Select **Inspect tile**, tap a tile, then choose **Move tile** or **Copy tile** and tap an empty destination. These edits are undoable; imported original cell metadata stays intact.
 
 The **Maze files** menu now includes **My mazes**, an offline collection: open, duplicate, rename or delete designs; import a JSON maze as a separate entry; create fresh blank and practice mazes without replacing earlier work. The old single-maze autosave remains available as a local backup. Export is still recommended before clearing browser data or changing devices.
 

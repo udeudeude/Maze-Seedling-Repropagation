@@ -1,6 +1,6 @@
 import {parseMaze, serializeMaze, validateMaze} from "./maze-document.mjs";
 import {
-  SIZE,TILE_NAMES,newMaze,sampleMaze,paintTile,eraseAt,changeCellDetails,
+  SIZE,TILE_NAMES,newMaze,sampleMaze,paintTile,eraseAt,changeCellDetails,transferTile,
   cellCoordinates,primaryCell,locate,findRoute,examineMaze
 } from "./maze-world.mjs";
 import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC} from "./maze-play.mjs";
@@ -51,6 +51,7 @@ let scanMode="walls",markerBrush="entrance";
 let scanMarkers=new Map(),scanMarkerEdits=new Map();
 let play=startPlay(maze),stereo=false,showMap=false,holding=new Set();
 let lastFrame=0,lastBoardRect=null,boardPainting=false,boardLastCell=null;
+let placement=null,boardZoom=1,boardPanning=false,panDrag=null;
 const toolOrder=["wall","empty","hole","entrance","exit","gate","riddle","info","map",
   "secret_passage","shadow","speed_powerup","speed_hazard","timer_powerup","timer_hazard","floor"];
 
@@ -79,6 +80,7 @@ function activateLibrary(updated,message){
   maze=activeDocument(library);
   undo=[];redo=[];route=null;currentTile=null;photoGuide=null;
   play=startPlay(maze);
+  clearPlacement();
   persist();
   el("menuDialog").close();
   setView("build");
@@ -184,7 +186,7 @@ function tileMap() {
 function renderBoard() {
   const canvas=el("boardCanvas");
   if(!canvas||canvas.offsetParent===null)return;
-  const {width:w,height:h}=canvasSize(canvas);
+  const {width:w,height:h}=canvasSize(canvas,1400);
   const ctx=canvas.getContext("2d");
   const rows=Number(maze.data.scale[2]),cols=Number(maze.data.scale[0]);
   const tw=w/cols,th=h/rows;
@@ -256,6 +258,7 @@ function prepareToolbox() {
     button.append(mark,name);
     button.addEventListener("click",()=>{
       selected=type;inspection=false;
+      clearPlacement();
       el("inspectButton").setAttribute("aria-pressed","false");
       for(const child of group.children)child.setAttribute("aria-pressed",String(child===button));
       notice((type==="empty"?"Erase":labels[type])+" selected · Tap or drag on the board");
@@ -263,7 +266,45 @@ function prepareToolbox() {
     group.append(button);
   }
 }
+function clearPlacement() {
+  placement=null;
+  el("cancelPlacementButton").hidden=true;
+  el("routeButton").hidden=false;
+}
+function setBoardPan(enabled) {
+  boardPanning=Boolean(enabled&&boardZoom>1);
+  el("panButton").setAttribute("aria-pressed",String(boardPanning));
+  el("boardCanvas").classList.toggle("pan-mode",boardPanning);
+}
+function setBoardZoom(next) {
+  const viewport=el("boardScroller"),surface=el("boardSurface");
+  const previousWidth=viewport.scrollWidth||viewport.clientWidth;
+  const previousHeight=viewport.scrollHeight||viewport.clientHeight;
+  const centerX=(viewport.scrollLeft+viewport.clientWidth/2)/previousWidth;
+  const centerY=(viewport.scrollTop+viewport.clientHeight/2)/previousHeight;
+  boardZoom=Math.max(1,Math.min(4,next));
+  surface.style.width=(boardZoom*100)+"%";
+  el("zoomLevel").textContent=boardZoom+"×";
+  el("zoomInButton").disabled=boardZoom===4;
+  el("zoomOutButton").disabled=boardZoom===1;
+  if(boardZoom===1)setBoardPan(false);
+  requestAnimationFrame(()=>{
+    viewport.scrollLeft=centerX*viewport.scrollWidth-viewport.clientWidth/2;
+    viewport.scrollTop=centerY*viewport.scrollHeight-viewport.clientHeight/2;
+    renderBoard();
+  });
+}
 function paint(x,z) {
+  if(placement) {
+    try {
+      const copy=placement.copy;
+      const updated=transferTile(maze,...placement.source,x,z,{copy});
+      commit(updated);
+      clearPlacement();currentTile=[x,z];renderBoard();
+      notice((copy?"Copied":"Moved")+" tile to "+(x+1)+", "+(z+1)+" · Undo available");
+    }catch(error){notice(error.message+" · Choose an empty square or cancel");}
+    return;
+  }
   if(inspection){openTileDialog(x,z);return;}
   // One entrance and one exit in newly edited mazes.
   let target=maze;
@@ -298,20 +339,36 @@ function initializeBoardInput() {
   const canvas=el("boardCanvas");
   canvas.addEventListener("pointerdown",event=>{
     if(event.button!==0&&event.pointerType==="mouse")return;
+    if(boardPanning){
+      if(event.pointerType==="mouse"){
+        const viewport=el("boardScroller");
+        panDrag={id:event.pointerId,x:event.clientX,y:event.clientY,
+          left:viewport.scrollLeft,top:viewport.scrollTop};
+        canvas.setPointerCapture(event.pointerId);
+      }
+      return;
+    }
     const cell=indexAt(event,canvas);
     if(!cell)return;
+    if(placement){paint(...cell);return;}
     boardPainting=true;boardLastCell=cell.join(",");
     canvas.setPointerCapture(event.pointerId);
     paint(...cell);
   });
   canvas.addEventListener("pointermove",event=>{
-    if(!boardPainting||inspection)return;
+    if(panDrag&&panDrag.id===event.pointerId){
+      const viewport=el("boardScroller");
+      viewport.scrollLeft=panDrag.left-(event.clientX-panDrag.x);
+      viewport.scrollTop=panDrag.top-(event.clientY-panDrag.y);
+      return;
+    }
+    if(!boardPainting||inspection||boardPanning||placement)return;
     const cell=indexAt(event,canvas);
     if(!cell)return;
     const key=cell.join(",");
     if(key!==boardLastCell){boardLastCell=key;paint(...cell);}
   });
-  const finish=()=>{boardPainting=false;boardLastCell=null;};
+  const finish=()=>{boardPainting=false;boardLastCell=null;panDrag=null;};
   canvas.addEventListener("pointerup",finish);
   canvas.addEventListener("pointercancel",finish);
   canvas.addEventListener("keydown",event=>{
@@ -336,6 +393,7 @@ function openTileDialog(x,z) {
   el("tileDetailType").textContent=labels[present.type]??present.type;
   el("variantInput").value=present.variant??"";
   el("messageInput").value=present.text??present.message??"";
+  el("copyTileButton").disabled=present.type==="entrance"||present.type==="exit";
   el("tileDialog").showModal();
 }
 function initializeDialogs() {
@@ -382,6 +440,18 @@ function initializeDialogs() {
     if(!persist())return alert("Save unavailable. Export your current maze before creating another.");
     activateLibrary(addMaze(library,sampleMaze()),"Practice maze created. Your previous maze is safe in My mazes.");
   });
+  for(const [buttonId,copy] of [["moveTileButton",false],["copyTileButton",true]]) {
+    el(buttonId).addEventListener("click",()=>{
+      if(!currentTile||!primaryCell(maze,...currentTile))return;
+      placement={source:[...currentTile],copy};
+      setBoardPan(false);
+      inspection=false;el("inspectButton").setAttribute("aria-pressed","false");
+      el("tileDialog").close();
+      el("cancelPlacementButton").hidden=false;
+      el("routeButton").hidden=true;
+      notice("Tap an empty square to "+(copy?"copy":"move")+" the tile · Cancel to keep it here");
+    });
+  }
   el("saveTileButton").addEventListener("click",()=>{
     if(!currentTile)return;
     const [x,z]=currentTile;
@@ -403,6 +473,7 @@ function initializeDialogs() {
 }
 
 function setView(next) {
+  if(next!=="build")clearPlacement();
   view=next;
   for(const name of ["build","photo","explore"]){
     el(name+"View").hidden=name!==next;
@@ -846,6 +917,15 @@ function initializePhoto() {
 
 function initialize() {
   prepareToolbox();initializeBoardInput();initializeDialogs();initializePlay();initializePhoto();
+  el("zoomInButton").addEventListener("click",()=>setBoardZoom(boardZoom+1));
+  el("zoomOutButton").addEventListener("click",()=>setBoardZoom(boardZoom-1));
+  el("panButton").addEventListener("click",()=>{
+    setBoardPan(!boardPanning);
+    notice(boardPanning?"Drag to pan the board; drawing is paused":"Board drawing enabled");
+  });
+  el("cancelPlacementButton").addEventListener("click",()=>{
+    clearPlacement();notice("Move or copy cancelled");renderBoard();
+  });
   el("undoButton").addEventListener("click",()=>undoOrRedo(true));
   el("redoButton").addEventListener("click",()=>undoOrRedo(false));
   el("inspectButton").setAttribute("aria-pressed","false");

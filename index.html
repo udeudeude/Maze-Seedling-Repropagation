@@ -40,13 +40,25 @@
           <button id="inspectButton" type="button">Inspect tile</button>
           <span class="editor-stat" id="boardStatus" aria-live="polite">18 × 18</span>
         </div>
-        <div class="board-wrap"><canvas id="boardCanvas" role="img"
-          aria-label="Editable eighteen by eighteen maze grid. Select a tile, then tap or drag on cells to paint.">Maze board</canvas>
-          <div class="board-coordinates"><span>0</span><span>17</span></div></div>
+        <div class="board-zoom" role="group" aria-label="Board magnification">
+          <span class="board-zoom-label">Zoom</span>
+          <button id="zoomOutButton" type="button" aria-label="Zoom out" disabled>−</button>
+          <output id="zoomLevel" aria-live="polite">1×</output>
+          <button id="zoomInButton" type="button" aria-label="Zoom in">+</button>
+          <button id="panButton" type="button" aria-pressed="false">Pan</button>
+        </div>
+        <div class="board-scroller" id="boardScroller">
+          <div class="board-wrap" id="boardSurface">
+            <canvas id="boardCanvas" tabindex="0" role="img"
+              aria-label="Editable maze board. Tap or drag to draw, or use arrow keys and Enter when focused. Zoom and Pan controls are above.">Maze board</canvas>
+            <div class="board-coordinates"><span>0</span><span>17</span></div>
+          </div>
+        </div>
         <div class="board-info"><span id="tileStatus" aria-live="polite">Wall selected · Tap to place</span>
-          <button id="routeButton" type="button">Check route</button></div>
+          <button id="routeButton" type="button">Check route</button>
+          <button id="cancelPlacementButton" type="button" hidden>Cancel move/copy</button></div>
         <div class="toolbox" aria-label="Maze tile tools" id="toolbox" role="group"></div>
-        <div class="help-line">Drag to draw. Select <strong>Erase</strong> to clear. Changes are saved on this phone.</div>
+        <div class="help-line">Drag to draw. Zoom for precise editing; choose <strong>Pan</strong> to scroll without painting. Undo reverses edits. Changes are saved on this phone.</div>
       </section>
       <section class="view view-explore" id="exploreView" hidden aria-labelledby="exploreTitle">
         <div class="section-top">
@@ -156,6 +168,11 @@
       <label class="field-label" for="messageInput">Message or riddle note</label>
       <textarea id="messageInput" rows="3" placeholder="Optional note"></textarea>
       <button type="button" class="full-button primary" id="saveTileButton">Save tile</button>
+      <div class="tile-transfer-actions">
+        <button id="moveTileButton" type="button">Move tile</button>
+        <button id="copyTileButton" type="button">Copy tile</button>
+      </div>
+      <p class="sheet-hint">Move or copy onto an empty square. Imported layers and tile details are preserved. Undo reverses the change.</p>
       <button type="button" class="full-button" id="deleteTileButton">Erase this tile</button>
     </div>
   </dialog>

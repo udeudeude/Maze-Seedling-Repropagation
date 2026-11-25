@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {sampleGrid,suggestWalls,applyWallSuggestions} from "../src/maze-recognize.mjs";
+import {separateRoundHoles} from "../src/maze-shapes.mjs";
 import {newMaze,primaryCell} from "../src/maze-world.mjs";
 
 const size=18,scale=28;
@@ -94,4 +95,33 @@ test("green surroundings of the actual board are not misidentified as walls",()=
   }
   for(const [x,z] of walls)assert.ok(chosen.has(x+","+z),"Missing dark wall");
   for(const [x,z] of holes)assert.ok(!chosen.has(x+","+z),"Round hole misidentified");
+});
+
+test("isolates three circular holes but retains all three distinct straight strip lengths",()=>{
+  const width=18*28,mask=new Uint8Array(width*width);
+  const strips=[
+    {x:4*28,y:2*28,w:2*28,h:11},
+    {x:8*28,y:8*28,w:12,h:4*28},
+    {x:2*28,y:14*28,w:6*28,h:12}
+  ];
+  for(const rect of strips)for(let y=rect.y;y<rect.y+rect.h;y++)
+    for(let x=rect.x;x<rect.x+rect.w;x++)mask[y*width+x]=1;
+  for(const [x,z] of [[1,1],[10,9],[13,12]]){
+    const cx=(x+.5)*28,cy=(z+.5)*28;
+    for(let yy=Math.floor(cy-12);yy<=Math.ceil(cy+12);yy++)
+      for(let xx=Math.floor(cx-12);xx<=Math.ceil(cx+12);xx++)
+        if((xx-cx)**2+(yy-cy)**2<121)mask[yy*width+xx]=1;
+  }
+  const result=separateRoundHoles(mask,width,width);
+  assert.deepEqual(result.holes.map(h=>[h.x,h.z]).sort(),
+    [[1,1],[10,9],[13,12]].sort());
+  for(const rect of strips)
+    assert.equal(result.mask[(rect.y+3)*width+rect.x+3],1,"Wall strip deleted");
+  for(const hole of result.holes)
+    assert.equal(result.mask[Math.floor(hole.cy)*width+Math.floor(hole.cx)],0);
+});
+test("dark square labels do not look like rounded holes",()=>{
+  const width=18*28,mask=new Uint8Array(width*width);
+  for(let y=60;y<85;y++)for(let x=70;x<95;x++)mask[y*width+x]=1;
+  assert.equal(separateRoundHoles(mask,width,width).holes.length,0);
 });

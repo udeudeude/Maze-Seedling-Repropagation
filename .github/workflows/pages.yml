@@ -22,10 +22,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  publish:
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
+  build:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -49,5 +46,32 @@ jobs:
       - uses: actions/upload-pages-artifact@v3
         with:
           path: public/
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      contents: read
+      actions: read
+      pages: write
+      id-token: write
+    steps:
+      - name: Confirm uploaded Pages artifact is indexed
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in 1 2 3 4 5 6 7 8; do
+            count="$(gh api "repos/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts" --jq '[.artifacts[] | select(.name == "github-pages")] | length')"
+            if [ "$count" -gt 0 ]; then
+              echo "Pages artifact is visible"
+              exit 0
+            fi
+            sleep 6
+          done
+          echo "Uploaded artifact not yet visible to the GitHub API" >&2
+          exit 1
       - id: deployment
         uses: actions/deploy-pages@v4

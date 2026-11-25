@@ -241,7 +241,14 @@ export function applyWallSuggestions(document,suggestions){
  * This supports lossless saved reviews without claiming original-app parity.
  */
 export function applyCaptureFindings(document,wallSuggestions,holeSuggestions){
-  const {maze,applied}=applyWallSuggestions(document,wallSuggestions);
+  const holeTiles=new Set((holeSuggestions??[])
+    .filter(h=>Number.isInteger(h.x)&&Number.isInteger(h.z))
+    .map(h=>h.x+","+h.z));
+  for(const entry of document.repropagation?.physicalHoles??[]){
+    holeTiles.add(String(entry.position?.[0])+","+String(entry.position?.[2]));
+  }
+  const safeWalls=wallSuggestions.filter(w=>!holeTiles.has(w.x+","+w.z));
+  const {maze,applied}=applyWallSuggestions(document,safeWalls);
   const width=Number(maze.data.scale[0]),height=Number(maze.data.scale[2]);
   const existing=Array.isArray(maze.repropagation?.physicalHoles)
     ?maze.repropagation.physicalHoles:[];

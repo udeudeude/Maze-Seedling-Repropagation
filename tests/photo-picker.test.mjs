@@ -32,3 +32,19 @@ test("capture uses independent, reversible wall review",()=>{
 test("wall-recognition module is available offline",()=>{
   assert.match(sw,/\.\/src\/maze-recognize\.mjs/);
 });
+
+
+test("every referenced named interface control exists in the published HTML",()=>{
+  const ids=new Set([...page.matchAll(/\bid="([^"]+)"/g)].map(match=>match[1]));
+  const references=[...app.matchAll(/\bel\("([^"]+)"\)/g)].map(match=>match[1]);
+  const missing=[...new Set(references.filter(id=>!ids.has(id)))];
+  assert.deepEqual(missing,[],"Controls referenced in application code but absent from HTML");
+});
+
+test("reviewed physical holes have independent editing and imported preservation",()=>{
+  assert.match(page,/id="reviewWallsButton"/);
+  assert.match(page,/id="reviewHolesButton"/);
+  assert.match(app,/scanSelectedHoles/);
+  assert.match(app,/applyCaptureFindings/);
+  assert.match(app,/physicalHoles/);
+});

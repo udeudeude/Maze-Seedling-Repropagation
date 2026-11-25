@@ -162,3 +162,24 @@ test("reviewed hole annotations are retained without inventing original cell typ
   assert.equal(again.annotatedHoles,0);
   assert.equal(again.maze.repropagation.physicalHoles.length,2);
 });
+
+
+test("sensitivity changes reuse the same photograph and never introduce holes as walls",()=>{
+  const image=fixture({walls:[[4,4],[4,5],[5,5],[8,7],[8,8]],
+    holes:[[3,3],[11,11]]});
+  const conservative=suggestWalls(image,{sensitivity:.15});
+  const permissive=suggestWalls(image,{sensitivity:.85});
+  assert.ok(permissive.suggestions.length>=conservative.suggestions.length);
+  const holes=new Set(permissive.holes.map(h=>h.x+","+h.z));
+  assert.ok(permissive.suggestions.every(w=>!holes.has(w.x+","+w.z)));
+});
+
+test("photographed holes take precedence over conflicting imported wall suggestions",()=>{
+  const sample=newMaze();
+  const result=applyCaptureFindings(sample,[{x:9,z:9},{x:8,z:8}],
+    [{x:9,z:9}]);
+  assert.equal(result.appliedWalls,1);
+  assert.equal(result.annotatedHoles,1);
+  assert.equal(primaryCell(result.maze,9,9),null);
+  assert.equal(primaryCell(result.maze,8,8).cell.type,"wall");
+});

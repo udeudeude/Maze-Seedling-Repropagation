@@ -208,3 +208,32 @@ export function applyWallSuggestions(document,suggestions){
   }
   return {maze:cloned,applied:count};
 }
+
+
+/**
+ * Keep physical trap holes in a namespaced reconstruction field. Original
+ * Android data mapped holes through scanner/editor logic not yet established;
+ * inventing an original cell-type mapping would corrupt interoperability.
+ * This supports lossless saved reviews without claiming original-app parity.
+ */
+export function applyCaptureFindings(document,wallSuggestions,holeSuggestions){
+  const {maze,applied}=applyWallSuggestions(document,wallSuggestions);
+  const width=Number(maze.data.scale[0]),height=Number(maze.data.scale[2]);
+  const existing=Array.isArray(maze.repropagation?.physicalHoles)
+    ?maze.repropagation.physicalHoles:[];
+  const byPosition=new Map(existing.map(item=>
+    [String(item.position?.[0])+","+String(item.position?.[2]),item]));
+  let added=0;
+  for(const hole of holeSuggestions??[]){
+    if(!Number.isInteger(hole.x)||!Number.isInteger(hole.z)||
+      hole.x<0||hole.z<0||hole.x>=width||hole.z>=height)continue;
+    const key=hole.x+","+hole.z;
+    if(byPosition.has(key))continue;
+    byPosition.set(key,{position:[String(hole.x),"0",String(hole.z)],
+      kind:"physical_floor_hole",source:"photograph_review"});
+    added++;
+  }
+  maze.repropagation={...maze.repropagation,
+    physicalHoles:[...byPosition.values()]};
+  return {maze,appliedWalls:applied,annotatedHoles:added};
+}

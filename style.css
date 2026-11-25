@@ -140,6 +140,21 @@ select{width:100%;min-height:36px;border:1px solid #3b4650;border-radius:9px;
   border:1px solid #4e5c64;border-radius:9px;padding:11px 12px;width:100%}
 .sheet textarea{resize:vertical}
 .full-button{text-align:left;width:100%}
+.library-heading{display:flex;justify-content:space-between;align-items:center;gap:12px}
+.library-heading h3{font-size:15px;margin:3px 0;font-weight:700}
+.library-heading span{font-size:12px;color:var(--dim)}
+.library-list{display:grid;gap:7px;max-height:38dvh;overflow-y:auto}
+.library-entry{display:flex;gap:9px;align-items:center;justify-content:space-between;
+  background:#25313a;border:1px solid #41505a;border-radius:11px;
+  padding:9px 10px;min-height:64px}
+.library-entry[aria-current="true"]{border-color:var(--accent);background:#33312d}
+.library-name{display:grid;gap:1px;min-width:0;flex:1}
+.library-name strong{font-size:14px;overflow-wrap:anywhere}
+.library-name small{font-size:11px;color:var(--dim)}
+.library-controls{display:flex;gap:5px;flex-wrap:wrap;justify-content:flex-end}
+.library-controls button{font-size:12px;font-weight:600;min-height:38px;
+  background:#394751;border:1px solid #65717b;border-radius:8px;padding:6px 9px}
+.library-controls button[disabled]{opacity:.4}
 .sheet-hint{font-size:12px;line-height:1.55;color:var(--dim);margin:4px 0}
 .separator{height:1px;background:var(--line);margin:3px 0}
 body.stereoscopic .tabbar,body.stereoscopic .topbar{display:none}

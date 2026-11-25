@@ -22,7 +22,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 | Race nearby friends | **Missing** | Nearby Wi-Fi/Bluetooth or an equivalent direct peer system, synchronization, races |
 | Selfie player avatars and screenshots | **Missing** | Avatar photos, player markers, in-world screenshot and sharing |
 | Eight built-in mazes in four themes | One independently created practice maze | Historically accurate tutorial and standard/hard experiences; original distribution rights review |
-| Multiple saved mazes / sharing | One local autosave plus JSON import/export | Maze library, duplicate, rename, robust backups and sharing |
+| Multiple saved mazes / sharing | **Implemented local collection:** separately autosaved mazes, open, duplicate, rename, delete, import as new, independent recovery copy | Device-to-device transfer, indexed backups, sharing, quota recovery and iPhone field tests |
 | Original iPhone pressure gestures | **Missing** | Accessible pan and speed equivalents without requiring 3D Touch |
 | Original user interface and graphics | **Not faithful** | Reconstruct from original app screenshots, not generic dark controls |
 | Offline / modern phone compatibility | **Partial** offline shell | Field testing on current iPhones, storage, orientation, updating, image permissions |
@@ -67,3 +67,10 @@ The original application's proprietary assets and code are not included in this 
 ### Interpretation caveat
 
 Although the physical kit has three wall lengths and the bundled digital mazes have 18 × 18 coordinate maps, the exact physical grid pitch and mapping are still unknown. A continuous dark span might represent several touching factory pieces. The current code measures image-space straight spans and does **not** assert that each is exactly one factory part.
+
+## November 25, 2026: photo selection and multi-maze library
+
+- Removed the duplicate **Take a photograph** button. A single **Choose or take a photograph** control invokes iPhone's native Photo Library, Take Photo and Choose File menu.
+- Added a separately saved local maze collection. Users can open, rename, duplicate and delete individual designs, create a blank or practice design without overwriting the previous one, and import external original-format JSON as another saved maze.
+- Migrates the legacy single-maze autosave, preserves unknown document keys and keeps the old key as an independent recovery copy. No photograph or maze is uploaded by this feature.
+- Unit tests cover collection creation, switching, copying, deletion, invalid-data recovery, legacy migration and document metadata preservation. Browser-specific storage durability still requires device testing.

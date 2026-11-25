@@ -1,4 +1,5 @@
 import {separateRoundHoles,findRoundHolesByEdges,findStraightWallSpans} from "./maze-shapes.mjs";
+import {detectColoredMarkers} from "./maze-markers.mjs";
 
 /**
  * Experimental wall classifier for the original Seedling kit's DARK WALL STRIPS.
@@ -146,7 +147,8 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
   if(!computed||computed.columns!==columns||computed.rows!==rows){
     const {width,height,mask,darkFraction,threshold,contrast}=darkPixelMask(image);
     computed={columns,rows,width,height,darkFraction,threshold,contrast,
-      holes:[],segments:[],coverage:new Float32Array(columns*rows)};
+      holes:[],segments:[],markers:detectColoredMarkers(image,columns,rows),
+      coverage:new Float32Array(columns*rows)};
     if(darkFraction>=.0015&&darkFraction<=.72&&contrast>=25){
       const tw=width/columns,th=height/rows;
       const separated=separateRoundHoles(mask,width,height,columns,rows);
@@ -184,9 +186,9 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
     }
     captureCache.set(image,computed);
   }
-  const {threshold,darkFraction,contrast,holes,segments,coverage}=computed;
+  const {threshold,darkFraction,contrast,holes,segments,markers,coverage}=computed;
   if(darkFraction<.0015||darkFraction>.72||contrast<25){
-    return {suggestions:[],holes:[],segments:[],grid:[columns,rows],
+    return {suggestions:[],holes:[],segments:[],markers,grid:[columns,rows],
       quality:"low-contrast",
       message:"Insufficient separation between dark walls and paper. Check lighting and corners.",
       threshold,darkFraction};
@@ -210,7 +212,7 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
     :quality==="very-few"
       ?"Few walls found. Check alignment and increase sensitivity if needed."
       :"Review candidate strips and circles before importing.";
-  return {suggestions,holes,segments,grid:[columns,rows],
+  return {suggestions,holes,segments,markers,grid:[columns,rows],
     threshold,darkFraction,quality,message};
 }
 

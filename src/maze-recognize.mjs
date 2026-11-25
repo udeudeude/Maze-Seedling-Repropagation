@@ -1,3 +1,5 @@
+import {separateRoundHoles} from "./maze-shapes.mjs";
+
 /**
  * Experimental wall classifier for the original Seedling kit's DARK WALL STRIPS.
  *
@@ -143,8 +145,9 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
       threshold,darkFraction};
   }
   const tileWidth=width/columns,tileHeight=height/rows;
-  const minLength=Math.max(8,Math.round(Math.min(tileWidth,tileHeight)*.70));
-  const extended=extendedStripMask(mask,width,height,minLength);
+  const separated=separateRoundHoles(mask,width,height,columns,rows);
+  const minLength=Math.max(8,Math.round(Math.min(tileWidth,tileHeight)*.90));
+  const extended=extendedStripMask(separated.mask,width,height,minLength);
   const tileCount=columns*rows;
   const totals=new Uint32Array(tileCount);
   for(let y=0;y<height;y++)for(let x=0;x<width;x++){
@@ -170,7 +173,7 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
     :quality==="very-few"
       ?"Few wall strips found. Check corner placement and try a higher sensitivity."
       :"Proposals are provisional. Correct missing walls and mistakes before adding them.";
-  return {suggestions,grid:[columns,rows],threshold,darkFraction,quality,message};
+  return {suggestions,holes:separated.holes,grid:[columns,rows],threshold,darkFraction,quality,message};
 }
 
 /** Adds only on empty cells; never deletes imported tiles, metadata or markers. */

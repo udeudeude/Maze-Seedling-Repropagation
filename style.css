@@ -106,6 +106,9 @@ select{width:100%;min-height:36px;border:1px solid #3b4650;border-radius:9px;
 #traceButton,.primary{background:var(--accent)!important;color:#1b2023!important;
   border-color:var(--accent)!important}
 .scan-stage{margin-top:18px;border:1px solid #58656b;border-radius:12px;background:#202a31;padding:14px}
+.scan-modes{display:flex;gap:8px;margin:10px 0}
+.scan-modes button{min-height:42px;flex:1;background:#26343b;border:1px solid #55656f;border-radius:9px;padding:9px 10px;font-weight:600}
+.scan-modes button[aria-pressed="true"]{color:#161d20;background:#edb974;border-color:#edb974}
 .scan-stage h2{font-size:18px;margin:2px 0 6px}
 .scan-stage p{font-size:12px;line-height:1.5;color:#c4c9c6;margin:0 0 12px}
 #scanCanvas{display:block;width:min(100%,440px);height:auto;aspect-ratio:1;margin:0 auto 14px;border:1px solid #7a8a8f;touch-action:none}

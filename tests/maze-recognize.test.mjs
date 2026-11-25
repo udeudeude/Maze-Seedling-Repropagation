@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {sampleGrid,suggestWalls,applyWallSuggestions} from "../src/maze-recognize.mjs";
-import {separateRoundHoles} from "../src/maze-shapes.mjs";
+import {separateRoundHoles,findRoundHolesByEdges} from "../src/maze-shapes.mjs";
 import {newMaze,primaryCell} from "../src/maze-world.mjs";
 
 const size=18,scale=28;
@@ -124,4 +124,25 @@ test("dark square labels do not look like rounded holes",()=>{
   const width=18*28,mask=new Uint8Array(width*width);
   for(let y=60;y<85;y++)for(let x=70;x<95;x++)mask[y*width+x]=1;
   assert.equal(separateRoundHoles(mask,width,width).holes.length,0);
+});
+
+
+test("gradient-circle search locates isolated punched holes without confusing walls",()=>{
+  const holes=[[3,3],[9,8],[11,11]];
+  const image=fixture({walls:[[6,4],[6,5],[6,6],[6,7],[6,8],[10,10]],holes});
+  const found=findRoundHolesByEdges(image);
+  for(const [x,z] of holes){
+    assert.ok(found.some(entry=>entry.x===x&&entry.z===z),
+      "Missed circle at "+x+","+z+": "+JSON.stringify(found.slice(0,10)));
+  }
+  assert.ok(!found.some(entry=>entry.x===6&&entry.z===6),
+    "A long vertical wall was mistaken for a circular hole");
+});
+
+test("a round hole next to a wall is still reported independently",()=>{
+  const holes=[[8,8]];
+  const image=fixture({walls:[[8,9],[8,10],[8,11]],holes});
+  const found=findRoundHolesByEdges(image);
+  assert.ok(found.some(entry=>entry.x===8&&entry.z===8),
+    "Hole touching the adjacent wall was not found");
 });

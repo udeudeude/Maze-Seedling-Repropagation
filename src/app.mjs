@@ -551,9 +551,9 @@ function initializePhoto() {
       scanSelectedHoles.size+" possible holes, "+spanCount+
       " straight image spans, "+scanMarkers.size+" colored markers. "+instruction+
       " Correct the proposals before importing.";
-    el("applyScanButton").disabled=scanSelected.size===0&&scanSelectedHoles.size===0;
-    el("applyScanButton").textContent="Import "+scanSelected.size+" walls and "+
-      scanSelectedHoles.size+" holes";
+    el("applyScanButton").disabled=scanSelected.size===0&&scanSelectedHoles.size===0&&scanMarkers.size===0;
+    el("applyScanButton").textContent="Import "+scanSelected.size+" walls, "+
+      scanSelectedHoles.size+" holes, "+scanMarkers.size+" markers";
   }
   function renderScan() {
     if(!scanGuide)return;

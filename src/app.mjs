@@ -36,7 +36,8 @@ let currentTile=null,photoImage=null,photoCorners=null,photoGuide=null;
 let scanPixels=null,scanGuide=null,scanResult=null,scanSelected=new Set();
 let scanAdded=new Set(),scanRemoved=new Set();
 let scanSelectedHoles=new Map(),scanAddedHoles=new Map(),scanRejectedHoles=new Set();
-let scanMode="walls";
+let scanMode="walls",markerBrush="entrance";
+let scanMarkers=new Map(),scanMarkerEdits=new Map();
 let play=startPlay(maze),stereo=false,showMap=false,holding=new Set();
 let lastFrame=0,lastBoardRect=null,boardPainting=false,boardLastCell=null;
 const toolOrder=["wall","empty","hole","entrance","exit","gate","riddle","info","map",
@@ -478,6 +479,7 @@ function initializePhoto() {
       scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
       scanAdded.clear();scanRemoved.clear();
       scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
+      scanMarkers.clear();scanMarkerEdits.clear();
       el("scanStage").hidden=true;
       el("photoStage").hidden=false;
       el("photoActions").hidden=false;
@@ -517,6 +519,7 @@ function initializePhoto() {
     scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
     scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
+    scanMarkers.clear();scanMarkerEdits.clear();
     el("scanStage").hidden=true;
     renderPhoto();
   });
@@ -541,10 +544,12 @@ function initializePhoto() {
     const spanCount=scanResult.segments?.length??0;
     const instruction=scanMode==="holes"
       ?"Tap amber circles to remove them, or tap an unmarked square to add a hole."
-      :"Tap a green tile to remove it, or tap an unmarked square to add a wall.";
+      :scanMode==="markers"
+        ?"Select Start or Finish below, then tap its position on the photograph."
+        :"Tap a green tile to remove it, or tap an unmarked square to add a wall.";
     el("scanStatus").textContent=scanSelected.size+" wall tiles, "+
       scanSelectedHoles.size+" possible holes, "+spanCount+
-      " straight image spans. "+instruction+
+      " straight image spans, "+scanMarkers.size+" colored markers. "+instruction+
       " Correct the proposals before importing.";
     el("applyScanButton").disabled=scanSelected.size===0&&scanSelectedHoles.size===0;
     el("applyScanButton").textContent="Import "+scanSelected.size+" walls and "+
@@ -592,6 +597,16 @@ function initializePhoto() {
       context.fillStyle="#ffd178";
       context.fill();
     }
+    for(const marker of scanMarkers.values()){
+      const cx=(marker.x+.5)*tw,cy=(marker.z+.5)*th;
+      context.beginPath();context.arc(cx,cy,Math.max(9,tw*.39),0,Math.PI*2);
+      context.strokeStyle=marker.type==="entrance"?"#fd7066":"#70d6ff";
+      context.lineWidth=Math.max(3,width/160);context.stroke();
+      context.font="bold "+Math.round(tw*.5)+"px sans-serif";
+      context.fillStyle="#fffdf1";context.textAlign="center";
+      context.textBaseline="middle";
+      context.fillText(marker.type==="entrance"?"S":"F",cx,cy);
+    }
     context.beginPath();context.lineWidth=Math.max(.6,width/900);
     context.strokeStyle="rgba(255,250,232,.60)";
     for(let x=0;x<=cols;x++){
@@ -624,6 +639,12 @@ function initializePhoto() {
         if(!scanRejectedHoles.has(key))scanSelectedHoles.set(key,hole);
       }
       for(const [key,hole] of scanAddedHoles)scanSelectedHoles.set(key,hole);
+      scanMarkers=new Map((scanResult.markers??[])
+        .map(marker=>[marker.type,marker]));
+      for(const [type,position] of scanMarkerEdits){
+        if(position)scanMarkers.set(type,position);
+        else scanMarkers.delete(type);
+      }
       el("scanStage").hidden=false;
       renderScan();
       if(reveal)el("scanStage").scrollIntoView({behavior:"smooth",block:"nearest"});
@@ -633,13 +654,29 @@ function initializePhoto() {
   }
   function setScanMode(next){
     scanMode=next;
-    for(const [name,id] of [["walls","reviewWallsButton"],["holes","reviewHolesButton"]]){
+    for(const [name,id] of [
+      ["walls","reviewWallsButton"],["holes","reviewHolesButton"],
+      ["markers","reviewMarkersButton"]]){
       el(id).setAttribute("aria-pressed",String(name===next));
     }
+    el("markerControls").hidden=next!=="markers";
     if(scanResult)renderScan();
   }
   el("reviewWallsButton").addEventListener("click",()=>setScanMode("walls"));
   el("reviewHolesButton").addEventListener("click",()=>setScanMode("holes"));
+  el("reviewMarkersButton").addEventListener("click",()=>setScanMode("markers"));
+  for(const [type,id] of [["entrance","placeStartButton"],["exit","placeFinishButton"]]){
+    el(id).addEventListener("click",()=>{
+      markerBrush=type;
+      for(const [name,button] of [["entrance","placeStartButton"],["exit","placeFinishButton"]])
+        el(button).setAttribute("aria-pressed",String(name===type));
+    });
+  }
+  el("clearMarkersButton").addEventListener("click",()=>{
+    scanMarkers.clear();
+    scanMarkerEdits.set("entrance",null);scanMarkerEdits.set("exit",null);
+    renderScan();
+  });
   el("detectButton").addEventListener("click",()=>analyzePhoto(true));
   el("sensitivitySlider").addEventListener("input",()=>{
     if(scanPixels)analyzePhoto(false);
@@ -651,7 +688,14 @@ function initializePhoto() {
     const z=Math.floor((event.clientY-r.top)/r.height*Number(maze.data.scale[2]));
     if(x<0||z<0||x>=Number(maze.data.scale[0])||z>=Number(maze.data.scale[2]))return;
     const key=x+","+z;
-    if(scanMode==="holes"){
+    if(scanMode==="markers"){
+      const position={type:markerBrush,x,z,
+        cx:(x+.5)*scanGuide.width/Number(maze.data.scale[0]),
+        cy:(z+.5)*scanGuide.height/Number(maze.data.scale[2]),
+        confidence:0};
+      scanMarkers.set(markerBrush,position);
+      scanMarkerEdits.set(markerBrush,position);
+    }else if(scanMode==="holes"){
       if(scanSelectedHoles.has(key)){
         scanSelectedHoles.delete(key);
         scanAddedHoles.delete(key);
@@ -682,21 +726,23 @@ function initializePhoto() {
     scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
     scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
+    scanMarkers.clear();scanMarkerEdits.clear();
     scanResult=null;
   });
   el("applyScanButton").addEventListener("click",()=>{
-    if(!scanGuide||(!scanSelected.size&&!scanSelectedHoles.size))return;
+    if(!scanGuide||(!scanSelected.size&&!scanSelectedHoles.size&&!scanMarkers.size))return;
     const suggestions=[...scanSelected].map(key=>{
       const [x,z]=key.split(",").map(Number);
       return {x,z};
     });
-    const {maze:updated,appliedWalls,annotatedHoles}=applyCaptureFindings(
-      maze,suggestions,[...scanSelectedHoles.values()]);
+    const {maze:updated,appliedWalls,annotatedHoles,movedMarkers}=applyCaptureFindings(
+      maze,suggestions,[...scanSelectedHoles.values()],
+      Object.fromEntries(scanMarkers));
     photoGuide=scanGuide;
     commit(updated);
     setView("build");
-    notice("Imported "+appliedWalls+" wall tiles and "+
-      annotatedHoles+" physical-hole annotations. Check and correct your maze.");
+    notice("Imported "+appliedWalls+" wall tiles, "+annotatedHoles+
+      " holes and "+movedMarkers+" updated start/finish markers. Review your maze.");
   });
   el("traceButton").addEventListener("click",()=>{
     try {
@@ -712,6 +758,7 @@ function initializePhoto() {
     scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
     scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
+    scanMarkers.clear();scanMarkerEdits.clear();
     el("scanStage").hidden=true;
     el("photoActions").hidden=true;
     el("photoStage").hidden=true;el("detectButton").disabled=true;

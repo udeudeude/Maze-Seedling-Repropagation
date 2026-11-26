@@ -107,8 +107,9 @@ test("capture shows and recalculates a correctable playable-grid margin",()=>{
   for(const edge of ["Top","Right","Bottom","Left"]){
     assert.match(html,new RegExp('id="gridInset'+edge+'Slider"'));
     assert.match(html,new RegExp('id="gridInset'+edge+'Value"'));
-    assert.match(app,new RegExp('gridInset'+edge+'Slider'));
   }
+  assert.match(app,/const gridEdges=\["Top","Right","Bottom","Left"\]/);
+  assert.match(app,/el\("gridInset"\+edge\+"Slider"\)/);
   assert.match(html,/id="gridEdgeDetails"/);
   assert.match(app,/slider.addEventListener\("change",restartAlignedScan\)/);
 });

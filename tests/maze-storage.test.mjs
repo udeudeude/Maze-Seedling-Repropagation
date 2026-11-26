@@ -20,7 +20,7 @@ test("canonical collection commits before the optional legacy copy",()=>{
   original.opaqueOriginal={bytes:[1,"02",3]};
   const library=newLibrary(original,"id-one",10);
   const edited=paintTile(original,7,9,"wall");
-  const result=saveMazeLocally(storage,library,edited,{collectionKey,legacyKey});
+  const result=saveMazeLocally(storage,library,edited,{libraryKey:collectionKey,legacyKey});
   assert.equal(result.recoverySaved,true);
   assert.deepEqual(JSON.parse(storage.map.get(collectionKey)),result.library);
   assert.deepEqual(JSON.parse(storage.map.get(legacyKey)),edited);
@@ -33,7 +33,7 @@ test("quota rejection leaves both previously saved copies untouched",()=>{
   storage.map.set(legacyKey,"previous recovery");
   const library=newLibrary(newMaze(),"first");
   const edited=paintTile(activeDocument(library),4,4,"wall");
-  assert.throws(()=>saveMazeLocally(storage,library,edited,{collectionKey,legacyKey}),/quota/);
+  assert.throws(()=>saveMazeLocally(storage,library,edited,{libraryKey:collectionKey,legacyKey}),/quota/);
   assert.equal(storage.map.get(collectionKey),"previous library");
   assert.equal(storage.map.get(legacyKey),"previous recovery");
 });
@@ -41,7 +41,7 @@ test("legacy-copy failure does not invalidate a safely saved collection",()=>{
   const storage=memoryStorage(legacyKey);
   const library=newLibrary(newMaze(),"first");
   const edited=paintTile(activeDocument(library),4,5,"map");
-  const result=saveMazeLocally(storage,library,edited,{collectionKey,legacyKey});
+  const result=saveMazeLocally(storage,library,edited,{libraryKey:collectionKey,legacyKey});
   assert.equal(result.recoverySaved,false);
   assert.equal(JSON.parse(storage.map.get(collectionKey)).entries[0].document.data.cells.at(-1).type,"map");
 });

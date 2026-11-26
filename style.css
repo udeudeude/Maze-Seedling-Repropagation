@@ -354,3 +354,12 @@ body.stereoscopic .tabbar,body.stereoscopic .topbar{display:none}
 .practice-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
 .practice-choices>div{display:grid;gap:5px;min-width:0}
 .practice-choices select{min-height:44px;font-size:14px}
+
+/* In quota recovery, fit the header's emergency export on narrow iPhones. */
+@media(max-width:390px){
+  .brand{gap:4px}.brand-mark{font-size:23px}
+  .brand strong{font-size:14px}.brand small{font-size:8px}
+  .top-actions{gap:5px}.state-pill{font-size:10px}
+  #rescueSaveButton{font-size:10px;padding:2px 5px;min-height:33px}
+  .icon-button{width:36px;height:38px;font-size:19px}
+}

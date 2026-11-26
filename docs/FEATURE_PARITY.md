@@ -257,3 +257,11 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - Synthetic tests cover asymmetric dark and green borders, partial borders, printed grid lines, wall clutter, low-evidence rejection, source immutability and control wiring. **Not validated against original Seedling photographs:** visual-border estimates do not establish physical grid pitch, factory-piece lengths, precise wall recognition or marker fidelity. They must be reviewed and corrected by the user.
 
 - If a side lacks a convincing border, its existing hand-calibrated margin is **left unchanged**, not silently reset to zero. A partial suggestion is therefore non-destructive to other individual edge settings.
+
+
+## November 26, 2026: reliable single-action editor brush strokes
+
+- Build's finger/mouse drawing now interpolates grid squares between pointer events. A quick sweep can no longer leave holes merely because the browser delivered fewer move events than the number of cells crossed. This covers straight, diagonal and reverse strokes without changing the maze's coordinate system or original document schema.
+- One uninterrupted brush drag records **one** Undo snapshot, not a separate snapshot for every painted tile. Redo is invalidated on the first real change, and repeated no-op cells do not fill history. Each changed tile is still saved locally immediately so a cancelled gesture or interrupted session does not lose the entire stroke. Start/Finish uniqueness and independently annotated physical holes retain their existing rules.
+- The initiating pointer exclusively owns the stroke. Extra fingers cannot paint new cells or finish another pointer's action; release, cancellation and lost capture close the transaction. Keyboard editing remains one cell per Undo, and the explicit Pan and Inspect modes remain separate.
+- Automated line-rasterization tests and static editor wiring tests cover large skipped movements, narrow and diagonal boards, bounds, offline caching and history grouping. These modern editor ergonomics are **not** claims about the original application's exact selection gestures. Physical iPhone drag feel and document durability during storage failure still require validation.

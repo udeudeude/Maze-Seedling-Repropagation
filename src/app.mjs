@@ -1,4 +1,5 @@
 import {parseMaze, serializeMaze, validateMaze} from "./maze-document.mjs";
+import {strokeBetween} from "./maze-brush.mjs";
 import {
   SIZE,TILE_NAMES,newMaze,sampleMaze,paintTile,eraseAt,changeCellDetails,transferTile,
   cellCoordinates,primaryCell,locate
@@ -114,7 +115,7 @@ catch{audioOptions=audioPreferences(null);}
 audio.setOptions(audioOptions);
 let motionPose=null,motionAnchor=null,motionHeading=0,motionPitch=0;
 let motionActive=false,motionRotation=null;
-let lastFrame=0,lastBoardRect=null,boardPainting=false,boardLastCell=null;
+let lastFrame=0,lastBoardRect=null,boardStroke=null;
 let placement=null,boardZoom=1,boardPanning=false,panDrag=null;
 const toolOrder=["wall","empty","hole","entrance","exit","gate","riddle","info","map",
   "secret_passage","shadow","speed_powerup","speed_hazard","timer_powerup","timer_hazard","floor"];
@@ -201,11 +202,16 @@ function renderLibraryList(){
     item.append(name,actions);list.append(item);
   }
 }
-function commit(next) {
+function commit(next,{stroke=false}={}) {
   if(JSON.stringify(next)===JSON.stringify(maze))return;
-  undo.push(serializeMaze(maze,0));
-  if(undo.length>60)undo.shift();
-  redo=[];
+  // Paint continuously and save every change, but record the pre-stroke
+  // document only once. One drag must equal one undoable action.
+  if(!stroke||!boardStroke?.changed){
+    undo.push(serializeMaze(maze,0));
+    if(undo.length>60)undo.shift();
+    redo=[];
+  }
+  if(stroke&&boardStroke)boardStroke.changed=true;
   maze=parseMaze(next);route=null;
   persist();redrawAll();
 }
@@ -411,12 +417,12 @@ function paint(x,z) {
         kind:"physical_floor_hole",source:"manual_editor"});
     next.repropagation={...next.repropagation,physicalHoles:others};
     if(selected==="hole"){
-      commit(next);currentTile=[x,z];renderBoard();
+      commit(next,{stroke:Boolean(boardStroke)});currentTile=[x,z];renderBoard();
       notice("Physical hole updated at "+(x+1)+", "+(z+1));return;
     }
     target=next;
   }
-  commit(paintTile(target,x,z,selected));
+  commit(paintTile(target,x,z,selected),{stroke:Boolean(boardStroke)});
   currentTile=[x,z];
   renderBoard();
   notice((selected==="empty"?"Erased":labels[selected])+" · "+(x+1)+", "+(z+1));
@@ -425,6 +431,9 @@ function initializeBoardInput() {
   const canvas=el("boardCanvas");
   canvas.addEventListener("pointerdown",event=>{
     if(event.button!==0&&event.pointerType==="mouse")return;
+    // Only the initiating finger/mouse owns this stroke. A second finger
+    // cannot introduce unexpected paint marks or prematurely finish a drag.
+    if(boardStroke||panDrag)return;
     if(boardPanning){
       if(event.pointerType==="mouse"){
         const viewport=el("boardScroller");
@@ -436,27 +445,35 @@ function initializeBoardInput() {
     }
     const cell=indexAt(event,canvas);
     if(!cell)return;
-    if(placement){paint(...cell);return;}
-    boardPainting=true;boardLastCell=cell.join(",");
+    if(placement||inspection){paint(...cell);return;}
+    boardStroke={id:event.pointerId,last:cell,changed:false};
     canvas.setPointerCapture(event.pointerId);
     paint(...cell);
   });
   canvas.addEventListener("pointermove",event=>{
-    if(panDrag&&panDrag.id===event.pointerId){
+    if(panDrag?.id===event.pointerId){
       const viewport=el("boardScroller");
       viewport.scrollLeft=panDrag.left-(event.clientX-panDrag.x);
       viewport.scrollTop=panDrag.top-(event.clientY-panDrag.y);
       return;
     }
-    if(!boardPainting||inspection||boardPanning||placement)return;
+    if(!boardStroke||boardStroke.id!==event.pointerId||boardPanning||placement||inspection)return;
     const cell=indexAt(event,canvas);
     if(!cell)return;
-    const key=cell.join(",");
-    if(key!==boardLastCell){boardLastCell=key;paint(...cell);}
+    // Browser pointer events can skip many cells on a fast finger sweep.
+    // Rasterize the intervening squares rather than leaving accidental gaps.
+    const cells=strokeBetween(boardStroke.last,cell,
+      Number(maze.data.scale[0]),Number(maze.data.scale[2]));
+    boardStroke.last=cell;
+    for(const [x,z] of cells.slice(1))paint(x,z);
   });
-  const finish=()=>{boardPainting=false;boardLastCell=null;panDrag=null;};
+  const finish=event=>{
+    if(boardStroke?.id===event.pointerId)boardStroke=null;
+    if(panDrag?.id===event.pointerId)panDrag=null;
+  };
   canvas.addEventListener("pointerup",finish);
   canvas.addEventListener("pointercancel",finish);
+  canvas.addEventListener("lostpointercapture",finish);
   canvas.addEventListener("keydown",event=>{
     if(!["ArrowUp","ArrowDown","ArrowLeft","ArrowRight","Enter"," "].includes(event.key))return;
     event.preventDefault();
@@ -470,7 +487,6 @@ function initializeBoardInput() {
     renderBoard();
   });
 }
-
 function renderTileVoiceEditor(){
   const preview=el("tileVoicePreview");
   if(pendingTileVoice){

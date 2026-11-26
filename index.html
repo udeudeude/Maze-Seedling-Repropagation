@@ -71,6 +71,7 @@
         </div>
         <div class="explore-actions">
           <button id="mapButton" type="button" aria-pressed="false">Map</button>
+          <button id="snapshotButton" type="button" aria-haspopup="dialog" aria-controls="snapshotDialog">Snapshot</button>
           <button id="soundButton" type="button" aria-pressed="false" aria-haspopup="dialog" aria-controls="audioDialog">Sound off</button>
           <button id="stereoButton" type="button" aria-pressed="false">Cardboard</button>
           <button id="recenterButton" type="button" hidden>Recenter</button>
@@ -143,6 +144,17 @@
       <button type="button" class="tab" data-view="explore"><span>◈</span>Explore</button>
     </nav>
   </div>
+  <dialog id="snapshotDialog" class="snapshot-dialog" aria-labelledby="snapshotTitle">
+    <h2 id="snapshotTitle">Your maze snapshot</h2>
+    <img id="snapshotPreview" alt="The current first-person view of your maze">
+    <p id="snapshotStatus" role="status">Preview your image before saving or sharing.</p>
+    <div class="snapshot-actions">
+      <a id="snapshotSaveLink" download>Save image</a>
+      <button id="snapshotShareButton" type="button" hidden>Share image</button>
+      <button id="snapshotCloseButton" type="button">Continue exploring</button>
+    </div>
+    <small>On some iPhones, Save image opens the image. Use Share → Save Image to keep it in Photos.</small>
+  </dialog>
   <dialog id="menuDialog" class="sheet">
     <form method="dialog" class="sheet-header"><h2>Maze files</h2><button aria-label="Close menu" class="icon-button">✕</button></form>
     <div class="sheet-body">

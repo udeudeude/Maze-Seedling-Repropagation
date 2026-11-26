@@ -77,3 +77,7 @@ In **Build**, inspect a **Message / key** tile, choose a photograph, and tap **S
 ### Record a voice message (experimental)
 
 In **Build**, inspect a **Message / key** tile, tap **Record voice** and grant microphone permission. Tap **Stop recording** within 15 seconds, listen to the preview, then **Save tile**. Use Remove recording if desired. Voice notes remain local, are embedded in maze exports, and can accompany captions or photographs. Enter the tile in **Explore** to view the message and press Play explicitly; exploration waits until Continue. The browser chooses MP4 or WebM, so an exported WebM note may not play on older iPhone browsers. Audio storage and permissions still need physical-device testing; this is not a historically verified Seedling voice implementation.
+
+### Save or share a view
+
+In **Explore**, press **Snapshot** to pause and preview the current first-person scene, including the optional map. Select **Save image** to keep a PNG locally or **Share image** for the native phone sharing menu when supported; **Continue exploring** resumes play. Nothing is uploaded automatically, and no maze data changes. iPhone Safari and home-screen saving still need physical testing. Selfie avatars are not yet reconstructed.

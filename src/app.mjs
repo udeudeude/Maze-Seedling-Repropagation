@@ -9,6 +9,7 @@ import {AUDIO_SETTINGS_KEY,audioPreferences,createMazeAudio} from "./maze-audio.
 import {MAX_PHOTO_DATA_URL_LENGTH,photoAt,photoEdit} from "./maze-media.mjs";
 import {voiceAt,voiceEdit,createVoiceRecorder} from "./maze-voice.mjs";
 import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
+import {snapshotFileName,sceneAsPng,canShareSnapshot} from "./maze-snapshot.mjs";
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
   addMaze,openMaze,duplicateMaze,deleteMaze,sortedMazes} from "./maze-library.mjs";
@@ -64,6 +65,7 @@ let scanSelectedHoles=new Map(),scanAddedHoles=new Map(),scanRejectedHoles=new S
 let scanMode="walls",markerBrush="entrance";
 let scanMarkers=new Map(),scanMarkerEdits=new Map();
 let play=startPlay(maze),stereo=false,showMap=false,holding=new Set();
+let snapshotOpen=false,snapshotBlob=null,snapshotURL=null,snapshotRequest=0;
 const audio=createMazeAudio();
 let audioOptions;
 try{audioOptions=audioPreferences(localStorage.getItem(AUDIO_SETTINGS_KEY));}
@@ -633,7 +635,11 @@ function initializeDialogs() {
 }
 
 function setView(next) {
-  if(next!=="explore")audio.pause();
+  if(next!=="explore"){
+    audio.pause();snapshotRequest++;
+    snapshotOpen=false;
+    if(el("snapshotDialog").open)el("snapshotDialog").close();
+  }
   if(next!=="build")clearPlacement();
   if(next!=="explore"&&stereo)leaveCardboard();
   if(next!=="explore"&&el("tilePhotoDialog").open){
@@ -707,7 +713,7 @@ function motionMessage(message) {
   const status=el("motionStatus");status.hidden=!stereo;status.textContent=message;
 }
 function onDeviceOrientation(event) {
-  if(!stereo||view!=="explore"||document.hidden)return;
+  if(!stereo||view!=="explore"||document.hidden||snapshotOpen)return;
   const rotation=screenRotation();
   if(motionRotation!==rotation) {
     motionRotation=rotation;motionAnchor=null;motionHeading=play.heading;
@@ -847,6 +853,54 @@ function initializeAudio(){
   });
   updateAudioUI();
 }
+function initializeSnapshot(){
+  const dialog=el("snapshotDialog"),preview=el("snapshotPreview");
+  const save=el("snapshotSaveLink"),share=el("snapshotShareButton");
+  const status=el("snapshotStatus");
+  dialog.addEventListener("close",()=>{
+    snapshotOpen=false;snapshotRequest++;
+    if(snapshotURL)URL.revokeObjectURL(snapshotURL);
+    snapshotURL=null;snapshotBlob=null;
+    preview.removeAttribute("src");save.removeAttribute("href");
+    share.hidden=true;holding.clear();lastFrame=0;
+  });
+  el("snapshotCloseButton").addEventListener("click",()=>dialog.close());
+  el("snapshotButton").addEventListener("click",async()=>{
+    if(view!=="explore"||snapshotOpen)return;
+    const request=++snapshotRequest;
+    snapshotOpen=true;holding.clear();lastFrame=0;
+    try{
+      renderPlay();
+      const blob=await sceneAsPng(el("sceneCanvas"));
+      if(request!==snapshotRequest||view!=="explore")return;
+      snapshotBlob=blob;snapshotURL=URL.createObjectURL(blob);
+      preview.src=snapshotURL;
+      save.href=snapshotURL;save.download=snapshotFileName(maze.name);
+      const file=typeof File==="function"?
+        new File([blob],save.download,{type:"image/png"}):null;
+      share.hidden=!canShareSnapshot(navigator,file);
+      status.textContent="Your screenshot stays on this device unless you choose to share it.";
+      dialog.showModal();
+    }catch(error){
+      if(request===snapshotRequest){
+        snapshotOpen=false;
+        console.warn("Screenshot failed",error);
+        alert("Could not capture the scene: "+error.message);
+      }
+    }
+  });
+  share.addEventListener("click",async()=>{
+    if(!snapshotBlob||typeof File!=="function")return;
+    const file=new File([snapshotBlob],snapshotFileName(maze.name),{type:"image/png"});
+    if(!canShareSnapshot(navigator,file))return;
+    try{
+      await navigator.share({files:[file],title:maze.name||"Maze screenshot"});
+      status.textContent="The share sheet has closed.";
+    }catch(error){
+      if(error?.name!=="AbortError")status.textContent="Sharing failed: "+error.message;
+    }
+  });
+}
 function initializePlay() {
   const continuePhoto=()=>{
     el("playVoiceAudio").pause();play=dismissPhoto(play);renderPlay();
@@ -900,7 +954,7 @@ function initializePlay() {
     KeyS:"backward",KeyA:"strafeLeft",KeyD:"strafeRight",
     ArrowLeft:"turnLeft",KeyQ:"turnLeft",ArrowRight:"turnRight",KeyE:"turnRight"};
   window.addEventListener("keydown",event=>{
-    if(view!=="explore"||event.target.closest("input,textarea,select"))return;
+    if(view!=="explore"||snapshotOpen||event.target.closest("input,textarea,select"))return;
     const move=keyMap[event.code];if(move){event.preventDefault();holding.add(move);}
   });
   window.addEventListener("keyup",event=>{const move=keyMap[event.code];if(move)holding.delete(move);});
@@ -923,7 +977,7 @@ function initializePlay() {
   const frame=time=>{
     if(view==="explore" && !document.hidden){
       const dt=lastFrame?Math.min(.075,(time-lastFrame)/1000):0;lastFrame=time;
-      if(dt && !play.ended) {
+      if(dt&&!play.ended&&!snapshotOpen) {
         const before=play;
         const turn=Number(holding.has("turnRight"))-Number(holding.has("turnLeft"));
         const forward=Number(holding.has("forward"))-Number(holding.has("backward"));
@@ -1271,7 +1325,7 @@ function initializePhoto() {
 }
 
 function initialize() {
-  prepareToolbox();initializeBoardInput();initializeDialogs();initializeAudio();initializePlay();initializePhoto();
+  prepareToolbox();initializeBoardInput();initializeDialogs();initializeAudio();initializePlay();initializeSnapshot();initializePhoto();
   el("zoomInButton").addEventListener("click",()=>setBoardZoom(boardZoom+1));
   el("zoomOutButton").addEventListener("click",()=>setBoardZoom(boardZoom-1));
   el("panButton").addEventListener("click",()=>{

@@ -243,3 +243,20 @@ body.stereoscopic .tabbar,body.stereoscopic .topbar{display:none}
   border-radius:9px;background:#2c3c46;padding:8px 10px;font-weight:600}
 .tile-voice-actions button:disabled{opacity:.4}
 #tileVoiceStatus{min-height:1.4em}
+
+/* Preview and export an actual scene frame without automatic upload. */
+.snapshot-dialog{width:min(94vw,610px);max-height:88dvh;overflow:auto;
+  background:#202b34;color:var(--text);border:1px solid #697782;border-radius:16px;
+  padding:17px;box-shadow:0 22px 80px #000b}
+.snapshot-dialog::backdrop{background:#030709d9}
+.snapshot-dialog h2{font-size:19px;margin:0 0 12px}
+#snapshotPreview{display:block;width:100%;height:auto;max-height:54dvh;object-fit:contain;
+  border-radius:9px;background:#111a20}
+#snapshotStatus,.snapshot-dialog small{display:block;font-size:12px;line-height:1.5;color:var(--dim);margin:12px 0}
+.snapshot-actions{display:flex;flex-wrap:wrap;gap:8px;margin:13px 0}
+.snapshot-actions a,.snapshot-actions button{flex:1;min-width:135px;min-height:44px;
+  display:flex;align-items:center;justify-content:center;padding:9px 13px;
+  background:#36434c;color:var(--text);border:1px solid #677681;
+  border-radius:10px;font-size:13px;font-weight:650;text-decoration:none}
+#snapshotSaveLink{background:var(--accent);color:#172026;border-color:var(--accent)}
+.snapshot-actions [hidden]{display:none}

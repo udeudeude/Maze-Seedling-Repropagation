@@ -20,7 +20,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 | Flat-screen game | **Partial** raycast corridors and touch controls | Original movement speed, physics, controls, collectibles, map behavior |
 | True Google Cardboard mode | **Partial:** stereo, permission-based relative head yaw/pitch, recenter and landscape layout | Calibrated optics/lens distortion, gaze/trigger interaction, actual iPhone tests |
 | Race nearby friends | **Missing** | Nearby Wi-Fi/Bluetooth or an equivalent direct peer system, synchronization, races |
-| Selfie player avatars and screenshots | **Missing** | Avatar photos, player markers, in-world screenshot and sharing |
+| Selfie player avatars and screenshots | **Partial:** save/share current first-person scene as a portable image with a preview | Selfie player avatars, original photo effects and native iPhone share-sheet verification |
 | Eight built-in mazes in four themes | One independently created practice maze | Historically accurate tutorial and standard/hard experiences; original distribution rights review |
 | Multiple saved mazes / sharing | **Implemented local collection:** separately autosaved mazes, open, duplicate, rename, delete, import as new, independent recovery copy | Device-to-device transfer, indexed backups, sharing, quota recovery and iPhone field tests |
 | Original iPhone pressure gestures | **Missing** | Accessible pan and speed equivalents without requiring 3D Touch |
@@ -130,3 +130,10 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - Recordings are stored in `cell.repropagation.voice.dataUrl`, separate from original `audioPath` and other native or unknown metadata. They survive JSON export/import, tile duplication, and offline use. Photo and voice may coexist on one Message tile.
 - In exploration, voice-only, photo-only, and combined messages open the same pause dialog. Voice playback requires pressing the native audio player's Play button, and it stops on Continue or when leaving Explore. Movement, countdown and moving shadows stay paused during the message.
 - Automated tests cover bounded input, MIME selection, metadata round trips, message pauses and interface wiring. **Actual iPhone microphone permissions, playback, codec compatibility across devices and browser-storage capacity remain unverified.** These recordings are an independent replacement, not the original proprietary voice subsystem.
+
+## November 25, 2026: first-person snapshots
+
+- Explore now has a **Snapshot** control that pauses gameplay and previews the actual rendered first-person scene, including the map overlay when shown. It saves as PNG, not copied historical art or assets.
+- **Save image** points to a temporary local image, and **Share image** opens the native file share sheet where supported. No automatic upload or transmission occurs. Unsupported browsers hide the share action; users can still save or open the PNG.
+- Export filenames are derived safely from the current maze. Closing the preview releases the object URL and resumes exploration without editing the original document. Encoding failures are reported, not silently treated as valid images.
+- Tests cover PNG encoding and failure, filenames, capability fallback, offline caching, and interface wiring. **Not yet verified:** physical iPhone share/download behavior (especially home-screen apps) and historical selfie avatars.

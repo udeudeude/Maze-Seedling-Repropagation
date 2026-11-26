@@ -69,7 +69,18 @@ let scanAdded=new Set(),scanRemoved=new Set();
 let scanSelectedHoles=new Map(),scanAddedHoles=new Map(),scanRejectedHoles=new Set();
 let scanMode="walls",markerBrush="entrance";
 let scanMarkers=new Map(),scanMarkerEdits=new Map();
-let play=startPlay(maze),stereo=false,showMap=false,holding=new Set();
+let play=startPlay(maze),stereo=false,showMap=false,holding=new Set(),runEnabled=false;
+function clearHeldControls() {
+  holding.clear();
+  document.querySelectorAll("[data-control].pressed")
+    .forEach(button=>button.classList.remove("pressed"));
+}
+function setRun(enabled) {
+  runEnabled=!!enabled;
+  const button=el("runButton");
+  button.textContent=runEnabled?"Running":"Run";
+  button.setAttribute("aria-pressed",String(runEnabled));
+}
 let snapshotOpen=false,snapshotBlob=null,snapshotURL=null,snapshotRequest=0;
 const audio=createMazeAudio();
 let audioOptions;
@@ -718,6 +729,7 @@ function setView(next) {
     play=answerRiddle(play,"",{skip:true});
   }
   view=next;
+  if(next!=="explore")setRun(false);
   for(const name of ["build","photo","explore"]){
     el(name+"View").hidden=name!==next;
   }
@@ -728,10 +740,10 @@ function setView(next) {
     else tab.removeAttribute("aria-current");
   });
   el("main").scrollTop=0;
-  holding.clear();lastFrame=0;
+  clearHeldControls();lastFrame=0;
   if(next==="build")requestAnimationFrame(renderBoard);
   if(next==="explore"){
-    play=startPlay(maze);motionAnchor=null;motionPitch=0;motionHeading=0;
+    play=startPlay(maze);setRun(false);motionAnchor=null;motionPitch=0;motionHeading=0;
     if(audio.wantsAudio())void audio.activate(maze.data.theme).then(updateAudioUI);
     requestAnimationFrame(renderPlay);
   }
@@ -852,7 +864,7 @@ function renderPlay() {
   if(view!=="explore")return;
   const riddleDialog=el("riddleDialog");
   if(play.pendingRiddle&&!riddleDialog.open){
-    holding.clear();
+    clearHeldControls();
     el("riddlePrompt").textContent=play.pendingRiddle.question;
     el("riddleResponse").value="";
     el("riddleFeedback").textContent="";
@@ -860,7 +872,7 @@ function renderPlay() {
   }else if(!play.pendingRiddle&&riddleDialog.open)riddleDialog.close();
   const photoDialog=el("tilePhotoDialog");
   if(play.pendingPhoto&&!photoDialog.open){
-    holding.clear();
+    clearHeldControls();
     const image=el("playPhotoImage"),voice=el("playVoiceAudio");
     if(play.pendingPhoto.url){image.src=play.pendingPhoto.url;image.hidden=false;}
     else{image.removeAttribute("src");image.hidden=true;}
@@ -883,6 +895,11 @@ function renderPlay() {
   const seconds=Math.ceil(play.remaining);
   el("timeReadout").textContent=Math.floor(seconds/60)+":"+String(seconds%60).padStart(2,"0");
   el("playReadout").textContent=play.ended?(play.won?"Completed":"Game over"):play.message;
+  const pace=el("paceReadout");
+  const running=runEnabled||holding.has("sprint");
+  pace.textContent=play.slowUntil>0?"Slowed":play.boostUntil>0?
+    (running?"Boost + run":"Boost"):running?"Running":"";
+  pace.hidden=!pace.textContent;
   const inventory=el("keyInventory");
   inventory.hidden=!play.keys.length;
   inventory.textContent=play.keys.length?"Keys: "+play.keys.join(", "):"";
@@ -929,13 +946,13 @@ function initializeSnapshot(){
     if(snapshotURL)URL.revokeObjectURL(snapshotURL);
     snapshotURL=null;snapshotBlob=null;
     preview.removeAttribute("src");save.removeAttribute("href");
-    share.hidden=true;holding.clear();lastFrame=0;
+    share.hidden=true;clearHeldControls();lastFrame=0;
   });
   el("snapshotCloseButton").addEventListener("click",()=>dialog.close());
   el("snapshotButton").addEventListener("click",async()=>{
     if(view!=="explore"||snapshotOpen)return;
     const request=++snapshotRequest;
-    snapshotOpen=true;holding.clear();lastFrame=0;
+    snapshotOpen=true;clearHeldControls();lastFrame=0;
     try{
       renderPlay();
       const blob=await sceneAsPng(el("sceneCanvas"));
@@ -977,7 +994,10 @@ function initializePlay() {
     event.preventDefault();continuePhoto();
   });
   el("restartButton").addEventListener("click",()=>{
-    holding.clear();play=startPlay(maze);renderPlay();
+    clearHeldControls();setRun(false);play=startPlay(maze);renderPlay();
+  });
+  el("runButton").addEventListener("click",()=>{
+    setRun(!runEnabled);renderPlay();
   });
   el("riddleForm").addEventListener("submit",event=>{
     event.preventDefault();
@@ -1019,7 +1039,8 @@ function initializePlay() {
   });
   const keyMap={ArrowUp:"forward",KeyW:"forward",ArrowDown:"backward",
     KeyS:"backward",KeyA:"strafeLeft",KeyD:"strafeRight",
-    ArrowLeft:"turnLeft",KeyQ:"turnLeft",ArrowRight:"turnRight",KeyE:"turnRight"};
+    ArrowLeft:"turnLeft",KeyQ:"turnLeft",ArrowRight:"turnRight",KeyE:"turnRight",
+    ShiftLeft:"sprint",ShiftRight:"sprint"};
   window.addEventListener("keydown",event=>{
     if(view!=="explore"||snapshotOpen||event.target.closest("input,textarea,select"))return;
     const move=keyMap[event.code];if(move){event.preventDefault();holding.add(move);}
@@ -1038,7 +1059,7 @@ function initializePlay() {
   const endLook=()=>{lookX=null;};
   window.addEventListener("blur",()=>holding.clear());
   document.addEventListener("visibilitychange",()=>{
-    if(document.hidden){holding.clear();lastFrame=0;audio.pause();updateAudioUI();}
+    if(document.hidden){clearHeldControls();lastFrame=0;audio.pause();updateAudioUI();}
   });
   canvas.addEventListener("pointerup",endLook);canvas.addEventListener("pointercancel",endLook);
   const frame=time=>{
@@ -1054,10 +1075,12 @@ function initializePlay() {
           play=rotatePlayer(play,delta);
           if(motionActive&&motionAnchor)motionHeading=shortestAngle(motionHeading+delta);
         }
-        if(forward||strafe)play=movePlayer(maze,play,forward*dt*6,strafe*dt*6);
+        if(forward||strafe)play=movePlayer(maze,play,forward*dt*6,strafe*dt*6,
+          runEnabled||holding.has("sprint"));
         play=tickPlayer(play,dt);
         play=advanceShadows(maze,play,dt);
         audio.noteTransition(before,play);
+        if(play.ended&&runEnabled)setRun(false);
       }
       renderPlay();
     }else lastFrame=0;

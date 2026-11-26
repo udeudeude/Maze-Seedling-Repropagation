@@ -13,7 +13,7 @@ const clamp=(number,lo,hi)=>Math.min(hi,Math.max(lo,number));
 export function startPlay(maze) {
   const entry=locate(maze,"entrance")[0]??[1,1];
   return {x:entry[0]+0.5,z:entry[1]+0.5,heading:0,remaining:Math.max(1,Number(maze.data.duration)||300),
-    ended:false,won:false,visited:[],message:"Find the exit.",keys:[],boostUntil:0,
+    ended:false,won:false,visited:[],message:"Find the exit.",keys:[],boostUntil:0,slowUntil:0,
     passageLatch:null,pendingRiddle:null,pendingPhoto:null,solvedRiddles:[],
     // Original shadow spawn tiles are never moved in the maze document.
     shadows:locate(maze,"shadow").filter(([x,z])=>passable(maze,x,z))
@@ -22,22 +22,39 @@ export function startPlay(maze) {
 export function rotatePlayer(state,delta) {
   return {...state,heading:(state.heading+delta+Math.PI*8)%(Math.PI*2)};
 }
-export function movePlayer(maze,state,forward,strafe=0) {
+/**
+ * Movement is swept in small increments. A fast move must not jump through
+ * walls, physical holes, keys, riddles, or shadows between rendered frames.
+ * Sprint is a deliberate modern equivalent of the original iPhone's hard
+ * press to go faster, not a claim of matching its exact acceleration curve.
+ */
+export function movePlayer(maze,state,forward,strafe=0,sprint=false) {
   if(state.ended||state.pendingRiddle||state.pendingPhoto)return state;
-  const speed=state.boostUntil>0?0.35:0.24;
-  const dx=Math.cos(state.heading)*forward*speed+
-    Math.cos(state.heading+Math.PI/2)*strafe*speed;
-  const dz=Math.sin(state.heading)*forward*speed+
-    Math.sin(state.heading+Math.PI/2)*strafe*speed;
-  let x=state.x,z=state.z;
-  const cushion=0.19;
-  const free=(x,z)=>passable(maze,Math.floor(x),Math.floor(z),state.keys);
-  if(free(x+dx+Math.sign(dx)*cushion,z) && free(x+dx+Math.sign(dx)*cushion,z+cushion)
-    && free(x+dx+Math.sign(dx)*cushion,z-cushion))x+=dx;
-  if(free(x,z+dz+Math.sign(dz)*cushion) && free(x+cushion,z+dz+Math.sign(dz)*cushion)
-    && free(x-cushion,z+dz+Math.sign(dz)*cushion))z+=dz;
-  const next={...state,x,z};
-  return catchShadow(collectAt(maze,next));
+  const speed=state.boostUntil>0?.35:state.slowUntil>0?.14:.24;
+  const magnitude=Math.hypot(forward,strafe);
+  const inputScale=magnitude?Math.max(Math.abs(forward),Math.abs(strafe))/magnitude:1;
+  const stepSpeed=speed*(sprint?1.6:1)*inputScale;
+  const dx=(Math.cos(state.heading)*forward+
+    Math.cos(state.heading+Math.PI/2)*strafe)*stepSpeed;
+  const dz=(Math.sin(state.heading)*forward+
+    Math.sin(state.heading+Math.PI/2)*strafe)*stepSpeed;
+  const increments=Math.max(1,Math.ceil(Math.hypot(dx,dz)/.12));
+  const xStep=dx/increments,zStep=dz/increments,cushion=.19;
+  let next=state;
+  for(let i=0;i<increments;i++) {
+    const free=(x,z)=>passable(maze,Math.floor(x),Math.floor(z),next.keys);
+    let x=next.x,z=next.z;
+    if(xStep!==0&&free(x+xStep+Math.sign(xStep)*cushion,z) &&
+      free(x+xStep+Math.sign(xStep)*cushion,z+cushion) &&
+      free(x+xStep+Math.sign(xStep)*cushion,z-cushion))x+=xStep;
+    if(zStep!==0&&free(x,z+zStep+Math.sign(zStep)*cushion) &&
+      free(x+cushion,z+zStep+Math.sign(zStep)*cushion) &&
+      free(x-cushion,z+zStep+Math.sign(zStep)*cushion))z+=zStep;
+    next=catchShadow(collectAt(maze,{...next,x,z}));
+    if(next.ended||next.pendingRiddle||next.pendingPhoto)break;
+    if(x===next.x&&z===next.z&&xStep===0&&zStep===0)break;
+  }
+  return next;
 }
 /**
  * Optional reconstructed interactions. Never reinterpret unknown native riddle
@@ -109,8 +126,9 @@ export function collectAt(maze,state) {
   if(cell.type==="exit")return {...next,ended:true,won:true,message:"Maze completed!"};
   if(cell.type==="timer_powerup")return {...next,remaining:next.remaining+30,message:"+30 seconds"};
   if(cell.type==="timer_hazard")return {...next,remaining:Math.max(0,next.remaining-30),message:"−30 seconds"};
-  if(cell.type==="speed_powerup")return {...next,boostUntil:25,message:"Speed boost"};
-  if(cell.type==="speed_hazard")return {...next,boostUntil:0,message:"Speed boost lost"};
+  if(cell.type==="speed_powerup")return {...next,boostUntil:25,slowUntil:0,message:"Speed boost"};
+  if(cell.type==="speed_hazard")return {...next,boostUntil:0,slowUntil:12,
+    message:"Slowed for 12 seconds"};
   if(cell.type==="info") {
     const id=keyPickupId(cell);
     const caption=typeof cell.text==="string"?cell.text:
@@ -206,6 +224,7 @@ export function tickPlayer(state,seconds) {
   if(state.ended||state.pendingRiddle||state.pendingPhoto||seconds<=0)return state;
   const remaining=Math.max(0,state.remaining-seconds);
   return {...state,remaining,boostUntil:Math.max(0,state.boostUntil-seconds),
+    slowUntil:Math.max(0,(state.slowUntil??0)-seconds),
     ended:remaining===0,won:false,message:remaining===0?"Time is up":state.message};
 }
 /** Build one collision index for all rays in a rendered frame. */

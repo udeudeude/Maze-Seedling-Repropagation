@@ -20,6 +20,46 @@ test("walls stop movement and raycasts see the first obstacle",()=>{
   assert.equal(hit.cellX,2);assert.equal(hit.cellZ,1);
   assert.ok(hit.distance>.49&&hit.distance<.51);
 });
+test("running accelerates, diagonals stay normalized, and release restores walking speed",()=>{
+  const maze=newMaze(),p=startPlay(maze);
+  const walk=movePlayer(maze,p,1),run=movePlayer(maze,p,1,0,true);
+  assert.ok(run.x>walk.x+.1,"Run should be visibly faster");
+  const diagonal=movePlayer(maze,p,1,1);
+  assert.ok(Math.hypot(diagonal.x-p.x,diagonal.z-p.z)<=walk.x-p.x+1e-8,
+    "Diagonal input must not make the player faster than walking");
+  assert.equal(startPlay(maze).slowUntil,0);
+});
+test("fast running cannot tunnel through walls, traps, or intermediate goal tiles",()=>{
+  let blocked=paintTile(newMaze(),2,1,"wall");
+  const initial=startPlay(blocked);
+  const againstWall=movePlayer(blocked,initial,10,0,true);
+  assert.ok(againstWall.x<1.82);
+  const maze=newMaze();
+  maze.repropagation={physicalHoles:[{position:["3","0","1"],kind:"physical_floor_hole"}]};
+  const fallen=movePlayer(maze,startPlay(maze),14,0,true);
+  assert.equal(fallen.ended,true);
+  assert.match(fallen.message,/physical maze hole/);
+  assert.ok(fallen.x<4);
+  const finish=paintTile(newMaze(),3,1,"exit");
+  assert.equal(movePlayer(finish,startPlay(finish),14,0,true).won,true);
+});
+test("speed hazards now actually slow movement and recovery is timed",()=>{
+  const maze=paintTile(newMaze(),2,1,"speed_hazard");
+  const initial=startPlay(maze);
+  const slowed=collectAt(maze,{...initial,x:2.5,z:1.5});
+  assert.equal(slowed.slowUntil,12);
+  const slowedDelta=movePlayer(maze,{...slowed,x:5.5,z:5.5},1).x-5.5;
+  const normalDelta=movePlayer(maze,{...initial,x:5.5,z:5.5},1).x-5.5;
+  assert.ok(slowedDelta<normalDelta);
+  const recovered=tickPlayer(slowed,12);
+  assert.equal(recovered.slowUntil,0);
+  assert.equal(movePlayer(maze,{...recovered,x:5.5,z:5.5},1).x-5.5,normalDelta);
+  const boosted=collectAt(paintTile(newMaze(),2,1,"speed_powerup"),
+    {...initial,x:2.5,z:1.5,slowUntil:10});
+  assert.equal(boosted.slowUntil,0);
+  assert.equal(boosted.boostUntil,25);
+  assert.equal(startPlay(maze).slowUntil,0);
+});
 test("movement reaches empty cells, rotation changes heading",()=>{
   const maze=newMaze(),p=startPlay(maze);
   assert.ok(movePlayer(maze,p,1).x>p.x);

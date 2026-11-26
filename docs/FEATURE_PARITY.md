@@ -13,7 +13,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 | Gates, collectible keys, inventory | **Partial:** opt-in collectible keys on Message tiles, matching gate variants, collision unlocking and visible inventory | Recover historical key representation, original pickup effects, gate behavior and 3D visuals |
 | Secret passages | **Partial:** paired variant codes transport in exploration with return-trip latch | Verify original linkage rules and add original sound/visual treatment |
 | Riddles/questions/answers | **Partial:** authored questions and answers with playable, skippable interaction | Recover original answer consequences, scoring and native data mapping |
-| Time and speed power-ups | **Partial** simplified effects | Accurate timing/duration, configuration, sound and notifications |
+| Time and speed power-ups | **Partial:** boosts accelerate, slow hazards reduce speed for 12 seconds, time tiles change countdown | Historical timing, effect strength, configuration and device validation |
 | Message, photo and voice content | **Partial:** Message tiles accept short personal microphone recordings, portable photographs and notes; voice and photo open during exploration and pause play | Native photo-wall placement, historical presentation, physical microphone tests, device quota and camera testing |
 | Four original environments | Four **palette placeholders** | Rebuild original models, geometry, animation, textures, environmental details, and lighting |
 | Original sound/music | **Partial:** four newly synthesized atmospheres and state-driven interaction cues, explicit audio activation and independent music/effects preferences | Historically faithful music, genuine environmental/3D spatial audio, volume controls, physical iPhone listening tests |
@@ -23,7 +23,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 | Selfie player avatars and screenshots | **Partial:** save/share current first-person scene as a portable image with a preview | Selfie player avatars, original photo effects and native iPhone share-sheet verification |
 | Eight built-in mazes in four themes | One independently created practice maze | Historically accurate tutorial and standard/hard experiences; original distribution rights review |
 | Multiple saved mazes / sharing | **Partial:** local collection, native-format individual maze export, whole-library JSON backups, additive merge restoration and opt-in native file share | Actual nearby multiplayer, comprehensive quota recovery, iPhone share-sheet and download validation |
-| Original iPhone pressure gestures | **Missing** | Accessible pan and speed equivalents without requiring 3D Touch |
+| Original iPhone pressure gestures | **Partial:** explicit editor Pan mode; Explore Run toggle and Shift-to-run, with swept movement | Verify mobile ergonomics, calibrate historical fast/slow rates, Home screen shortcuts still absent |
 | Original user interface and graphics | **Not faithful** | Reconstruct from original app screenshots, not generic dark controls |
 | Offline / modern phone compatibility | **Partial** offline shell | Field testing on current iPhones, storage, orientation, updating, image permissions |
 
@@ -164,3 +164,10 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - The overlay accounts for aspect-ratio letterboxing from `object-fit: contain`; landscape and portrait camera samples are projected into the displayed video area without stretching. No camera imagery is uploaded or stored.
 - Choosing **Use this frame** independently analyzes the **captured still**, not a potentially stale live estimate. If detection passes its conservative geometric checks, the four draggable handles start at that estimate. If not, the existing safe inset handles appear. The editable review and explicit import steps remain mandatory.
 - Tests cover landscape and portrait projection, validation, opt-in camera wiring and manual review preservation. **Unverified:** recognition accuracy on the original physical kit, reliability under varied surfaces/lighting, mobile performance and actual iPhone camera orientation. No historical Seedling scanner calibration is claimed.
+
+## November 26, 2026: pressure-free running and safe accelerated movement
+
+- The archived iPhone description documents pressing harder to move faster during flat-screen play, and pressing harder while dragging to pan the editor. Modern phones cannot depend on that hardware. Build already has a deliberate Pan mode; Explore now offers a thumb-accessible Run toggle and a held Shift shortcut. Run resets when restarting or leaving exploration, without modifying the maze document.
+- Diagonal movement is speed-normalized. Accelerated motion is collision-tested in short swept steps so it cannot pass through walls, gates, physical holes, collectible keys, puzzles, shadows or the finish without triggering each intervening interaction. This also fixes potential skipped tile effects during ordinary large frame intervals.
+- Speed hazards now apply a 12-second slowdown instead of only cancelling an active boost. Speed boosts clear slowdowns; Run combines with the current effect. Countdown, speed effects and moving shadows remain suspended during modal puzzles and photograph/voice messages.
+- Automated tests cover acceleration, diagonal movement, fast wall collisions, holes, goal triggers, slowdown timing, reset and controls. The 12/25-second durations and velocity multipliers are **reconstruction choices, not historical measurements**. Physical iPhone control and performance testing is still required. No original licensed assets or document fields were added.

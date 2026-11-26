@@ -57,6 +57,16 @@ test("Build exposes magnification, deliberate pan, keyboard access and reversibl
   assert.match(css,/#boardCanvas\.pan-mode\{touch-action:pan-x pan-y/);
 });
 
+test("Explore offers an accessible non-pressure speed control and keyboard shortcut",()=>{
+  const html=readFileSync(new URL("../index.html",import.meta.url),"utf8");
+  const app=readFileSync(new URL("../src/app.mjs",import.meta.url),"utf8");
+  assert.match(html,/id="runButton"[^>]*aria-pressed="false"/);
+  assert.match(html,/id="paceReadout"/);
+  assert.match(app,/setRun\(!runEnabled\)/);
+  assert.match(app,/ShiftLeft:"sprint",ShiftRight:"sprint"/);
+  assert.match(app,/runEnabled\|\|holding\.has\("sprint"\)/);
+  assert.match(app,/if\(next!=="explore"\)setRun\(false\)/);
+});
 test("riddle customization preserves opaque imported data and round trips via JSON",()=>{
   const source=paintTile(newMaze(),4,5,"riddle");
   const before=primaryCell(source,4,5).cell;

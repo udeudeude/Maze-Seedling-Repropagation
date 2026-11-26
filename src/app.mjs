@@ -1,9 +1,10 @@
 import {parseMaze, serializeMaze, validateMaze} from "./maze-document.mjs";
 import {
   SIZE,TILE_NAMES,newMaze,sampleMaze,paintTile,eraseAt,changeCellDetails,transferTile,
-  cellCoordinates,primaryCell,locate,findRoute,examineMaze
+  cellCoordinates,primaryCell,locate
 } from "./maze-world.mjs";
 import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answerRiddle,keyPickupId,advanceShadows,dismissPhoto} from "./maze-play.mjs";
+import {findPlayableRoute} from "./maze-route.mjs";
 import {orientationPose,relativePose,shortestAngle} from "./maze-orientation.mjs";
 import {AUDIO_SETTINGS_KEY,audioPreferences,createMazeAudio} from "./maze-audio.mjs";
 import {MAX_PHOTO_DATA_URL_LENGTH,photoAt,photoEdit} from "./maze-media.mjs";
@@ -1659,11 +1660,14 @@ function initialize() {
     const next=parseMaze(maze);next.data.theme=event.target.value;commit(next);
   });
   el("routeButton").addEventListener("click",()=>{
-    const info=examineMaze(maze);route=findRoute(maze);
-    if(info.startCount!==1||info.finishCount!==1)
-      notice("Add exactly one Start and one Finish");
-    else if(!route)notice("No direct walkable path to the finish (locked gates may need keys)");
-    else notice("Walkable route found · "+info.shortestSteps+" steps");
+    const result=findPlayableRoute(maze);
+    route=result.status==="reachable"?result.route:null;
+    if(result.status==="invalid")notice(result.reason);
+    else if(result.status==="indeterminate")notice("Route uncertain · "+result.reason);
+    else if(result.status==="blocked")notice("No playable route · "+result.reason);
+    else notice("Playable route · "+result.moves+" moves · "+result.keys.length+
+      " key"+(result.keys.length===1?"":"s")+" · "+result.passages+
+      " passage"+(result.passages===1?"":"s")+". Timers and shadows not checked.");
     renderBoard();
   });
   document.querySelectorAll(".tab").forEach(button=>{

@@ -89,3 +89,7 @@ Under **Maze files**, **Save or share current maze** exports an individual nativ
 ### Faster movement without pressure-sensitive hardware
 
 In **Explore**, tap **Run** to move faster using the existing directional controls; tap again to walk. On a keyboard, hold **Shift** while moving for a temporary sprint. The original iPhone app used a stronger screen press for extra speed; modern iPhones no longer require that hardware. Speed pickups and slowdowns change pace independently, with their experimental timings clearly distinguished from verified historical behavior. Running resets when you restart or leave Explore. Fast movement checks every intervening maze tile, so it cannot skip walls, holes, or important interactions.
+
+### Check playable routes, including keys and passages
+
+In **Build**, choose **Check route** to highlight a route that can actually collect the needed Message-tile keys, open the matching gates, and traverse valid pairs of secret passages. It will not route you through annotated physical holes. The result distinguishes a blocked route from a malformed Start/Finish setup or a maze too complex to analyze. This checks possible movement, not a guaranteed win against moving shadows, the countdown or unverified historical game rules. Maze documents are never modified by the check.

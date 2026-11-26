@@ -1,9 +1,9 @@
 /* Maze Repropagation: offline shell; photographs remain on the user's device. */
-const VERSION="maze-shell-2026-11-26-05";
+const VERSION="maze-shell-2026-11-26-06";
 const ASSETS=[
   "./","./index.html","./style.css","./manifest.webmanifest",
   "./src/app.mjs","./src/maze-document.mjs","./src/maze-world.mjs",
-  "./src/maze-play.mjs","./src/maze-capture.mjs","./src/maze-board-corners.mjs","./src/maze-live.mjs","./src/maze-recognize.mjs",
+  "./src/maze-play.mjs","./src/maze-route.mjs","./src/maze-capture.mjs","./src/maze-board-corners.mjs","./src/maze-live.mjs","./src/maze-recognize.mjs",
   "./src/maze-shapes.mjs",
   "./src/maze-markers.mjs","./src/maze-library.mjs","./src/maze-orientation.mjs",
   "./src/maze-audio.mjs","./src/maze-media.mjs","./src/maze-voice.mjs",

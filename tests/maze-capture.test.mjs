@@ -70,6 +70,32 @@ test("playable grid margin rejects unsafe or unaligned crops",()=>{
   assert.throws(()=>insetRectifiedBoard({width:20,height:19,data:new Uint8ClampedArray(20*19*4)},.1),TypeError);
 });
 
+test("uneven physical-board margins independently crop all four sides",()=>{
+  const width=100,data=new Uint8ClampedArray(width*width*4);
+  for(let y=0;y<width;y++)for(let x=0;x<width;x++){
+    const border=x<14||x>=92||y<5||y>=83;
+    data.set(border?[12,12,12,255]:[225,225,225,255],(y*width+x)*4);
+  }
+  const before=data.slice(),source={width,height:width,data};
+  const equal=insetRectifiedBoard(source,.08);
+  assert.ok(equal.data[0]<100,"An equal margin cannot fix an uneven left border");
+  const fixed=insetRectifiedBoard(source,{top:.05,right:.08,bottom:.17,left:.14});
+  for(const [x,y] of [[0,0],[99,0],[0,99],[99,99],[50,50]])
+    assert.ok(fixed.data[(y*width+x)*4]>210,"Dark border survived at "+x+","+y);
+  assert.deepEqual(data,before,"Individual crop must not change original photograph");
+});
+
+test("per-edge calibration rejects missing, inverted and invalid margins",()=>{
+  const image={width:32,height:32,data:new Uint8ClampedArray(32*32*4)};
+  const okay={top:0,right:.05,bottom:.1,left:.2};
+  assert.equal(insetRectifiedBoard(image,okay).width,32);
+  for(const edges of [
+    {...okay,top:-.01},{...okay,bottom:.201},{...okay,right:NaN},
+    {...okay,left:Infinity},{top:.05,right:.05,bottom:.05},
+    {...okay,other:0},null,[0,0,0,0]
+  ])assert.throws(()=>insetRectifiedBoard(image,edges),RangeError);
+});
+
 test("capture shows and recalculates a correctable playable-grid margin",()=>{
   const html=readFileSync(new URL("../index.html",import.meta.url),"utf8");
   const app=readFileSync(new URL("../src/app.mjs",import.meta.url),"utf8");
@@ -78,4 +104,11 @@ test("capture shows and recalculates a correctable playable-grid margin",()=>{
   assert.match(app,/insetRectifiedBoard\(scanBoardPixels,/);
   assert.match(app,/el\("gridInsetSlider"\)\.addEventListener\("change"/);
   assert.match(app,/scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear\(\)/);
+  for(const edge of ["Top","Right","Bottom","Left"]){
+    assert.match(html,new RegExp('id="gridInset'+edge+'Slider"'));
+    assert.match(html,new RegExp('id="gridInset'+edge+'Value"'));
+    assert.match(app,new RegExp('gridInset'+edge+'Slider'));
+  }
+  assert.match(html,/id="gridEdgeDetails"/);
+  assert.match(app,/slider.addEventListener\("change",restartAlignedScan\)/);
 });

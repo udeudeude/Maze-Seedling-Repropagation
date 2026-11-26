@@ -4,7 +4,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 
 | Original function | Current status | Remaining work |
 | --- | --- | --- |
-| Photograph-to-maze automatic scanning | **Experimental** continuous dark-wall spans, editable wall-tile suggestions, four-corner estimate and manually adjustable playable-grid margins | Verify corner recognition on physical boards, independent/nonuniform grid offsets, true physical pitch and actual-photo evaluation |
+| Photograph-to-maze automatic scanning | **Experimental** continuous dark-wall spans, editable wall-tile suggestions, four-corner estimate and independently adjustable playable-grid edges | Verify corner recognition on physical boards, true physical pitch and actual-photo evaluation |
 | Detect physical trap holes and start/finish | **Experimental:** circle and colored-sticker candidates, separate review/correction, marker import, namespaced hole annotations and provisional trap effect | Verify actual marker colors, capture calibration, original hole representation, classification precision on real photos |
 | Detect walls of three physical lengths | **Partial:** straight spans and image-space lengths measured | Segment touching blocks individually, recover exact short/medium/long dimensions, calibrate against the physical grid |
 | Live camera feedback and overlay | **Partial:** opt-in live camera, sampled exposure/contrast guidance, conservative live board-outline tracking, still-frame automatic corner suggestion and editable handles | Validate board outlining on actual kit photographs, lighting and perspective feedback, physical calibration and iPhone behavior |
@@ -241,3 +241,10 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - The source photograph is not mutated or uploaded. Changing margins reuses the expensive original perspective rectification but deliberately clears prior manual tile corrections, because old tile coordinates no longer refer to the same physical locations. The new review must be approved before import. A fresh photograph resets the inset to 0%.
 - Import now declines to annotate a newly detected lethal physical hole on top of an existing non-floor native/user tile and reports how many such conflicts were skipped. It retains explicit floor tiles and original unknown metadata. This prevents an overlapping wall, start or other authored object from silently becoming a trap.
 - Automated tests cover pixel cropping, source immutability, validation, interface wiring, and conflicting imports. **Limits:** the inset is symmetric, user-chosen, and not the original physical grid calibrator. Unequal margins, independent pitch recovery, touching-block classification, actual Seedling photographs and iPhone camera interaction remain unverified.
+
+
+## November 26, 2026: independently adjustable playable-grid edges
+
+- The uniform 0–20% playable-grid inset now offers a collapsed **Fine-tune individual edges** section. Top, right, bottom and left can be adjusted separately after correcting the photograph's perspective. This addresses unequal paper borders and off-center placement that a symmetric inset cannot resolve; changing the uniform control restores equal values.
+- Per-edge cropping samples only within the bounded playable area, preventing border pixels from being interpolated into the first or last row/column. The original photo is unchanged, and the first perspective rectification is reused. Changing any edge clears wall, hole and marker corrections before a newly aligned review, rather than reassigning old selections to wrong physical squares.
+- New synthetic tests exercise nonuniform black borders, input validation, immutability and interface wiring. These are **manual geometric controls**, not automatic grid-pitch inference or validated recognition of physical Seedling kit dimensions. Real-board photographs and physical iPhone operation remain to be tested.

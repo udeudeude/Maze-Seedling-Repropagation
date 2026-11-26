@@ -162,6 +162,12 @@ select{width:100%;min-height:36px;border:1px solid #3b4650;border-radius:9px;
 .scan-slider label{font-size:13px;font-weight:620}
 .scan-slider input{width:100%;accent-color:var(--accent);min-height:40px}
 .scan-slider span{font-size:11px;color:var(--dim);display:block;text-align:center}
+.edge-calibration{margin:-3px 0 15px;padding:9px 10px;border:1px solid #46565e;border-radius:9px}
+.edge-calibration summary{cursor:pointer;font-size:13px;font-weight:620;min-height:26px}
+.edge-calibration-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px 15px;margin-top:11px}
+.edge-calibration-grid label{display:flex;justify-content:space-between;gap:6px;font-size:12px}
+.edge-calibration-grid input{width:100%;min-height:42px;accent-color:var(--accent)}
+.edge-calibration p{font-size:11px;margin:5px 0 0}
 .scan-actions{display:flex;gap:8px;flex-wrap:wrap;position:sticky;top:0;z-index:3;background:#202a31;padding:9px 0 12px;margin-bottom:9px;border-bottom:1px solid #45525c}
 .scan-actions button{border:1px solid #56626a;background:#2f3d46;border-radius:10px;padding:12px 13px;min-height:44px;font-weight:600}
 .scan-actions button:disabled{opacity:.4}

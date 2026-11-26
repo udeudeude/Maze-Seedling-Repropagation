@@ -1528,6 +1528,11 @@ function initializePhoto() {
     scanMarkers.clear();scanMarkerEdits.clear();
     el("gridInsetSlider").value="0";
     el("gridInsetValue").textContent="0%";
+    for(const edge of ["Top","Right","Bottom","Left"]){
+      el("gridInset"+edge+"Slider").value="0";
+      el("gridInset"+edge+"Value").textContent="0%";
+    }
+    el("gridEdgeDetails").open=false;
     el("scanStage").hidden=true;
     el("photoStage").hidden=false;
     el("photoActions").hidden=false;
@@ -1744,7 +1749,10 @@ function initializePhoto() {
         // margin. A new alignment or photograph invalidates both images.
         if(!scanBoardPixels)scanBoardPixels=rectifyPhoto().warped;
         scanPixels=insetRectifiedBoard(scanBoardPixels,
-          Number(el("gridInsetSlider").value)/100);
+          Object.fromEntries(["top","right","bottom","left"].map(edge=>[
+            edge,Number(el("gridInset"+edge[0].toUpperCase()+
+              edge.slice(1)+"Slider").value)/100
+          ])));
         scanGuide=document.createElement("canvas");
         scanGuide.width=scanPixels.width;scanGuide.height=scanPixels.height;
         scanGuide.getContext("2d").putImageData(
@@ -1802,19 +1810,40 @@ function initializePhoto() {
     renderScan();
   });
   el("detectButton").addEventListener("click",()=>analyzePhoto(true));
-  el("gridInsetSlider").addEventListener("input",()=>{
-    el("gridInsetValue").textContent=el("gridInsetSlider").value+"%";
-  });
-  el("gridInsetSlider").addEventListener("change",()=>{
+  const gridEdges=["Top","Right","Bottom","Left"];
+  // Inset changes remap tile coordinates: previous hand corrections would
+  // now refer to different squares and must never be silently reused.
+  const restartAlignedScan=()=>{
     if(!scanBoardPixels)return;
-    // A moved grid changes tile coordinates. Never silently transplant
-    // corrections from a previous alignment into this fresh analysis.
     scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
     scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
     scanMarkers.clear();scanMarkerEdits.clear();
     analyzePhoto(false);
+  };
+  el("gridInsetSlider").addEventListener("input",()=>{
+    const value=el("gridInsetSlider").value;
+    el("gridInsetValue").textContent=value+"%";
+    for(const edge of gridEdges){
+      el("gridInset"+edge+"Slider").value=value;
+      el("gridInset"+edge+"Value").textContent=value+"%";
+    }
   });
+  el("gridInsetSlider").addEventListener("change",restartAlignedScan);
+  for(const edge of gridEdges){
+    const slider=el("gridInset"+edge+"Slider");
+    slider.addEventListener("input",()=>{
+      el("gridInset"+edge+"Value").textContent=slider.value+"%";
+      const values=gridEdges.map(name=>el("gridInset"+name+"Slider").value);
+      if(values.every(value=>value===values[0])){
+        el("gridInsetSlider").value=values[0];
+        el("gridInsetValue").textContent=values[0]+"%";
+      }else{
+        el("gridInsetValue").textContent="Custom";
+      }
+    });
+    slider.addEventListener("change",restartAlignedScan);
+  }
   el("sensitivitySlider").addEventListener("input",()=>{
     if(scanPixels)analyzePhoto(false);
   });

@@ -81,21 +81,30 @@ export function initialCorners(width,height) {
 /**
  * Crop the playable grid inside a perspective-aligned board photograph.
  * Some physical boards include a border outside their tile grid. The inset is
- * a user-controlled, symmetric fraction of each edge, not an inferred factory
- * measurement. Original image pixels are never mutated.
+ * a user-controlled fraction of each edge, not an inferred factory
+ * measurement. Accepts a legacy uniform number or an explicit four-edge
+ * object. Original image pixels are never mutated.
  */
 export function insetRectifiedBoard(image,margin=0) {
   const {width,height,data}=image??{};
   if(!Number.isInteger(width)||width<16||height!==width||
       data?.length!==width*height*4)
     throw new TypeError("Expected square, rectified RGBA photograph");
-  if(!Number.isFinite(margin)||margin<0||margin>.2)
-    throw new RangeError("Grid margin must be between 0 and 20 percent");
-  if(margin===0)return {width,height,data:data.slice()};
-  // Keep the last interpolated output pixel inside the playable grid:
-  // sampling past the final interior pixel would blend the outer border back in.
-  const lo=width*margin,hi=width*(1-margin)-1;
+  const edges=typeof margin==="number"
+    ?{top:margin,right:margin,bottom:margin,left:margin}:margin;
+  const sides=["top","right","bottom","left"];
+  if(!edges||typeof edges!=="object"||Array.isArray(edges)||
+      Object.keys(edges).length!==4||
+      sides.some(side=>!Number.isFinite(edges[side])||
+        edges[side]<0||edges[side]>.2))
+    throw new RangeError("Each playable-grid edge must be between 0 and 20 percent");
+  if(sides.every(side=>edges[side]===0))
+    return {width,height,data:data.slice()};
+  // Keep the final output sample inside every individual playable edge.
+  // -1 is essential: bilinear interpolation must not blend a border pixel.
+  const x0=width*edges.left,x1=width*(1-edges.right)-1;
+  const y0=height*edges.top,y1=height*(1-edges.bottom)-1;
   return warpSquarePixels(data,width,height,[
-    {x:lo,y:lo},{x:hi,y:lo},{x:hi,y:hi},{x:lo,y:hi}
+    {x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}
   ],width);
 }

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import {readFileSync} from "node:fs";
 import {newMaze,sampleMaze,paintTile,eraseAt,primaryCell,cellsAt,findRoute,
   passable,examineMaze,changeCellDetails,locate,TILE_NAMES} from "../src/maze-world.mjs";
 

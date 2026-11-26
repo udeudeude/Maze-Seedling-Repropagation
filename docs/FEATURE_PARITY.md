@@ -16,7 +16,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 | Time and speed power-ups | **Partial** simplified effects | Accurate timing/duration, configuration, sound and notifications |
 | Message and photo wall content | Text field only | Recorded audio/text messages, custom pictures/selfies, playback/display |
 | Four original environments | Four **palette placeholders** | Rebuild original models, geometry, animation, textures, environmental details, and lighting |
-| Original sound/music | **Missing** | Four themed scores/ambient sound, spatial effects, volume/music toggles |
+| Original sound/music | **Partial:** four newly synthesized atmospheres and state-driven interaction cues, explicit audio activation and independent music/effects preferences | Historically faithful music, genuine environmental/3D spatial audio, volume controls, physical iPhone listening tests |
 | Flat-screen game | **Partial** raycast corridors and touch controls | Original movement speed, physics, controls, collectibles, map behavior |
 | True Google Cardboard mode | **Partial:** stereo, permission-based relative head yaw/pitch, recenter and landscape layout | Calibrated optics/lens distortion, gaze/trigger interaction, actual iPhone tests |
 | Race nearby friends | **Missing** | Nearby Wi-Fi/Bluetooth or an equivalent direct peer system, synchronization, races |
@@ -107,3 +107,10 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - Cardboard previously just drew two side-by-side images. It now requests browser motion permission from the initiating tap, then combines alpha/beta/gamma and screen rotation to track yaw and pitch. Head orientation is relative to the user's direction at activation, not an invented compass bearing. Recenter maps the current physical direction to the maze's starting heading.
 - The two-eye scene gains a landscape layout, a clear exit and motion-status feedback. Denied or absent sensors leave manual turning available. Motion listeners are removed on exit; pausing the browser releases held movement controls.
 - Added tests for quaternion yaw, pitch, screen rotation, wraparound, invalid readings and browser interface wiring. **Still not calibrated Cardboard:** lens projection/distortion, viewer calibration, gaze trigger, positional tracking and real iPhone validation remain unfinished.
+
+## November 25, 2026: opt-in audio during exploration
+
+- Added four newly composed procedural soundscapes generated locally from browser oscillators, each with different pitch range, rhythm and timbre: low Adventure pulses, Hedge bells, Marble mallet notes and sustained Space drones. These are **not** recovered Seedling music or effects; none of the original copyrighted audio is republished.
+- A single Sound control opens accessible settings with separate Music and Sound effects toggles. The engine creates its audio context only after an explicit user action. Playback pauses outside Explore or while the browser is hidden, and can resume on an intentional return to Explore. Preferences remain local, with no external requests or audio asset downloads.
+- Added game-state transition cues for collecting keys, opening gates, riddles, secret passages, time and speed changes, winning, timeout, shadow encounters and physical trap holes, without repeating every render frame.
+- Unit tests cover four unique musical patterns, audible bounds, transition triggers, opt-in lifecycle, preference switches and offline publication. **Still incomplete:** historical scores, calibrated three-dimensional spatial audio and speaker balance on real devices.

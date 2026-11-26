@@ -64,3 +64,7 @@ node --test tests/*.test.mjs
 This project is independent and unaffiliated with Seedling USA. The recovered Android software and its original artwork, music, models, fonts and code remain third-party material. **Do not commit, bundle, or publicly redistribute their unlicensed binaries or assets.** The open repository stores reimplementation and non-copying research metadata only.
 
 The user's private `udeudeude/work-and-research` repository is available for research that genuinely requires private storage. Use its documented isolation/privacy rules and never treat private Git as a place for credentials or large copyrighted binaries.
+
+### Exploration sound (new procedural audio)
+
+Open **Explore → Sound off**, select Music and/or Sound effects, then choose **Turn sound on**. Four different soundscapes and interaction cues are synthesized on the phone without downloads or original proprietary material. Sound is off until intentionally enabled and stops when leaving exploration. Preferences stay on the device. These are modern replacement compositions, not historically faithful Seedling recordings; physical iPhone sound balance still needs testing.

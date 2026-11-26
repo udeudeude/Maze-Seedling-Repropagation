@@ -209,3 +209,9 @@ body.stereoscopic .tabbar,body.stereoscopic .topbar{display:none}
   .touch-controls button{min-height:50px}.scene-wrap{aspect-ratio:2.4;max-height:58vh}
 }
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+
+.audio-option{display:flex;align-items:center;gap:14px;min-height:62px;padding:11px 12px;
+  background:#29343d;border:1px solid #4b5963;border-radius:11px;cursor:pointer}
+.audio-option input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
+.audio-option span{display:grid;gap:3px;font-size:14px;font-weight:650}
+.audio-option small{font-size:11px;color:var(--dim);font-weight:400}

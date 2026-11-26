@@ -71,6 +71,7 @@
         </div>
         <div class="explore-actions">
           <button id="mapButton" type="button" aria-pressed="false">Map</button>
+          <button id="soundButton" type="button" aria-pressed="false" aria-haspopup="dialog" aria-controls="audioDialog">Sound off</button>
           <button id="stereoButton" type="button" aria-pressed="false">Cardboard</button>
           <button id="recenterButton" type="button" hidden>Recenter</button>
           <span class="explore-tip">Hold buttons to move</span>
@@ -190,6 +191,16 @@
       </div>
       <p class="sheet-hint">Move or copy onto an empty square. Imported layers and tile details are preserved. Undo reverses the change.</p>
       <button type="button" class="full-button" id="deleteTileButton">Erase this tile</button>
+    </div>
+  </dialog>
+  <dialog id="audioDialog" class="sheet" aria-labelledby="audioHeading">
+    <form method="dialog" class="sheet-header"><h2 id="audioHeading">Exploration sound</h2><button class="icon-button" aria-label="Close sound settings">✕</button></form>
+    <div class="sheet-body">
+      <p class="sheet-hint" id="audioStatus" role="status" aria-live="polite">Sound is off until you turn it on.</p>
+      <label class="audio-option"><input id="musicOption" type="checkbox" checked> <span>Atmosphere and music <small>Four new synthesized themes</small></span></label>
+      <label class="audio-option"><input id="effectsOption" type="checkbox" checked> <span>Game sound effects <small>Keys, gates, traps, riddles and finish</small></span></label>
+      <button type="button" id="audioToggleButton" class="full-button primary">Turn sound on</button>
+      <p class="sheet-hint">Sound starts only after you turn it on. Preferences stay on this device; playback stops outside exploration. These new sounds do not reproduce the original soundtrack.</p>
     </div>
   </dialog>
   <dialog id="riddleDialog" class="riddle-dialog" aria-labelledby="riddleHeading">

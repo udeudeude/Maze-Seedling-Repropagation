@@ -5,6 +5,7 @@ import {
 } from "./maze-world.mjs";
 import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answerRiddle,keyPickupId,advanceShadows} from "./maze-play.mjs";
 import {orientationPose,relativePose,shortestAngle} from "./maze-orientation.mjs";
+import {AUDIO_SETTINGS_KEY,audioPreferences,createMazeAudio} from "./maze-audio.mjs";
 import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
@@ -51,6 +52,11 @@ let scanSelectedHoles=new Map(),scanAddedHoles=new Map(),scanRejectedHoles=new S
 let scanMode="walls",markerBrush="entrance";
 let scanMarkers=new Map(),scanMarkerEdits=new Map();
 let play=startPlay(maze),stereo=false,showMap=false,holding=new Set();
+const audio=createMazeAudio();
+let audioOptions;
+try{audioOptions=audioPreferences(localStorage.getItem(AUDIO_SETTINGS_KEY));}
+catch{audioOptions=audioPreferences(null);}
+audio.setOptions(audioOptions);
 let motionPose=null,motionAnchor=null,motionHeading=0,motionPitch=0;
 let motionActive=false,motionRotation=null;
 let lastFrame=0,lastBoardRect=null,boardPainting=false,boardLastCell=null;
@@ -515,6 +521,7 @@ function initializeDialogs() {
 }
 
 function setView(next) {
+  if(next!=="explore")audio.pause();
   if(next!=="build")clearPlacement();
   if(next!=="explore"&&stereo)leaveCardboard();
   if(next!=="explore"&&el("riddleDialog").open){
@@ -536,6 +543,7 @@ function setView(next) {
   if(next==="build")requestAnimationFrame(renderBoard);
   if(next==="explore"){
     play=startPlay(maze);motionAnchor=null;motionPitch=0;motionHeading=0;
+    if(audio.wantsAudio())void audio.activate(maze.data.theme).then(updateAudioUI);
     requestAnimationFrame(renderPlay);
   }
   if(next==="photo")requestAnimationFrame(renderPhoto);
@@ -676,6 +684,37 @@ function renderPlay() {
   inventory.title=play.keys.length?"Collected gate keys: "+play.keys.join(", "):"";
   el("playMessage").textContent=play.message;
 }
+function updateAudioUI(){
+  const active=audio.isActive();
+  el("soundButton").textContent=active?"Sound on":"Sound off";
+  el("soundButton").setAttribute("aria-pressed",String(active));
+  el("audioToggleButton").textContent=active?"Turn sound off":"Turn sound on";
+  el("audioToggleButton").disabled=!active&&!audioOptions.music&&!audioOptions.effects;
+  el("audioStatus").textContent=active?"Playing newly synthesized audio":
+    "Sound is off until you turn it on. No original game recordings are used.";
+  el("musicOption").checked=audioOptions.music;
+  el("effectsOption").checked=audioOptions.effects;
+}
+function initializeAudio(){
+  el("soundButton").addEventListener("click",()=>{
+    updateAudioUI();el("audioDialog").showModal();
+  });
+  for(const [id,key] of [["musicOption","music"],["effectsOption","effects"]]){
+    el(id).addEventListener("change",event=>{
+      audioOptions={...audioOptions,[key]:event.target.checked};
+      audio.setOptions(audioOptions);
+      try{localStorage.setItem(AUDIO_SETTINGS_KEY,JSON.stringify(audioOptions));}
+      catch(error){console.warn("Audio preferences could not be saved",error);}
+      updateAudioUI();
+    });
+  }
+  el("audioToggleButton").addEventListener("click",async()=>{
+    if(audio.isActive())audio.deactivate();
+    else await audio.activate(maze.data.theme);
+    updateAudioUI();
+  });
+  updateAudioUI();
+}
 function initializePlay() {
   el("restartButton").addEventListener("click",()=>{
     holding.clear();play=startPlay(maze);renderPlay();
@@ -683,7 +722,9 @@ function initializePlay() {
   el("riddleForm").addEventListener("submit",event=>{
     event.preventDefault();
     const response=el("riddleResponse").value;
+    const before=play;
     play=answerRiddle(play,response);
+    audio.noteTransition(before,play);
     if(play.pendingRiddle){
       el("riddleFeedback").textContent=play.message;
       el("riddleResponse").select();
@@ -737,13 +778,14 @@ function initializePlay() {
   const endLook=()=>{lookX=null;};
   window.addEventListener("blur",()=>holding.clear());
   document.addEventListener("visibilitychange",()=>{
-    if(document.hidden){holding.clear();lastFrame=0;}
+    if(document.hidden){holding.clear();lastFrame=0;audio.pause();updateAudioUI();}
   });
   canvas.addEventListener("pointerup",endLook);canvas.addEventListener("pointercancel",endLook);
   const frame=time=>{
     if(view==="explore" && !document.hidden){
       const dt=lastFrame?Math.min(.075,(time-lastFrame)/1000):0;lastFrame=time;
       if(dt && !play.ended) {
+        const before=play;
         const turn=Number(holding.has("turnRight"))-Number(holding.has("turnLeft"));
         const forward=Number(holding.has("forward"))-Number(holding.has("backward"));
         const strafe=Number(holding.has("strafeRight"))-Number(holding.has("strafeLeft"));
@@ -755,6 +797,7 @@ function initializePlay() {
         if(forward||strafe)play=movePlayer(maze,play,forward*dt*6,strafe*dt*6);
         play=tickPlayer(play,dt);
         play=advanceShadows(maze,play,dt);
+        audio.noteTransition(before,play);
       }
       renderPlay();
     }else lastFrame=0;
@@ -1089,7 +1132,7 @@ function initializePhoto() {
 }
 
 function initialize() {
-  prepareToolbox();initializeBoardInput();initializeDialogs();initializePlay();initializePhoto();
+  prepareToolbox();initializeBoardInput();initializeDialogs();initializeAudio();initializePlay();initializePhoto();
   el("zoomInButton").addEventListener("click",()=>setBoardZoom(boardZoom+1));
   el("zoomOutButton").addEventListener("click",()=>setBoardZoom(boardZoom-1));
   el("panButton").addEventListener("click",()=>{

@@ -10,7 +10,7 @@ const MOTIFS=Object.freeze({
 });
 export function audioPreferences(saved){
   let data={};
-  try{data=typeof saved==="string"?JSON.parse(saved):saved??{}}catch{return {music:true,effects:true};}
+  try{data=typeof saved==="string"?JSON.parse(saved):saved??{}}catch{return {music:true,effects:true,volume:1};}
   if(!data||typeof data!=="object"||Array.isArray(data))data={};
   const volume=Number(data.volume);
   return {music:data.music!==false,effects:data.effects!==false,

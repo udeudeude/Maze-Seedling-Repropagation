@@ -26,6 +26,9 @@ button:disabled{opacity:.34;cursor:default}
 .brand small{display:block;color:var(--dim);font-size:9px;letter-spacing:.22em}
 .top-actions{display:flex;gap:10px;align-items:center}
 .state-pill{font-size:11px;color:var(--dim)}
+#rescueSaveButton{border:1px solid #edb974;background:#493827;color:#ffe2b5;
+  border-radius:8px;min-height:34px;padding:4px 7px;font-size:11px;font-weight:700}
+#rescueSaveButton:focus-visible{outline-offset:2px}
 .icon-button{border:1px solid var(--line);background:#253039;width:43px;height:43px;
   border-radius:12px;display:grid;place-items:center;font-size:22px}
 main{min-height:0;overflow-y:auto;overscroll-behavior:contain}

@@ -111,3 +111,8 @@ Create a local player identity in **Explore → Player**. When taking a **Snapsh
 ### Optional photographed-board border suggestions (November 26, 2026)
 
 In Capture review, expand **Fine-tune individual edges** and choose **Suggest margins from photograph** to estimate visible paper-border cropping separately on each side. This is a conservative color-transition heuristic, not automatic physical-grid calibration; if the image provides insufficient evidence, no suggestion is made. Always inspect and correct all four controls and the refreshed walls, holes and markers before importing. This feature runs locally and leaves original photographs and maze documents untouched.
+
+
+### Recovery when this phone cannot save
+
+The collection is saved as the authoritative document before updating the optional legacy recovery copy. If browser storage fills or is disabled, the header changes to **Not saved** and reveals **Save copy**. That action offers a whole-library JSON rescue file, including your latest in-memory changes and personal media. If that archive exceeds the 25-megabyte backup limit, it instead offers a native-format export of the active maze. Confirm the file reached Files or another external destination before closing the page. A browser warning also appears on supported platforms if you try to leave with unsaved changes. This rescue is strictly on-device and never uploads anything. The browser may not display unload warnings in every installed-web-app context.

@@ -20,6 +20,7 @@ import {MAX_BACKUP_BYTES,createLibraryBackup,parseLibraryBackup,mergeLibraryBack
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
   addMaze,openMaze,duplicateMaze,deleteMaze,sortedMazes} from "./maze-library.mjs";
+import {saveMazeLocally,emergencyMazeExport} from "./maze-storage.mjs";
 
 const $=selector=>document.querySelector(selector);
 const el=id=>document.getElementById(id);
@@ -120,19 +121,24 @@ let placement=null,boardZoom=1,boardPanning=false,panDrag=null;
 const toolOrder=["wall","empty","hole","entrance","exit","gate","riddle","info","map",
   "secret_passage","shadow","speed_powerup","speed_hazard","timer_powerup","timer_hazard","floor"];
 
+let unsavedChanges=false;
+function markSaved(saved) {
+  unsavedChanges=!saved;
+  el("savedIndicator").textContent=saved?"Saved locally":"Not saved";
+  el("rescueSaveButton").hidden=saved;
+}
 function persist() {
   try {
-    // Keep the old single-maze key as an independent recovery copy for users
-    // upgrading from the earliest prototype.
-    localStorage.setItem(STORAGE,serializeMaze(maze));
-    const updated=saveActiveDocument(library,maze);
-    localStorage.setItem(LIBRARY_STORAGE_KEY,JSON.stringify(updated));
-    library=updated;
-    el("savedIndicator").textContent="Saved locally";
+    const saved=saveMazeLocally(localStorage,library,maze,{
+      libraryKey:LIBRARY_STORAGE_KEY,legacyKey:STORAGE});
+    library=saved.library;
+    if(!saved.recoverySaved)
+      console.warn("Maze library saved, but the optional legacy recovery copy is full");
+    markSaved(true);
     return true;
-  }catch(e){
-    el("savedIndicator").textContent="Save unavailable";
-    console.warn("Local storage failed",e);
+  }catch(error){
+    markSaved(false);
+    console.warn("Local library storage failed; keep an external rescue copy",error);
     return false;
   }
 }
@@ -156,7 +162,7 @@ function activateLibrary(updated,message){
   play=startPlay(maze);clearPlacement();
   try{localStorage.setItem(STORAGE,serializeMaze(maze));}
   catch(error){console.warn("Legacy recovery copy was not updated",error);}
-  el("savedIndicator").textContent="Saved locally";
+  markSaved(true);
   el("menuDialog").close();setView("build");redrawAll();
   notice(message||"Maze opened");
   return true;
@@ -673,6 +679,22 @@ function initializeDialogs() {
     setTimeout(()=>URL.revokeObjectURL(url),20000);
     return "Download started. Keep this file outside browser storage.";
   }
+  el("rescueSaveButton").addEventListener("click",async()=>{
+    const button=el("rescueSaveButton");
+    button.disabled=true;
+    try{
+      const rescue=emergencyMazeExport(library,maze);
+      const status=await offerJsonFile(rescue.content,rescue.filename,rescue.title);
+      if(status){
+        notice("Local saving is unavailable. "+status+
+          (rescue.scope==="maze"?" Only this maze fits in the rescue copy.":""));
+        el("transferStatus").textContent="Rescue offered: "+rescue.filename+
+          ". Verify the file outside this browser before leaving.";
+      }
+    }catch(error){
+      notice("Rescue failed: "+error.message+". Keep this page open and try exporting from Maze files.");
+    }finally{button.disabled=false;}
+  });
   el("exportButton").addEventListener("click",async()=>{
     try{
       const status=await offerJsonFile(serializeMaze(maze),
@@ -706,7 +728,7 @@ function initializeDialogs() {
       // Only adopt the restored library after storage has accepted it.
       localStorage.setItem(LIBRARY_STORAGE_KEY,JSON.stringify(result.library));
       library=result.library;renderLibraryList();
-      el("savedIndicator").textContent="Saved locally";
+      markSaved(true);
       el("transferStatus").textContent="Restored "+result.added+" maze"+
         (result.added===1?"":"s")+"; "+result.skipped+" duplicates skipped. Your current maze is unchanged.";
     }catch(error){
@@ -1129,7 +1151,7 @@ function initializeAvatar() {
     maze=next;library=updated;
     try{localStorage.setItem(STORAGE,serializeMaze(maze));}
     catch(error){console.warn("Legacy recovery copy was not updated",error);}
-    el("savedIndicator").textContent="Saved locally";
+    markSaved(true);
     dialog.close();redrawAll();renderPlay();
   });
 }
@@ -2029,6 +2051,11 @@ function initialize() {
   });
   window.addEventListener("resize",()=>{renderBoard();renderPhoto();renderPlay();});
   window.addEventListener("pagehide",persist);
+  window.addEventListener("beforeunload",event=>{
+    if(!unsavedChanges)return;
+    event.preventDefault();
+    event.returnValue="";
+  });
   refreshActions();persist();setView("build");
   if("serviceWorker" in navigator)navigator.serviceWorker.register("./sw.js").catch(console.warn);
 }

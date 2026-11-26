@@ -1,6 +1,7 @@
 /**
  * Opt-in live camera preview helpers. No images or sampled frame data leave
- * the device. Framing is manual; this does not locate physical board corners.
+ * the device. A conservative optional outline is only a framing suggestion,
+ * not original Seedling board calibration or automatic document import.
  */
 export function assessCameraFrame(frame) {
   const {width,height,data}=frame??{};
@@ -59,4 +60,21 @@ export function createCameraSession(acquire) {
     stop,
     getStream:()=>stream
   };
+}
+
+/**
+ * Place detected pixel-space corners over an object-fit:contain video element.
+ * Video pixels can be letterboxed inside a differently shaped preview box.
+ * Never stretch the detected polygon to the element's aspect ratio.
+ */
+export function projectBoardOutline(corners, sourceWidth, sourceHeight, viewWidth, viewHeight) {
+  if(!Array.isArray(corners)||corners.length!==4||
+    corners.some(p=>!p||!Number.isFinite(p.x)||!Number.isFinite(p.y)))
+    throw new TypeError("Expected four finite detected corners");
+  if(![sourceWidth,sourceHeight,viewWidth,viewHeight].every(n=>
+    Number.isFinite(n)&&n>0))throw new RangeError("Invalid preview dimensions");
+  const scale=Math.min(viewWidth/sourceWidth,viewHeight/sourceHeight);
+  const left=(viewWidth-sourceWidth*scale)/2;
+  const top=(viewHeight-sourceHeight*scale)/2;
+  return corners.map(p=>({x:left+p.x*scale,y:top+p.y*scale}));
 }

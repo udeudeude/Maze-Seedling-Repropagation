@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {assessCameraFrame,createCameraSession} from "../src/maze-live.mjs";
+import {assessCameraFrame,createCameraSession,projectBoardOutline} from "../src/maze-live.mjs";
 import {readFile} from "node:fs/promises";
 
 function uniform(value,width=40,height=40){
@@ -57,4 +57,42 @@ test("live camera has an explicit shutter, an off switch, and no automatic captu
   assert.match(app,/assessCameraFrame\(/);
   assert.match(sw,/\.\/src\/maze-live\.mjs/);
   assert.ok(!page.includes('id="cameraInput"'),"Native photo picker is intentionally singular");
+});
+
+test("detected board overlays respect letterboxed landscape camera frames",()=>{
+  const corners=[{x:20,y:10},{x:300,y:10},{x:300,y:230},{x:20,y:230}];
+  // A 4:3 image centered in a square display adds 37.5 pixels top and bottom.
+  const points=projectBoardOutline(corners,320,240,300,300);
+  assert.deepEqual(points,[
+    {x:18.75,y:46.875},{x:281.25,y:46.875},
+    {x:281.25,y:253.125},{x:18.75,y:253.125}
+  ]);
+});
+test("detected board overlays respect letterboxed portrait camera frames",()=>{
+  const corners=[{x:30,y:40},{x:210,y:40},{x:210,y:280},{x:30,y:280}];
+  const points=projectBoardOutline(corners,240,320,400,320);
+  assert.deepEqual(points,[
+    {x:110,y:40},{x:290,y:40},{x:290,y:280},{x:110,y:280}
+  ]);
+});
+test("board overlay geometry rejects invalid input and never modifies detection points",()=>{
+  const corners=[{x:0,y:0},{x:100,y:0},{x:100,y:100},{x:0,y:100}];
+  assert.deepEqual(projectBoardOutline(corners,100,100,100,100),corners);
+  assert.deepEqual(corners[0],{x:0,y:0});
+  assert.throws(()=>projectBoardOutline(corners,100,0,200,200),RangeError);
+  assert.throws(()=>projectBoardOutline([corners[0]],100,100,200,200),TypeError);
+  assert.throws(()=>projectBoardOutline([{x:NaN,y:1},...corners.slice(1)],
+    100,100,200,200),TypeError);
+});
+test("live board outlines do not auto-import tiles or replace manual alignment",async()=>{
+  const page=await readFile(new URL("../index.html",import.meta.url),"utf8");
+  const app=await readFile(new URL("../src/app.mjs",import.meta.url),"utf8");
+  for(const id of ["liveCameraFrame","liveBoardOutline","photoCanvas",
+    "suggestCornersButton","applyScanButton"])
+    assert.ok(page.includes('id="'+id+'"'),"Missing "+id);
+  assert.match(app,/projectBoardOutline\(estimate\.corners/);
+  assert.match(app,/const aligned=acceptPhoto\(frame,frame\.width,frame\.height,true\)/);
+  assert.match(app,/suggestBoardCorners\(context\.getImageData/);
+  assert.match(app,/if\(estimate\)\{photoCorners=estimate\.corners;foundAlignment=true;\}/);
+  assert.match(app,/el\("scanStage"\)\.hidden=true;/);
 });

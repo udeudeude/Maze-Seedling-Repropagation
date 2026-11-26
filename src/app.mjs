@@ -10,7 +10,7 @@ import {MAX_PHOTO_DATA_URL_LENGTH,photoAt,photoEdit} from "./maze-media.mjs";
 import {voiceAt,voiceEdit,createVoiceRecorder} from "./maze-voice.mjs";
 import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
 import {suggestBoardCorners} from "./maze-board-corners.mjs";
-import {assessCameraFrame,createCameraSession} from "./maze-live.mjs";
+import {assessCameraFrame,createCameraSession,projectBoardOutline} from "./maze-live.mjs";
 import {snapshotFileName,sceneAsPng,canShareSnapshot} from "./maze-snapshot.mjs";
 import {MAX_BACKUP_BYTES,createLibraryBackup,parseLibraryBackup,mergeLibraryBackup,
   libraryBackupFileName,mazeFileName,canShareMaze} from "./maze-backup.mjs";
@@ -1095,12 +1095,63 @@ function initializePhoto() {
   const sample=document.createElement("canvas");
   sample.width=96;sample.height=72;
   const sampleContext=sample.getContext("2d",{willReadFrequently:true});
-  let liveRequest=0,previewFrame=0,lastPreviewCheck=0,photoLoadToken=0;
+  const boardSample=document.createElement("canvas");
+  const boardContext=boardSample.getContext("2d",{willReadFrequently:true});
+  const outline=el("liveBoardOutline"),cameraFrame=el("liveCameraFrame");
+  let liveRequest=0,previewFrame=0,lastPreviewCheck=0,lastBoardCheck=0,photoLoadToken=0;
+  let lastLighting=null,boardFound=false;
+  function clearBoardOutline(){
+    boardFound=false;
+    cameraFrame.removeAttribute("data-board-found");
+    outline.getContext("2d").clearRect(0,0,outline.width,outline.height);
+  }
+  function inspectBoardOutline(){
+    if(video.videoWidth<96||video.videoHeight<96){
+      clearBoardOutline();return;
+    }
+    const scale=Math.min(1,320/Math.max(video.videoWidth,video.videoHeight));
+    boardSample.width=Math.max(1,Math.round(video.videoWidth*scale));
+    boardSample.height=Math.max(1,Math.round(video.videoHeight*scale));
+    boardContext.drawImage(video,0,0,boardSample.width,boardSample.height);
+    const estimate=suggestBoardCorners(boardContext.getImageData(
+      0,0,boardSample.width,boardSample.height));
+    const width=Math.round(video.clientWidth),height=Math.round(video.clientHeight);
+    if(!estimate||width<1||height<1){clearBoardOutline();return;}
+    // The video uses object-fit:contain, which may letterbox the camera image.
+    outline.width=width;outline.height=height;
+    const points=projectBoardOutline(estimate.corners,boardSample.width,
+      boardSample.height,width,height);
+    const context=outline.getContext("2d");
+    context.clearRect(0,0,width,height);
+    context.beginPath();
+    points.forEach((point,i)=>i?context.lineTo(point.x,point.y):
+      context.moveTo(point.x,point.y));
+    context.closePath();
+    context.lineWidth=Math.max(2,width/160);
+    context.strokeStyle="#6ff4dc";
+    context.stroke();
+    for(const point of points){
+      context.beginPath();
+      context.arc(point.x,point.y,Math.max(3,width/130),0,Math.PI*2);
+      context.fillStyle="#6ff4dc";
+      context.fill();
+    }
+    boardFound=true;
+    cameraFrame.dataset.boardFound="true";
+  }
+  function liveCameraMessage(){
+    if(!lastLighting)return "Center the entire board in the live preview.";
+    if(lastLighting.level!=="ready")return lastLighting.message;
+    return boardFound?
+      "Possible board outline highlighted. Keep every corner visible; verify after capture.":
+      "Lighting looks usable. Include the entire board against a contrasting background.";
+  }
   function stopCamera(){
     liveRequest++;
     cameraSession.stop();
     if(previewFrame)cancelAnimationFrame(previewFrame);
-    previewFrame=0;
+    previewFrame=0;lastLighting=null;
+    clearBoardOutline();
     video.pause();video.srcObject=null;
     el("liveCameraStage").hidden=true;
     el("startLiveCameraButton").disabled=false;
@@ -1113,12 +1164,20 @@ function initializePhoto() {
       lastPreviewCheck=timestamp;
       try{
         sampleContext.drawImage(video,0,0,sample.width,sample.height);
-        const report=assessCameraFrame(sampleContext.getImageData(
+        lastLighting=assessCameraFrame(sampleContext.getImageData(
           0,0,sample.width,sample.height));
-        el("liveCameraStatus").textContent=report.message;
+        el("liveCameraStatus").textContent=liveCameraMessage();
       }catch(error){
+        lastLighting=null;
         el("liveCameraStatus").textContent="Preview active. Center the board, then capture.";
       }
+    }
+    // A slower, bounded 320-pixel sample avoids doing expensive analysis on
+    // every animation frame. A failed estimate simply clears the overlay.
+    if(timestamp-lastBoardCheck>1800&&video.readyState>=2){
+      lastBoardCheck=timestamp;
+      try{inspectBoardOutline();}catch{clearBoardOutline();}
+      el("liveCameraStatus").textContent=liveCameraMessage();
     }
     previewFrame=requestAnimationFrame(inspectPreview);
   }
@@ -1142,6 +1201,7 @@ function initializePhoto() {
       if(request!==liveRequest||cameraSession.getStream()!==stream)return;
       el("captureLiveButton").disabled=false;
       lastPreviewCheck=-1000;
+      lastBoardCheck=-2000;
       previewFrame=requestAnimationFrame(inspectPreview);
     }catch(error){
       if(request!==liveRequest)return;
@@ -1159,7 +1219,7 @@ function initializePhoto() {
     if(document.hidden)stopCamera();
   });
   window.addEventListener("pagehide",stopCamera);
-  function acceptPhoto(source,width,height) {
+  function acceptPhoto(source,width,height,proposeAlignment=false) {
     if(!width||!height)throw new Error("No image pixels are available");
     photoImage=source;
     const max=980,scale=Math.min(max/width,max/height,1);
@@ -1167,6 +1227,20 @@ function initializePhoto() {
     canvas.height=Math.max(1,Math.round(height*scale));
     canvas.style.aspectRatio=canvas.width+" / "+canvas.height;
     photoCorners=initialCorners(canvas.width,canvas.height);
+    let foundAlignment=false;
+    if(proposeAlignment){
+      // The still image, not an old live-video estimate, supplies the
+      // suggested corners. A stale frame can never silently move the handles.
+      try{
+        const surface=document.createElement("canvas");
+        surface.width=canvas.width;surface.height=canvas.height;
+        const context=surface.getContext("2d",{willReadFrequently:true});
+        context.drawImage(source,0,0,surface.width,surface.height);
+        const estimate=suggestBoardCorners(context.getImageData(
+          0,0,surface.width,surface.height));
+        if(estimate){photoCorners=estimate.corners;foundAlignment=true;}
+      }catch{}
+    }
     scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
     scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
@@ -1178,6 +1252,7 @@ function initializePhoto() {
     el("suggestCornersButton").disabled=false;
     el("traceButton").disabled=false;el("clearPhotoButton").disabled=false;
     renderPhoto();
+    return foundAlignment;
   }
   el("captureLiveButton").addEventListener("click",()=>{
     if(!cameraSession.getStream()||video.readyState<2)return;
@@ -1189,9 +1264,10 @@ function initializePhoto() {
       frame.getContext("2d").drawImage(video,0,0,frame.width,frame.height);
       photoLoadToken++;
       stopCamera();
-      acceptPhoto(frame,frame.width,frame.height);
-      el("liveCameraStatus").textContent=
-        "Frame captured on this device. Drag the four numbered handles to align the board.";
+      const aligned=acceptPhoto(frame,frame.width,frame.height,true);
+      el("liveCameraStatus").textContent=aligned?
+        "Possible board outline placed on your photograph. Verify all four handles before importing.":
+        "Frame captured on this device. No reliable outline found; align all four handles manually.";
     }catch(error){
       el("liveCameraStatus").textContent=
         "Could not capture a frame. Try again or choose a photograph.";

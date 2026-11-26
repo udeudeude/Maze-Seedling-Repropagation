@@ -257,6 +257,9 @@
       <p class="sheet-hint" id="audioStatus" role="status" aria-live="polite">Sound is off until you turn it on.</p>
       <label class="audio-option"><input id="musicOption" type="checkbox" checked> <span>Atmosphere and music <small>Four new synthesized themes</small></span></label>
       <label class="audio-option"><input id="effectsOption" type="checkbox" checked> <span>Game sound effects <small>Keys, gates, traps, riddles and finish</small></span></label>
+      <label class="field-label" for="volumeOption">Volume <output id="volumeReadout" for="volumeOption">100%</output></label>
+      <input id="volumeOption" type="range" min="0" max="100" step="5" value="100" aria-label="Sound volume">
+      <p class="sheet-hint">A nearby moving shadow makes a quiet directional pulse, faster as it approaches. The sound pauses during messages and riddles.</p>
       <button type="button" id="audioToggleButton" class="full-button primary">Turn sound on</button>
       <p class="sheet-hint">Sound starts only after you turn it on. Preferences stay on this device; playback stops outside exploration. These new sounds do not reproduce the original soundtrack.</p>
     </div>

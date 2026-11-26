@@ -16,7 +16,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 | Time and speed power-ups | **Partial:** boosts accelerate, slow hazards reduce speed for 12 seconds, time tiles change countdown | Historical timing, effect strength, configuration and device validation |
 | Message, photo and voice content | **Partial:** Message tiles accept short personal microphone recordings, portable photographs and notes; voice and photo open during exploration and pause play | Native photo-wall placement, historical presentation, physical microphone tests, device quota and camera testing |
 | Four original environments | Four **palette placeholders** | Rebuild original models, geometry, animation, textures, environmental details, and lighting |
-| Original sound/music | **Partial:** four newly synthesized atmospheres and state-driven interaction cues, explicit audio activation and independent music/effects preferences | Historically faithful music, genuine environmental/3D spatial audio, volume controls, physical iPhone listening tests |
+| Original sound/music | **Partial:** four synthesized atmospheres, event cues, directional proximity warnings for moving shadows, opt-in activation, volume and independent music/effects switches | Historically faithful music, environmental occlusion/reverb, authentic spatial calibration, physical iPhone listening tests |
 | Flat-screen game | **Partial** raycast corridors and touch controls | Original movement speed, physics, controls, collectibles, map behavior |
 | True Google Cardboard mode | **Partial:** stereo, permission-based relative head yaw/pitch, recenter and landscape layout | Calibrated optics/lens distortion, gaze/trigger interaction, actual iPhone tests |
 | Race nearby friends | **Missing** | Nearby Wi-Fi/Bluetooth or an equivalent direct peer system, synchronization, races |
@@ -171,3 +171,11 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - Diagonal movement is speed-normalized. Accelerated motion is collision-tested in short swept steps so it cannot pass through walls, gates, physical holes, collectible keys, puzzles, shadows or the finish without triggering each intervening interaction. This also fixes potential skipped tile effects during ordinary large frame intervals.
 - Speed hazards now apply a 12-second slowdown instead of only cancelling an active boost. Speed boosts clear slowdowns; Run combines with the current effect. Countdown, speed effects and moving shadows remain suspended during modal puzzles and photograph/voice messages.
 - Automated tests cover acceleration, diagonal movement, fast wall collisions, holes, goal triggers, slowdown timing, reset and controls. The 12/25-second durations and velocity multipliers are **reconstruction choices, not historical measurements**. Physical iPhone control and performance testing is still required. No original licensed assets or document fields were added.
+
+
+## November 26, 2026: directional pursuer audio and volume
+
+- Opt-in audio now includes quiet distance-scaled pulses from the nearest moving shadow. Left/right stereo balance tracks the explorer's heading (including Cardboard motion); pulse rate increases as a pursuer approaches. Sound is intentionally audible through walls: a proximity cue, **not** physically realistic occlusion.
+- Native stereo panning is used where available, falling back to mono. No original proprietary music, samples, or graphics were published.
+- A persisted master volume slider adjusts locally generated music and effects without reactivating audio or resetting the music theme. Shadow warnings stop during messages, riddles, pauses, concluded games, or when sound effects are disabled. Slowdown traps receive their own interaction cue.
+- New automated tests cover direction, attenuation, distance limits, muted and modal behavior, volume, rate limits, and explicit activation. Actual iPhone playback, headphone spatial quality and original sound fidelity remain unverified.

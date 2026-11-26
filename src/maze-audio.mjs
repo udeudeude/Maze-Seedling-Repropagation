@@ -12,7 +12,9 @@ export function audioPreferences(saved){
   let data={};
   try{data=typeof saved==="string"?JSON.parse(saved):saved??{}}catch{return {music:true,effects:true};}
   if(!data||typeof data!=="object"||Array.isArray(data))data={};
-  return {music:data.music!==false,effects:data.effects!==false};
+  const volume=Number(data.volume);
+  return {music:data.music!==false,effects:data.effects!==false,
+    volume:data.volume===undefined||!Number.isFinite(volume)?1:Math.max(0,Math.min(1,volume))};
 }
 export function ambientEvent(theme,index){
   const m=MOTIFS[theme]??MOTIFS.marble_maze;
@@ -34,6 +36,7 @@ export function cueForTransition(previous,next){
   if(next.remaining-previous.remaining>10)return "timeBonus";
   if(previous.remaining-next.remaining>10)return "timePenalty";
   if((previous.boostUntil??0)<=0&&(next.boostUntil??0)>0)return "speed";
+  if((previous.slowUntil??0)<=0&&(next.slowUntil??0)>0)return "slow";
   if(next.message!==previous.message){
     if(/^Opened gate/.test(next.message??""))return "gate";
     if(next.pendingRiddle&&!previous.pendingRiddle)return "riddlePrompt";
@@ -43,9 +46,28 @@ export function cueForTransition(previous,next){
 const EFFECTS=Object.freeze({
   key:[60,67,76],gate:[47,59],passage:[71,64,57,76],
   riddlePrompt:[61,66],riddleSolved:[64,69,76],speed:[60,65,72],
-  timeBonus:[60,64,69],timePenalty:[57,52,47],
+  timeBonus:[60,64,69],timePenalty:[57,52,47],slow:[52,46,40],
   win:[60,64,67,72,76],loss:[55,50,43],hole:[55,47,38],shadow:[47,46,35]
 });
+/** Nearest pursuer, audible through walls as a directional warning. */
+export function shadowAcoustics(state){
+  if(!state||state.ended||state.pendingRiddle||state.pendingPhoto||
+      !Number.isFinite(state.x)||!Number.isFinite(state.z)||
+      !Number.isFinite(state.heading))return null;
+  let nearest=null;
+  for(const actor of state.shadows??[]){
+    const dx=actor.x-state.x,dz=actor.z-state.z,distance=Math.hypot(dx,dz);
+    if(!Number.isFinite(distance)||distance>=8||
+        nearest&&distance>=nearest.distance)continue;
+    nearest={dx,dz,distance};
+  }
+  if(!nearest)return null;
+  const side=-nearest.dx*Math.sin(state.heading)+nearest.dz*Math.cos(state.heading);
+  const pan=Math.max(-1,Math.min(1,side/Math.max(nearest.distance,.001)));
+  const proximity=1-nearest.distance/8;
+  return {distance:nearest.distance,pan,
+    level:.006+.078*proximity*proximity,interval:.38+nearest.distance*.15};
+}
 export const effectNotes=name=>EFFECTS[name]?[...EFFECTS[name]]:[];
 export const midiFrequency=midi=>440*Math.pow(2,(midi-69)/12);
 export function createMazeAudio(createContext=()=>{
@@ -54,8 +76,9 @@ export function createMazeAudio(createContext=()=>{
   return new Audio();
 }){
   let context=null,output=null,timer=null,enabled=false,desired=false,generation=0;
+  let nextShadowCue=0;
   let theme="marble_maze",beat=0,settings={music:true,effects:true};
-  function voice(midi,delay,duration,level,wave){
+  function voice(midi,delay,duration,level,wave,pan=null){
     if(!context||context.state!=="running")return;
     const when=context.currentTime+Math.max(0,delay);
     const oscillator=context.createOscillator(),envelope=context.createGain();
@@ -64,8 +87,17 @@ export function createMazeAudio(createContext=()=>{
     envelope.gain.setValueAtTime(.0001,when);
     envelope.gain.exponentialRampToValueAtTime(level,when+.035);
     envelope.gain.exponentialRampToValueAtTime(.0001,when+duration);
-    oscillator.connect(envelope);envelope.connect(output);
-    oscillator.onended=()=>{oscillator.disconnect();envelope.disconnect();};
+    const panner=Number.isFinite(pan)&&typeof context.createStereoPanner==="function"?
+      context.createStereoPanner():null;
+    oscillator.connect(envelope);
+    if(panner){
+      panner.pan.setValueAtTime(Math.max(-1,Math.min(1,pan)),when);
+      envelope.connect(panner);panner.connect(output);
+    }else envelope.connect(output);
+    oscillator.onended=()=>{
+      oscillator.disconnect();envelope.disconnect();
+      if(panner)panner.disconnect();
+    };
     oscillator.start(when);oscillator.stop(when+duration+.02);
   }
   function clearMusic(){if(timer!==null){clearInterval(timer);timer=null;}}
@@ -86,22 +118,40 @@ export function createMazeAudio(createContext=()=>{
     try{
       if(!context){
         context=createContext();output=context.createGain();
-        output.gain.value=.16;output.connect(context.destination);
+        output.gain.value=.16*settings.volume;output.connect(context.destination);
       }
       if(context.state!=="running")await context.resume();
       if(request!==generation||!desired)return false;
-      enabled=context.state==="running";startMusic();return enabled;
+      enabled=context.state==="running";nextShadowCue=0;startMusic();return enabled;
     }catch{
       enabled=false;desired=false;clearMusic();return false;
     }
   }
   function pause(){
-    generation++;enabled=false;clearMusic();
+    generation++;enabled=false;nextShadowCue=0;clearMusic();
     if(context?.state==="running")void context.suspend().catch(()=>{});
   }
   function deactivate(){desired=false;pause();}
   function setOptions(next){
-    settings=audioPreferences(next);if(enabled)startMusic();return {...settings};
+    const previous=settings;
+    settings=audioPreferences(next);
+    if(output)output.gain.value=.16*settings.volume;
+    if(!settings.effects)nextShadowCue=0;
+    if(enabled&&previous.music!==settings.music)startMusic();
+    return {...settings};
+  }
+  function updateScene(state){
+    if(!enabled||!settings.effects||!context||context.state!=="running"){
+      nextShadowCue=0;return false;
+    }
+    const shadow=shadowAcoustics(state);
+    if(!shadow){nextShadowCue=0;return false;}
+    const now=context.currentTime;
+    if(now<nextShadowCue)return false;
+    nextShadowCue=now+shadow.interval;
+    voice(47,0,.2,shadow.level,"triangle",shadow.pan);
+    voice(42,.11,.25,shadow.level*.48,"sine",shadow.pan);
+    return true;
   }
   function playCue(name){
     if(!enabled||!settings.effects)return false;
@@ -110,7 +160,7 @@ export function createMazeAudio(createContext=()=>{
       name==="shadow"||name==="hole"?"sawtooth":"sine"));
     return notes.length>0;
   }
-  return {activate,pause,deactivate,setOptions,playCue,
+  return {activate,pause,deactivate,setOptions,playCue,updateScene,
     noteTransition(before,after){return playCue(cueForTransition(before,after));},
     isActive(){return enabled&&context?.state==="running";},
     wantsAudio(){return desired;},

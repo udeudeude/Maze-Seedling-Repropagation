@@ -892,6 +892,7 @@ function renderPlay() {
   const ctx=canvas.getContext("2d");
   renderScene(ctx,maze,play,{stereo,pitch:stereo?motionPitch:0});
   if(showMap)renderMapOverlay(ctx);
+  if(!snapshotOpen)audio.updateScene(play);
   const seconds=Math.ceil(play.remaining);
   el("timeReadout").textContent=Math.floor(seconds/60)+":"+String(seconds%60).padStart(2,"0");
   el("playReadout").textContent=play.ended?(play.won?"Completed":"Game over"):play.message;
@@ -916,6 +917,8 @@ function updateAudioUI(){
     "Sound is off until you turn it on. No original game recordings are used.";
   el("musicOption").checked=audioOptions.music;
   el("effectsOption").checked=audioOptions.effects;
+  el("volumeOption").value=String(Math.round(audioOptions.volume*100));
+  el("volumeReadout").textContent=Math.round(audioOptions.volume*100)+"%";
 }
 function initializeAudio(){
   el("soundButton").addEventListener("click",()=>{
@@ -930,6 +933,13 @@ function initializeAudio(){
       updateAudioUI();
     });
   }
+  el("volumeOption").addEventListener("input",event=>{
+    audioOptions={...audioOptions,volume:Number(event.target.value)/100};
+    audio.setOptions(audioOptions);
+    try{localStorage.setItem(AUDIO_SETTINGS_KEY,JSON.stringify(audioOptions));}
+    catch(error){console.warn("Audio preferences could not be saved",error);}
+    updateAudioUI();
+  });
   el("audioToggleButton").addEventListener("click",async()=>{
     if(audio.isActive())audio.deactivate();
     else await audio.activate(maze.data.theme);

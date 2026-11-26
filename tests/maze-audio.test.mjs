@@ -2,12 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {readFile} from "node:fs/promises";
 import {audioPreferences,ambientEvent,cueForTransition,effectNotes,midiFrequency,
-  createMazeAudio} from "../src/maze-audio.mjs";
+  createMazeAudio,shadowAcoustics} from "../src/maze-audio.mjs";
 
 test("sound preferences reject malformed storage and keep independent controls",()=>{
-  assert.deepEqual(audioPreferences(null),{music:true,effects:true});
-  assert.deepEqual(audioPreferences("{"),{music:true,effects:true});
-  assert.deepEqual(audioPreferences('{"music":false,"effects":true}'),{music:false,effects:true});
+  assert.deepEqual(audioPreferences(null),{music:true,effects:true,volume:1});
+  assert.deepEqual(audioPreferences("{"),{music:true,effects:true,volume:1});
+  assert.deepEqual(audioPreferences('{"music":false,"effects":true}'),{music:false,effects:true,volume:1});
 });
 test("four distinct composed soundscapes have bounded pitches, envelopes and timing",()=>{
   const themes=["adventure","hedge","marble_maze","space"];
@@ -28,7 +28,7 @@ test("event sounds fire only when run state changes",()=>{
   const cases=[
     [{...s,keys:["A"]},"key"],[{...s,solvedRiddles:["2,3"]},"riddleSolved"],
     [{...s,passageLatch:"7,7"},"passage"],[{...s,remaining:330},"timeBonus"],
-    [{...s,remaining:270},"timePenalty"],[{...s,boostUntil:25},"speed"],
+    [{...s,remaining:270},"timePenalty"],[{...s,boostUntil:25},"speed"],[{...s,slowUntil:12},"slow"],
     [{...s,message:"Opened gate A"},"gate"],
     [{...s,message:"Answer the riddle",pendingRiddle:{}},"riddlePrompt"],
     [{...s,ended:true,won:true},"win"],
@@ -54,7 +54,7 @@ test("no AudioContext until explicit activation; transport pauses and respects m
     async suspend(){this.state="suspended";}
   };
   const audio=createMazeAudio(()=>{created++;return ctx;});
-  audio.setOptions({music:false,effects:true});
+  audio.setOptions({music:false,effects:true,volume:1});
   assert.equal(created,0);
   assert.equal(audio.playCue("key"),false);
   assert.equal(created,0);
@@ -68,6 +68,55 @@ test("no AudioContext until explicit activation; transport pauses and respects m
   assert.equal(await audio.activate("hedge"),true);
   audio.deactivate();assert.equal(audio.wantsAudio(),false);
 });
+test("shadow proximity gives directional, distance-scaled warnings and respects pauses",()=>{
+  const s={x:5,z:5,heading:0,shadows:[{x:5,z:7}]};
+  const right=shadowAcoustics(s);
+  assert.equal(right.pan,1);
+  assert.equal(shadowAcoustics({...s,shadows:[{x:5,z:3}]}).pan,-1);
+  assert.equal(shadowAcoustics({...s,shadows:[{x:7,z:5}]}).pan,0);
+  const far=shadowAcoustics({...s,shadows:[{x:5,z:11}]});
+  assert.ok(right.level>far.level&&right.interval<far.interval);
+  for(const other of [{...s,pendingPhoto:{}},{...s,pendingRiddle:{}},
+    {...s,ended:true},{...s,shadows:[]},{...s,shadows:[{x:NaN,z:4}]},
+    {...s,shadows:[{x:5,z:14}]}])
+    assert.equal(shadowAcoustics(other),null);
+});
+test("spatial sound is opt-in, rate-limited and respects volume and mute",async()=>{
+  const gains=[],pans=[],oscillators=[];
+  const ctx={state:"suspended",currentTime:0,destination:{},
+    createGain(){
+      const n={gain:{value:0,setValueAtTime(){},exponentialRampToValueAtTime(){}},
+        connect(){},disconnect(){}};gains.push(n);return n;
+    },
+    createStereoPanner(){return {pan:{setValueAtTime(v){pans.push(v);}},
+      connect(){},disconnect(){}};},
+    createOscillator(){
+      const n={frequency:{setValueAtTime(){}},connect(){},disconnect(){},
+        start(){},stop(){}};oscillators.push(n);return n;
+    },
+    async resume(){this.state="running";},
+    async suspend(){this.state="suspended";}
+  };
+  const a=createMazeAudio(()=>ctx),s={x:2,z:2,heading:0,shadows:[{x:2,z:4}]};
+  a.setOptions({music:false,effects:true,volume:.4});
+  assert.equal(a.updateScene(s),false);
+  assert.equal(await a.activate("hedge"),true);
+  assert.ok(Math.abs(gains[0].gain.value-.064)<1e-9);
+  assert.equal(a.updateScene(s),true);
+  assert.deepEqual(pans,[1,1]);
+  assert.equal(oscillators.length,2);
+  assert.equal(a.updateScene(s),false);
+  ctx.currentTime=3;
+  assert.equal(a.updateScene(s),true);
+  assert.equal(oscillators.length,4);
+  assert.equal(a.updateScene({...s,pendingPhoto:{}}),false);
+  assert.equal(a.updateScene(s),true);
+  a.setOptions({music:false,effects:false,volume:0});
+  assert.equal(gains[0].gain.value,0);
+  assert.equal(a.updateScene(s),false);
+  a.pause();assert.equal(a.updateScene(s),false);
+  a.deactivate();
+});
 test("sound controls and offline resource are wired into the published application",async()=>{
   const page=await readFile(new URL("../index.html",import.meta.url),"utf8");
   const app=await readFile(new URL("../src/app.mjs",import.meta.url),"utf8");
@@ -76,5 +125,8 @@ test("sound controls and offline resource are wired into the published applicati
     "audioToggleButton","audioStatus"])assert.ok(page.includes('id="'+id+'"'));
   assert.match(app,/audio\.noteTransition\(before,play\)/);
   assert.match(app,/initializeAudio\(\)/);
+  assert.match(app,/audio\.updateScene\(play\)/);
+  for(const id of ["volumeOption","volumeReadout"])
+    assert.ok(page.includes('id="'+id+'"'));
   assert.match(sw,/\.\/src\/maze-audio\.mjs/);
 });

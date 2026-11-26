@@ -234,6 +234,11 @@ body.stereoscopic .tabbar,body.stereoscopic .topbar{display:none}
 .audio-option input{width:22px;height:22px;flex:none;accent-color:var(--accent)}
 .audio-option span{display:grid;gap:3px;font-size:14px;font-weight:650}
 .audio-option small{font-size:11px;color:var(--dim);font-weight:400}
+/* Range controls are not text fields: keep the track large enough to grasp on
+   a phone, without the text-input border and padding. */
+#audioDialog label[for="volumeOption"]{display:flex;justify-content:space-between;align-items:center;margin-top:5px}
+#audioDialog #volumeReadout{font-variant-numeric:tabular-nums;color:var(--text)}
+#audioDialog input[type="range"]{background:transparent;border:0;border-radius:0;min-height:42px;padding:0 3px;accent-color:var(--accent);cursor:pointer}
 
 .tile-photo-editor{display:grid;gap:9px;padding:10px 0;border-top:1px solid var(--line)}
 .tile-photo-editor input[type=file]{width:100%;max-width:100%;font-size:13px}

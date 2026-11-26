@@ -1832,7 +1832,11 @@ function initializePhoto() {
         return;
       }
       for(const edge of gridEdges){
-        const side=edge.toLowerCase(),value=proposal.edges[side];
+        const side=edge.toLowerCase();
+        // Lack of evidence for a border is not evidence of a zero margin.
+        // Never discard a previously hand-calibrated, undetected side.
+        const value=proposal.detected.includes(side)?proposal.edges[side]:
+          Number(el("gridInset"+edge+"Slider").value);
         el("gridInset"+edge+"Slider").value=String(value);
         el("gridInset"+edge+"Value").textContent=value+"%";
       }
@@ -1845,7 +1849,7 @@ function initializePhoto() {
       }
       el("edgeSuggestionStatus").textContent=
         "Possible border on "+proposal.detected.join(", ")+
-        ". Review all four margins and newly detected tiles before importing.";
+        ". Other margins were kept. Review the refreshed tiles before importing.";
       restartAlignedScan();
     }catch(error){
       el("edgeSuggestionStatus").textContent=

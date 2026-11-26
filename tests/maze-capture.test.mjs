@@ -181,4 +181,6 @@ test("border proposal is explicitly user-invoked and rechecks all manual correct
   assert.match(app,/suggestPlayableGridEdges\(scanBoardPixels\)/);
   assert.match(app,/el\("suggestGridEdgesButton"\)\.addEventListener\("click"/);
   assert.match(app,/restartAlignedScan\(\)/);
+  assert.match(app,/proposal\.detected\.includes\(side\)\?proposal\.edges\[side\]/);
+  assert.match(app,/Number\(el\("gridInset"\+edge\+"Slider"\)\.value\)/);
 });

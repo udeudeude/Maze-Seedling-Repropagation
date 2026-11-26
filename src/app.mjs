@@ -7,7 +7,8 @@ import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answer
 import {findPlayableRoute} from "./maze-route.mjs";
 import {orientationPose,relativePose,shortestAngle} from "./maze-orientation.mjs";
 import {AUDIO_SETTINGS_KEY,audioPreferences,createMazeAudio} from "./maze-audio.mjs";
-import {MAX_PHOTO_DATA_URL_LENGTH,photoAt,photoEdit} from "./maze-media.mjs";
+import {MAX_PHOTO_DATA_URL_LENGTH,photoAt,photoEdit,photoDataUrl} from "./maze-media.mjs";
+import {avatarAt,avatarEdit,avatarCropRect} from "./maze-avatar.mjs";
 import {voiceAt,voiceEdit,createVoiceRecorder} from "./maze-voice.mjs";
 import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
 import {suggestBoardCorners} from "./maze-board-corners.mjs";
@@ -57,6 +58,7 @@ let currentTile=null,photoImage=null,photoCorners=null,photoGuide=null;
 let stopLiveCamera=()=>{};
 let pendingTilePhoto=null,tilePhotoChanged=false,photoImportGeneration=0;
 let pendingTileVoice=null,tileVoiceChanged=false;
+let pendingAvatarPhoto=null,avatarPhotoPending=false,avatarImportGeneration=0;
 const voiceRecorder=createVoiceRecorder({
   onStatus:message=>{el("tileVoiceStatus").textContent=message;},
   onReady:url=>{
@@ -192,7 +194,20 @@ function undoOrRedo(backward) {
   maze=parseMaze(source.pop());route=null;
   persist();redrawAll();
 }
+function renderPlayerButton() {
+  const avatar=avatarAt(maze),image=el("playerButtonImage");
+  if(avatar.dataUrl) {
+    if(image.getAttribute("src")!==avatar.dataUrl)image.src=avatar.dataUrl;
+    image.hidden=false;
+  } else {
+    image.removeAttribute("src");image.hidden=true;
+  }
+  el("playerButtonLabel").textContent=avatar.name||"Player";
+  el("playerButton").setAttribute("aria-label",
+    avatar.name?"Edit player portrait for "+avatar.name:"Add a player selfie");
+}
 function refreshActions() {
+  renderPlayerButton();
   el("undoButton").disabled=!undo.length;
   el("redoButton").disabled=!redo.length;
   el("themeSelect").value=maze.data.theme;
@@ -475,6 +490,22 @@ function compressTilePhoto(image) {
   }
   throw new Error("Photograph is too detailed to save safely. Choose a simpler image.");
 }
+function compressAvatarPhoto(image) {
+  if(!image.naturalWidth||!image.naturalHeight)
+    throw new Error("This selfie could not be decoded.");
+  const canvas=document.createElement("canvas"),context=canvas.getContext("2d");
+  if(!context)throw new Error("Image processing is unavailable.");
+  const crop=avatarCropRect(image.naturalWidth,image.naturalHeight);
+  for(const edge of [256,192,144,96]){
+    canvas.width=edge;canvas.height=edge;
+    context.drawImage(image,crop.x,crop.y,crop.size,crop.size,0,0,edge,edge);
+    for(const quality of [.82,.66,.5,.35]){
+      const dataUrl=canvas.toDataURL("image/jpeg",quality);
+      if(photoDataUrl(dataUrl))return dataUrl;
+    }
+  }
+  throw new Error("The portrait is too detailed to store. Try another photograph.");
+}
 function openTileDialog(x,z) {
   const present=primaryCell(maze,x,z)?.cell;
   if(!present){notice("No tile at "+(x+1)+", "+(z+1));return;}
@@ -720,6 +751,7 @@ function setView(next) {
     if(el("snapshotDialog").open)el("snapshotDialog").close();
   }
   if(next!=="build")clearPlacement();
+  if(next!=="explore"&&el("avatarDialog").open)el("avatarDialog").close();
   if(next!=="explore"&&stereo)leaveCardboard();
   if(next!=="explore"&&el("tilePhotoDialog").open){
     el("playVoiceAudio").pause();
@@ -811,7 +843,8 @@ function motionMessage(message) {
   const status=el("motionStatus");status.hidden=!stereo;status.textContent=message;
 }
 function onDeviceOrientation(event) {
-  if(!stereo||view!=="explore"||document.hidden||snapshotOpen)return;
+  if(!stereo||view!=="explore"||document.hidden||snapshotOpen||
+     el("avatarDialog").open)return;
   const rotation=screenRotation();
   if(motionRotation!==rotation) {
     motionRotation=rotation;motionAnchor=null;motionHeading=play.heading;
@@ -911,7 +944,7 @@ function renderPlay() {
   const ctx=canvas.getContext("2d");
   renderScene(ctx,maze,play,{stereo,pitch:stereo?motionPitch:0});
   if(showMap)renderMapOverlay(ctx);
-  if(!snapshotOpen)audio.updateScene(play);
+  if(!snapshotOpen&&!el("avatarDialog").open)audio.updateScene(play);
   const seconds=Math.ceil(play.remaining);
   el("timeReadout").textContent=Math.floor(seconds/60)+":"+String(seconds%60).padStart(2,"0");
   el("playReadout").textContent=play.ended?(play.won?"Completed":"Game over"):play.message;
@@ -967,6 +1000,92 @@ function initializeAudio(){
     updateAudioUI();
   });
   updateAudioUI();
+}
+function initializeAvatar() {
+  const dialog=el("avatarDialog"),preview=el("avatarPhotoPreview");
+  const status=el("avatarStatus"),picker=el("avatarPhotoInput");
+  const save=el("saveAvatarButton");
+  const updatePreview=()=>{
+    if(pendingAvatarPhoto) {
+      if(preview.getAttribute("src")!==pendingAvatarPhoto)preview.src=pendingAvatarPhoto;
+      preview.hidden=false;
+    }else{preview.removeAttribute("src");preview.hidden=true;}
+    el("removeAvatarPhotoButton").disabled=!pendingAvatarPhoto;
+  };
+  el("playerButton").addEventListener("click",()=>{
+    if(view!=="explore"||snapshotOpen)return;
+    const current=avatarAt(maze);
+    pendingAvatarPhoto=current.dataUrl;avatarPhotoPending=false;avatarImportGeneration++;
+    picker.value="";save.disabled=false;
+    el("avatarNameInput").value=current.name;
+    status.textContent="Your player name and optional selfie are stored in this maze, never uploaded automatically.";
+    updatePreview();clearHeldControls();lastFrame=0;dialog.showModal();
+  });
+  dialog.addEventListener("close",()=>{
+    avatarImportGeneration++;avatarPhotoPending=false;save.disabled=false;
+    pendingAvatarPhoto=null;picker.value="";preview.removeAttribute("src");
+    clearHeldControls();lastFrame=0;
+  });
+  picker.addEventListener("change",event=>{
+    const source=event.target.files?.[0];picker.value="";
+    if(!source)return;
+    if(!/^image\/(jpeg|png|webp|heic|heif)$/i.test(source.type)&&
+       !/\.(jpg|jpeg|png|webp|heic|heif)$/i.test(source.name)){
+      status.textContent="Choose a JPEG, PNG, WebP or HEIC photograph.";return;
+    }
+    if(source.size>25*1024*1024){
+      status.textContent="Choose a photograph smaller than 25 megabytes.";return;
+    }
+    const generation=++avatarImportGeneration,url=URL.createObjectURL(source);
+    const image=new Image();
+    avatarPhotoPending=true;save.disabled=true;
+    status.textContent="Preparing a small square selfie locally…";
+    image.onload=()=>{
+      URL.revokeObjectURL(url);
+      if(generation!==avatarImportGeneration||!dialog.open)return;
+      avatarPhotoPending=false;save.disabled=false;
+      try{
+        pendingAvatarPhoto=compressAvatarPhoto(image);updatePreview();
+        status.textContent="Selfie ready. Choose Save player to keep it with this maze.";
+      }catch(error){status.textContent=error.message;}
+    };
+    image.onerror=()=>{
+      URL.revokeObjectURL(url);
+      if(generation!==avatarImportGeneration||!dialog.open)return;
+      avatarPhotoPending=false;save.disabled=false;
+      status.textContent="This image cannot be opened by this browser.";
+    };
+    image.src=url;
+  });
+  el("removeAvatarPhotoButton").addEventListener("click",()=>{
+    avatarImportGeneration++;avatarPhotoPending=false;save.disabled=false;
+    pendingAvatarPhoto=null;updatePreview();
+    status.textContent="The selfie will be removed when you save. Your name can remain.";
+  });
+  save.addEventListener("click",()=>{
+    if(avatarPhotoPending)return;
+    let next,updated;
+    try{
+      next=avatarEdit(maze,{name:el("avatarNameInput").value,dataUrl:pendingAvatarPhoto});
+      // Commit the collection before replacing in-memory state. Quota failure
+      // must not silently pretend that a personal photograph was saved.
+      updated=saveActiveDocument(library,next);
+      localStorage.setItem(LIBRARY_STORAGE_KEY,JSON.stringify(updated));
+    }catch(error){
+      console.warn("Player selfie could not be saved",error);
+      status.textContent="Storage is full or unavailable. Nothing changed. Back up your mazes and try again.";
+      return;
+    }
+    const previous=serializeMaze(maze,0);
+    if(serializeMaze(next,0)!==previous){
+      undo.push(previous);if(undo.length>60)undo.shift();redo=[];route=null;
+    }
+    maze=next;library=updated;
+    try{localStorage.setItem(STORAGE,serializeMaze(maze));}
+    catch(error){console.warn("Legacy recovery copy was not updated",error);}
+    el("savedIndicator").textContent="Saved locally";
+    dialog.close();redrawAll();renderPlay();
+  });
 }
 function initializeSnapshot(){
   const dialog=el("snapshotDialog"),preview=el("snapshotPreview");
@@ -1096,7 +1215,7 @@ function initializePlay() {
   const frame=time=>{
     if(view==="explore" && !document.hidden){
       const dt=lastFrame?Math.min(.075,(time-lastFrame)/1000):0;lastFrame=time;
-      if(dt&&!play.ended&&!snapshotOpen) {
+      if(dt&&!play.ended&&!snapshotOpen&&!el("avatarDialog").open) {
         const before=play;
         const turn=Number(holding.has("turnRight"))-Number(holding.has("turnLeft"));
         const forward=Number(holding.has("forward"))-Number(holding.has("backward"));
@@ -1658,7 +1777,7 @@ function initializePhoto() {
 }
 
 function initialize() {
-  prepareToolbox();initializeBoardInput();initializeDialogs();initializeAudio();initializePlay();initializeSnapshot();initializePhoto();
+  prepareToolbox();initializeBoardInput();initializeDialogs();initializeAudio();initializePlay();initializeAvatar();initializeSnapshot();initializePhoto();
   el("zoomInButton").addEventListener("click",()=>setBoardZoom(boardZoom+1));
   el("zoomOutButton").addEventListener("click",()=>setBoardZoom(boardZoom-1));
   el("panButton").addEventListener("click",()=>{

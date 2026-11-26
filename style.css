@@ -284,3 +284,15 @@ body.stereoscopic .tabbar,body.stereoscopic .topbar{display:none}
   border-radius:10px;font-size:13px;font-weight:650;text-decoration:none}
 #snapshotSaveLink{background:var(--accent);color:#172026;border-color:var(--accent)}
 .snapshot-actions [hidden]{display:none}
+
+/* Optional explorer identity: a portrait, not a decorative overlay on the scene. */
+.explore-head-actions{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.player-button{display:flex;align-items:center;justify-content:center;gap:6px;max-width:144px}
+.player-button img{display:block;width:25px;height:25px;object-fit:cover;border-radius:50%;
+  border:1px solid #87939a;flex-shrink:0}
+.player-button img[hidden]{display:none}
+#playerButtonLabel{max-width:85px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#avatarPhotoInput{max-width:100%;font-size:13px;min-height:42px}
+.avatar-preview{display:block;width:min(100%,170px);height:auto;aspect-ratio:1;object-fit:cover;
+  border:2px solid #74838d;border-radius:50%;margin:2px auto 8px}
+.avatar-preview[hidden]{display:none}

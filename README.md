@@ -72,7 +72,7 @@ Open **Explore → Sound off**, select Music and/or Sound effects, then choose *
 
 ### Photographs on maze messages (experimental)
 
-In **Build**, inspect a **Message / key** tile, choose a photograph, and tap **Save tile**. The image is reduced to a compact JPEG inside the maze JSON; it is never uploaded. Add a caption in the message field. In **Explore**, entering that tile opens the image and pauses the game until Continue. Photos survive export/import, duplication, copying and offline storage. Too many photos can exhaust browser storage, so keep backups. This does not reproduce the original photo-wall placement or selfie system.
+In **Build**, inspect a **Message / key** tile, choose a photograph, and tap **Save tile**. The image is reduced to a compact JPEG inside the maze JSON; it is never uploaded. Add a caption in the message field. In **Explore**, entering that tile opens the image and pauses the game until Continue. Photos survive export/import, duplication, copying and offline storage. Too many photos can exhaust browser storage, so keep backups. This does not reproduce the original photo-wall placement.
 
 ### Record a voice message (experimental)
 
@@ -80,7 +80,7 @@ In **Build**, inspect a **Message / key** tile, tap **Record voice** and grant m
 
 ### Save or share a view
 
-In **Explore**, press **Snapshot** to pause and preview the current first-person scene, including the optional map. Select **Save image** to keep a PNG locally or **Share image** for the native phone sharing menu when supported; **Continue exploring** resumes play. Nothing is uploaded automatically, and no maze data changes. iPhone Safari and home-screen saving still need physical testing. Selfie avatars are not yet reconstructed.
+In **Explore**, press **Snapshot** to pause and preview the current first-person scene, including the optional map. Select **Save image** to keep a PNG locally or **Share image** for the native phone sharing menu when supported; **Continue exploring** resumes play. Nothing is uploaded automatically, and no maze data changes. iPhone Safari and home-screen saving still need physical testing. A separate **Player** control lets you name your explorer and add an optional square-cropped selfie. It appears beside Restart, and both name and portrait are saved inside the active maze for export/backup; the native opaque `data.player_avatars` object is not overwritten. The selfie is not composited into first-person screenshots, and the historical multiplayer avatar system remains unimplemented.
 
 ### Back up, restore and share the whole collection
 

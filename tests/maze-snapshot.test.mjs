@@ -35,7 +35,7 @@ test("screenshot UI previews, pauses the run and supports saving and native shar
     "snapshotShareButton","snapshotCloseButton","snapshotStatus"])
     assert.ok(page.includes('id="'+id+'"'),"Missing "+id);
   assert.match(app,/sceneAsPng\(el\("sceneCanvas"\)\)/);
-  assert.match(app,/if\(dt&&!play\.ended&&!snapshotOpen\)/);
+  assert.match(app,/if\(dt&&!play\.ended&&!snapshotOpen&&!el\("avatarDialog"\)\.open\)/);
   assert.match(app,/navigator\.share\(\{files:\[file\],title:/);
   assert.match(app,/snapshotRequest\+\+/);
   assert.match(sw,/\.\/src\/maze-snapshot\.mjs/);

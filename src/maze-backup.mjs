@@ -14,13 +14,17 @@ function validLibrary(source){
 export function createLibraryBackup(source,when=new Date()){
   if(!(when instanceof Date)||Number.isNaN(when.valueOf()))
     throw new TypeError("Invalid backup date");
-  return JSON.stringify({format:BACKUP_FORMAT,version:1,
+  const json=JSON.stringify({format:BACKUP_FORMAT,version:1,
     exportedAt:when.toISOString(),library:validLibrary(source)},null,2);
+  // Never create a backup that this same app would refuse to restore.
+  if(new Blob([json]).size>MAX_BACKUP_BYTES)
+    throw new RangeError("The entire library is too large for one backup; export individual mazes.");
+  return json;
 }
 export function parseLibraryBackup(text){
   if(typeof text!=="string"||!text.trim())
     throw new TypeError("Choose a nonempty maze library backup");
-  if(text.length>MAX_BACKUP_BYTES)
+  if(new Blob([text]).size>MAX_BACKUP_BYTES)
     throw new RangeError("Backup exceeds the 25 megabyte limit");
   const backup=JSON.parse(text);
   if(backup?.format!==BACKUP_FORMAT||backup.version!==1)

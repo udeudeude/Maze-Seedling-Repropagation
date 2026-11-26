@@ -9,6 +9,7 @@ import {AUDIO_SETTINGS_KEY,audioPreferences,createMazeAudio} from "./maze-audio.
 import {MAX_PHOTO_DATA_URL_LENGTH,photoAt,photoEdit} from "./maze-media.mjs";
 import {voiceAt,voiceEdit,createVoiceRecorder} from "./maze-voice.mjs";
 import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
+import {suggestBoardCorners} from "./maze-board-corners.mjs";
 import {assessCameraFrame,createCameraSession} from "./maze-live.mjs";
 import {snapshotFileName,sceneAsPng,canShareSnapshot} from "./maze-snapshot.mjs";
 import {MAX_BACKUP_BYTES,createLibraryBackup,parseLibraryBackup,mergeLibraryBackup,
@@ -1174,6 +1175,7 @@ function initializePhoto() {
     el("photoStage").hidden=false;
     el("photoActions").hidden=false;
     el("detectButton").disabled=false;
+    el("suggestCornersButton").disabled=false;
     el("traceButton").disabled=false;el("clearPhotoButton").disabled=false;
     renderPhoto();
   }
@@ -1218,6 +1220,36 @@ function initializePhoto() {
     event.target.value="";
   }
   el("photoInput").addEventListener("change",loadPhoto);
+  el("suggestCornersButton").addEventListener("click",()=>{
+    if(!photoImage)return;
+    try{
+      const surface=document.createElement("canvas");
+      surface.width=canvas.width;surface.height=canvas.height;
+      const context=surface.getContext("2d",{willReadFrequently:true});
+      context.drawImage(photoImage,0,0,surface.width,surface.height);
+      const estimate=suggestBoardCorners(context.getImageData(
+        0,0,surface.width,surface.height));
+      if(!estimate){
+        el("liveCameraStatus").textContent=
+          "No reliable four-edge outline found. Drag the numbered corners manually.";
+        return;
+      }
+      // Only alignment handles change; user must still inspect and approve
+      // every proposed wall, marker and hole before modifying the document.
+      photoCorners=estimate.corners;
+      scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
+      scanAdded.clear();scanRemoved.clear();
+      scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
+      scanMarkers.clear();scanMarkerEdits.clear();
+      el("scanStage").hidden=true;
+      renderPhoto();
+      el("liveCameraStatus").textContent=
+        "Board-edge estimate ready. Check all four handles and adjust before suggesting walls.";
+    }catch{
+      el("liveCameraStatus").textContent=
+        "Board-edge detection was unavailable. Align the corners by hand.";
+    }
+  });
   let activeCorner=-1;
   const coord=event=>{
     const r=canvas.getBoundingClientRect();
@@ -1489,7 +1521,8 @@ function initializePhoto() {
     el("scanStage").hidden=true;
     el("photoActions").hidden=true;
     el("photoStage").hidden=true;el("detectButton").disabled=true;
-    el("traceButton").disabled=true;el("clearPhotoButton").disabled=true;
+    el("traceButton").disabled=true;el("suggestCornersButton").disabled=true;
+    el("clearPhotoButton").disabled=true;
     redrawAll();notice("Photograph removed");
   });
 }

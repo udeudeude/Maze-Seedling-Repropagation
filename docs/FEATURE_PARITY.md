@@ -4,10 +4,10 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 
 | Original function | Current status | Remaining work |
 | --- | --- | --- |
-| Photograph-to-maze automatic scanning | **Experimental** continuous dark-wall spans and editable wall-tile suggestions, manually aligned | Automatic board corner finding, true physical grid calibration, actual-photo evaluation |
+| Photograph-to-maze automatic scanning | **Experimental** continuous dark-wall spans, editable wall-tile suggestions and optional four-corner estimate | Verify corner recognition on physical boards, true physical grid calibration, actual-photo evaluation |
 | Detect physical trap holes and start/finish | **Experimental:** circle and colored-sticker candidates, separate review/correction, marker import, namespaced hole annotations and provisional trap effect | Verify actual marker colors, capture calibration, original hole representation, classification precision on real photos |
 | Detect walls of three physical lengths | **Partial:** straight spans and image-space lengths measured | Segment touching blocks individually, recover exact short/medium/long dimensions, calibrate against the physical grid |
-| Live camera feedback and overlay | **Partial:** opt-in camera preview with square framing guide, sampled exposure/contrast guidance and explicit frame capture | Automatically find board corners, evaluate perspective/tilt and physical calibration; confirm behavior on iPhone |
+| Live camera feedback and overlay | **Partial:** opt-in camera preview, sampled exposure/contrast guidance, explicit frame capture and opt-in board-edge estimate | Real-photo board-edge evaluation, perspective/tilt guidance and physical calibration; confirm behavior on iPhone |
 | Edit maze by categories and variants | **Partial** 15 types, paint/erase, undo/redo, magnification and safe tile moving/copying | Original selection gestures, native zoom behavior, object limits, theme-specific variants, device validation |
 | Start/end, hazards, moving chasers | Start and finish placeable; time/speed hazards rudimentary; physical holes trigger provisional loss; **experimental moving shadow chasers** | Recognize markers, correct trap effects, original shadow patrol speeds and animations |
 | Gates, collectible keys, inventory | **Partial:** opt-in collectible keys on Message tiles, matching gate variants, collision unlocking and visible inventory | Recover historical key representation, original pickup effects, gate behavior and 3D visuals |
@@ -151,3 +151,9 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - A lightweight on-device sample warns about severe darkness, clipped highlights and weak contrast. It does not claim to measure actual recognition accuracy, detect physical grid pitch or distinguish touching factory walls.
 - Closing the preview, switching tabs, hiding the page or leaving the app releases the camera tracks. A request granted after cancellation releases its tracks without restoring the camera. No live frames are uploaded, saved automatically or added to maze documents.
 - Tests cover exposure guidance, cancel-before-permission races, resource cleanup and interface wiring. **Real iPhone camera permission, exposure guidance, frame orientation and physical scanning quality remain unverified.**
+
+## November 26, 2026: conservative automatic board-edge suggestion
+
+- Capture includes an **Find board corners** action. It examines the selected frame locally for a bright physical board bounded by darker surroundings, samples multiple horizontal and vertical transects, fits four independently slanted edges and proposes a perspective quadrilateral. The proposed handles remain manually adjustable, and no tile is imported without review.
+- Uniform images, gradients, missing borders, inconsistent edges and implausible geometry yield no proposal instead of guessed coordinates. It is deliberately conservative: a cropped board, light surroundings, difficult shadows or unusual materials may require entirely manual alignment.
+- New synthetic tests exercise trapezoids, portrait orientation, interrupted paper/grid texture and false-positive rejection. **Accuracy on actual Seedling-kit photographs has not yet been validated**; the algorithm does not establish the kit's physical pitch, wall lengths or original scanner calibration.

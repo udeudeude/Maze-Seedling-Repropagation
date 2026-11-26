@@ -118,9 +118,10 @@
         </div>
         <div class="photo-stage" id="photoStage" hidden>
           <canvas id="photoCanvas" aria-label="Photograph of physical maze with four adjustable corners"></canvas>
-          <span class="photo-hint">Drag the numbered corners onto the board's four corners.</span>
+          <span class="photo-hint">Choose Find board corners for an initial estimate, then drag the numbered handles to correct it.</span>
         </div>
         <div class="photo-actions" id="photoActions" hidden>
+          <button type="button" id="suggestCornersButton" disabled>Find board corners</button>
           <button type="button" class="primary" id="detectButton" disabled>Suggest wall positions</button>
           <button type="button" id="traceButton" disabled>Trace manually</button>
           <button type="button" id="clearPhotoButton" disabled>Discard photo</button>

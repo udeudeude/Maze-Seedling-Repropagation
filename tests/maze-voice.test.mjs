@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
 import {newMaze,paintTile,primaryCell,changeCellDetails,transferTile} from "../src/maze-world.mjs";
 import {startPlay,collectAt,tickPlayer,advanceShadows,movePlayer,dismissPhoto} from "../src/maze-play.mjs";
-import {voiceAt,voiceEdit,voiceDataUrl,preferredVoiceMime,MAX_VOICE_DATA_URL_LENGTH} from "../src/maze-voice.mjs";
+import {voiceAt,voiceEdit,voiceDataUrl,preferredVoiceMime,createVoiceRecorder,MAX_VOICE_DATA_URL_LENGTH} from "../src/maze-voice.mjs";
 const mp4="data:audio/mp4;base64,AAAA",webm="data:audio/webm;base64,AQID";
 const photo="data:image/jpeg;base64,/9j/4AAQ";
 test("voice URLs must be bounded, local, correctly encoded audio",()=>{
@@ -67,4 +67,90 @@ test("record, stop, cancel, preview, save and playback are wired in UI",()=>{
   for(const text of ["voiceEdit(","voiceAt(","createVoiceRecorder(","voiceRecorder.cancel()",
     "playVoiceAudio","voiceRecorder.stop()"])
     assert.ok(app.includes(text),text);
+});
+
+test("recording stays busy through asynchronous encoding, then releases mic",async()=>{
+  const old={navigator:Object.getOwnPropertyDescriptor(globalThis,"navigator"),
+    media:globalThis.MediaRecorder,reader:globalThis.FileReader};
+  const streams=[];
+  class FakeRecorder{
+    static isTypeSupported(type){return type==="audio/mp4";}
+    constructor(stream,options){this.mimeType=options.mimeType;this.state="inactive";}
+    start(){this.state="recording";}
+    stop(){
+      this.state="inactive";
+      queueMicrotask(()=>{
+        this.ondataavailable({data:new Blob(["sample"],{type:"audio/mp4"})});
+        this.onstop();
+      });
+    }
+  }
+  class FakeReader{
+    readAsDataURL(blob){this.result=mp4;queueMicrotask(()=>this.onload());}
+  }
+  try{
+    Object.defineProperty(globalThis,"navigator",{configurable:true,value:{
+      mediaDevices:{getUserMedia:async()=>{
+        const track={stopped:0,stop(){this.stopped++;}};
+        const stream={getTracks:()=>[track]};
+        streams.push(track);return stream;
+      }}
+    }});
+    globalThis.MediaRecorder=FakeRecorder;globalThis.FileReader=FakeReader;
+    const ready=[],statuses=[];
+    const controller=createVoiceRecorder({onReady:v=>ready.push(v),onStatus:v=>statuses.push(v)});
+    await controller.start();
+    assert.equal(controller.isRecording(),true);
+    controller.stop();
+    assert.equal(controller.isRecording(),false);
+    assert.equal(controller.isBusy(),true,"Save must stay disabled until FileReader finishes");
+    await new Promise(resolve=>setTimeout(resolve,0));
+    assert.equal(controller.isBusy(),false);
+    assert.deepEqual(ready,[mp4]);
+    assert.ok(streams[0].stopped>=1);
+    await controller.start();
+    controller.stop();
+    controller.cancel();
+    await new Promise(resolve=>setTimeout(resolve,0));
+    assert.deepEqual(ready,[mp4],"Cancelled encoding cannot overwrite a saved note");
+    assert.equal(controller.isBusy(),false);
+    assert.ok(statuses.some(v=>v.includes("ready")));
+  }finally{
+    if(old.navigator)Object.defineProperty(globalThis,"navigator",old.navigator);
+    else delete globalThis.navigator;
+    if(old.media===undefined)delete globalThis.MediaRecorder;
+    else globalThis.MediaRecorder=old.media;
+    if(old.reader===undefined)delete globalThis.FileReader;
+    else globalThis.FileReader=old.reader;
+  }
+});
+test("cancelled pending microphone permission cannot later start recording",async()=>{
+  const oldNavigator=Object.getOwnPropertyDescriptor(globalThis,"navigator");
+  const oldMedia=globalThis.MediaRecorder;
+  let resolvePermission,stops=0,constructions=0;
+  class FakeRecorder {
+    static isTypeSupported(type){return type==="audio/mp4";}
+    constructor(){constructions++;}
+  }
+  try{
+    Object.defineProperty(globalThis,"navigator",{configurable:true,value:{
+      mediaDevices:{getUserMedia:()=>new Promise(resolve=>{resolvePermission=resolve;})}
+    }});
+    globalThis.MediaRecorder=FakeRecorder;
+    const controller=createVoiceRecorder();
+    const request=controller.start();
+    assert.equal(controller.isBusy(),true);
+    controller.cancel();
+    assert.equal(controller.isBusy(),false);
+    resolvePermission({getTracks:()=>[{stop(){stops++;}}]});
+    await request;
+    assert.equal(stops,1);
+    assert.equal(constructions,0);
+    assert.equal(controller.isBusy(),false);
+  }finally{
+    if(oldNavigator)Object.defineProperty(globalThis,"navigator",oldNavigator);
+    else delete globalThis.navigator;
+    if(oldMedia===undefined)delete globalThis.MediaRecorder;
+    else globalThis.MediaRecorder=oldMedia;
+  }
 });

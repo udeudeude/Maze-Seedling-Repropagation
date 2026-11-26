@@ -416,7 +416,7 @@ function renderTileVoiceEditor(){
   }
   const busy=voiceRecorder.isBusy();
   el("recordVoiceButton").disabled=busy;
-  el("stopVoiceButton").disabled=!busy;
+  el("stopVoiceButton").disabled=!voiceRecorder.isRecording();
   el("removeTileVoiceButton").disabled=busy||!pendingTileVoice;
   el("saveTileButton").disabled=busy;
 }

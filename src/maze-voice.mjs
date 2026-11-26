@@ -34,26 +34,35 @@ export function preferredVoiceMime(Recorder=globalThis.MediaRecorder){
 /** MediaRecorder permissions, encoding and microphone ownership are scoped to one
  * session. A cancelled session can never overwrite previously saved audio. */
 export function createVoiceRecorder({onStatus=()=>{},onReady=()=>{},onBusy=()=>{}}={}){
-  let generation=0,active=null,requesting=false;
+  let generation=0,active=null,requesting=false,encoding=false;
   const update=()=>onBusy({recording:!!active,requesting});
   const release=stream=>stream?.getTracks().forEach(track=>track.stop());
   function stop({discard=false}={}){
-    if(discard)generation++;
+    const wasRequesting=requesting;
+    if(discard||(!active&&wasRequesting))generation++;
     requesting=false;
     const session=active;
     active=null;
-    if(!session){update();return;}
+    if(!session){
+      if(discard)encoding=false;
+      if(wasRequesting&&!discard)onStatus("Microphone request cancelled.");
+      update();return;
+    }
     session.discard ||= discard;
+    encoding=!session.discard;
     clearTimeout(session.timer);
     try{
       if(session.recorder.state!=="inactive")session.recorder.stop();
-    }catch(error){console.warn("Voice recorder could not stop",error);}
+    }catch(error){
+      session.discard=true;encoding=false;
+      console.warn("Voice recorder could not stop",error);
+    }
     release(session.stream);
     if(!session.discard)onStatus("Preparing your recording…");
     update();
   }
   async function start(){
-    if(active||requesting)return;
+    if(active||requesting||encoding)return;
     const mime=preferredVoiceMime();
     if(!mime||!globalThis.navigator?.mediaDevices?.getUserMedia){
       onStatus("This browser does not support microphone recording.");return;
@@ -76,37 +85,48 @@ export function createVoiceRecorder({onStatus=()=>{},onReady=()=>{},onBusy=()=>{
         }else session.chunks.push(event.data);
       };
       recorder.onerror=()=>{
+        const current=token===generation;
+        session.discard=true;
         if(active===session)stop({discard:true});
-        if(token===generation)onStatus("Recording failed. Please try again.");
+        if(current){
+          encoding=false;
+          onStatus("Recording failed. Please try again.");
+          update();
+        }
       };
       recorder.onstop=async()=>{
         clearTimeout(session.timer);release(session.stream);
-        if(session.discard||token!==generation)return;
-        if(session.tooLarge||!session.bytes){
-          onStatus(session.tooLarge?"Recording too large. Try a shorter message.":"No audio was recorded.");
-          return;
-        }
         try{
-          const format=(recorder.mimeType||mime).split(";")[0];
-          const blob=new Blob(session.chunks,{type:format});
-          if(blob.size>MAX_VOICE_BYTES)throw new Error("Recording too large.");
-          const url=await new Promise((resolve,reject)=>{
-            const reader=new FileReader();
-            reader.onload=()=>resolve(reader.result);
-            reader.onerror=()=>reject(new Error("Could not read the recording."));
-            reader.readAsDataURL(blob);
-          });
-          if(token!==generation)return;
-          if(!voiceDataUrl(url))throw new Error("Unsupported audio. Try a shorter recording.");
-          onReady(url);
-          onStatus("Recording ready. Listen, then Save tile.");
-        }catch(error){if(token===generation)onStatus(error.message);}
+          if(session.discard||token!==generation)return;
+          if(session.tooLarge||!session.bytes){
+            onStatus(session.tooLarge?"Recording too large. Try a shorter message.":"No audio was recorded.");
+            return;
+          }
+          try{
+            const format=(recorder.mimeType||mime).split(";")[0];
+            const blob=new Blob(session.chunks,{type:format});
+            if(blob.size>MAX_VOICE_BYTES)throw new Error("Recording too large.");
+            const url=await new Promise((resolve,reject)=>{
+              const reader=new FileReader();
+              reader.onload=()=>resolve(reader.result);
+              reader.onerror=()=>reject(new Error("Could not read the recording."));
+              reader.readAsDataURL(blob);
+            });
+            if(token!==generation)return;
+            if(!voiceDataUrl(url))throw new Error("Unsupported audio. Try a shorter recording.");
+            onReady(url);
+            onStatus("Recording ready. Listen, then Save tile.");
+          }catch(error){if(token===generation)onStatus(error.message);}
+        }finally{
+          if(token===generation){encoding=false;update();}
+        }
       };
       recorder.start(250);
       session.timer=setTimeout(()=>stop(),VOICE_SECONDS*1000);
       onStatus("Recording… Stop when finished (maximum "+VOICE_SECONDS+" seconds).");
       update();
     }catch(error){
+      if(active?.token===token){active.discard=true;active=null;}
       release(stream);
       if(token===generation)onStatus(error.name==="NotAllowedError"?
         "Microphone permission denied. Check your browser settings.":
@@ -116,5 +136,6 @@ export function createVoiceRecorder({onStatus=()=>{},onReady=()=>{},onBusy=()=>{
       update();
     }
   }
-  return {start,stop,cancel:()=>stop({discard:true}),isBusy:()=>!!active||requesting};
+  return {start,stop,cancel:()=>stop({discard:true}),
+    isBusy:()=>!!active||requesting||encoding,isRecording:()=>!!active};
 }

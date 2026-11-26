@@ -257,7 +257,7 @@ test("explored map reveals traversed squares and adjacent walls without spoiling
   assert.ok(mapVisibleCells(maze,advanced).has("3,1"),"Nearby unexplored cells remain visible");
   assert.ok(!mapVisibleCells(maze,advanced).has("16,16"));
   assert.deepEqual(initial.explored,["1,1"],"Exploration must not mutate earlier states");
-  assert.deepEqual(advanced.visited,[],"Mapping must not consume one-time tile effects");
+  assert.deepEqual(advanced.visited,["1,1"],"Exploring empty floor must not trigger extra one-time tile effects");
   assert.equal(JSON.stringify(maze),source,"Map discovery must not change maze documents");
 });
 

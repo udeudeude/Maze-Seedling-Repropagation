@@ -231,7 +231,22 @@
       <input type="file" id="restoreBackupInput" accept=".json,application/json" hidden>
       <p id="transferStatus" class="sheet-hint" role="status" aria-live="polite">A backup includes every maze, with personal photographs and voice messages. Choose carefully who receives it. Restoring adds missing designs without overwriting existing ones.</p>
       <button id="newButton" class="full-button" type="button">Create new blank maze</button>
-      <button id="practiceButton" class="full-button" type="button">Create maze from practice layout</button>
+      <div class="practice-choices" role="group" aria-label="New training maze">
+        <div><label class="field-label" for="practiceThemeSelect">Environment</label>
+          <select id="practiceThemeSelect">
+            <option value="adventure">Temple</option>
+            <option value="hedge">Garden</option>
+            <option value="marble_maze" selected>Workshop</option>
+            <option value="space">Starship</option>
+          </select></div>
+        <div><label class="field-label" for="practiceDifficultySelect">Difficulty</label>
+          <select id="practiceDifficultySelect">
+            <option value="practice">Practice</option>
+            <option value="challenge">Challenge</option>
+          </select></div>
+      </div>
+      <button id="practiceButton" class="full-button" type="button">Create training maze</button>
+      <p class="sheet-hint">Eight new training layouts, not the original Seedling levels. Challenge mazes include a key and locked gate.</p>
       <p class="sheet-hint">Each maze is saved locally on this device. Keep a library backup outside the browser. Removing browser data can erase the collection.</p>
     </div>
   </dialog>

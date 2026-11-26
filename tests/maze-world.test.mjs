@@ -64,3 +64,56 @@ test("off-board painting is rejected rather than corrupting saved mazes",()=>{
   assert.throws(()=>paintTile(newMaze(),1,18,"wall"),RangeError);
   assert.throws(()=>paintTile(newMaze(),3,4,"other"),TypeError);
 });
+
+test("four environments each offer a distinct, replayable Practice and Challenge",async()=>{
+  const {findPlayableRoute}=await import("../src/maze-route.mjs");
+  const layouts=new Set();
+  for(const theme of ["adventure","hedge","marble_maze","space"]){
+    const length=[];
+    for(const difficulty of ["practice","challenge"]){
+      const maze=sampleMaze(theme,difficulty);
+      const solved=findPlayableRoute(maze);
+      assert.equal(solved.status,"reachable",theme+" "+difficulty);
+      assert.deepEqual(maze.data.scale,["18","1","18"]);
+      assert.equal(maze.data.theme,theme);
+      assert.deepEqual(locate(maze,"entrance"),[[1,1]]);
+      assert.deepEqual(locate(maze,"exit"),[[15,15]]);
+      assert.deepEqual(sampleMaze(theme,difficulty).data.cells,maze.data.cells);
+      layouts.add(maze.data.cells.filter(c=>c.type==="wall")
+        .map(c=>c.position.join(",")).sort().join("|"));
+      length.push(solved.moves);
+      if(difficulty==="challenge"){
+        const gate=maze.data.cells.find(c=>c.type==="gate");
+        const key=maze.data.cells.find(c=>c.type==="info");
+        assert.ok(gate&&key,"A challenge must have a playable lock and key");
+        assert.equal(key.repropagation.keyId,gate.variant);
+        assert.ok(solved.keys.includes(gate.variant));
+        assert.equal(findRoute(maze),null,"Without a key the only route is closed");
+      }else{
+        assert.ok(findRoute(maze));
+        assert.equal(maze.data.cells.some(c=>c.type==="gate"),false);
+      }
+    }
+    assert.ok(length[1]>length[0],theme+" Challenge should take more steps");
+  }
+  assert.equal(layouts.size,8,"All eight wall layouts must be different");
+});
+
+test("unknown themes and difficulties cannot create misleading training files",()=>{
+  assert.throws(()=>sampleMaze("unsupported","practice"),RangeError);
+  assert.throws(()=>sampleMaze("space","hard"),RangeError);
+});
+
+test("library shows the independent training choices and saves before adding",()=>{
+  const html=readFileSync(new URL("../index.html",import.meta.url),"utf8");
+  const app=readFileSync(new URL("../src/app.mjs",import.meta.url),"utf8");
+  const css=readFileSync(new URL("../style.css",import.meta.url),"utf8");
+  for(const id of ["practiceThemeSelect","practiceDifficultySelect"])
+    assert.match(html,new RegExp('id="'+id+'"'));
+  for(const theme of ["adventure","hedge","marble_maze","space"])
+    assert.match(html,new RegExp('value="'+theme+'"'));
+  assert.match(html,/value="challenge"/);
+  assert.match(app,/sampleMaze\(theme,difficulty\)/);
+  assert.match(app,/if\(!persist\(\)\)return alert\("Save unavailable. Export your current maze before creating another."\)/);
+  assert.match(css,/\.practice-choices/);
+});

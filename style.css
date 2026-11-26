@@ -347,3 +347,7 @@ body.stereoscopic .tabbar,body.stereoscopic .topbar{display:none}
 .view-explore.cardboard-manual .touch-controls button{
   min-height:43px;font-size:19px;background:#303c46cc;
 }
+
+.practice-choices{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.practice-choices>div{display:grid;gap:5px;min-width:0}
+.practice-choices select{min-height:44px;font-size:14px}

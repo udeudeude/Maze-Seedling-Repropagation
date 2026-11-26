@@ -719,7 +719,10 @@ function initializeDialogs() {
   });
   el("practiceButton").addEventListener("click",()=>{
     if(!persist())return alert("Save unavailable. Export your current maze before creating another.");
-    activateLibrary(addMaze(library,sampleMaze()),"Practice maze created. Your previous maze is safe in My mazes.");
+    const theme=el("practiceThemeSelect").value;
+    const difficulty=el("practiceDifficultySelect").value;
+    activateLibrary(addMaze(library,sampleMaze(theme,difficulty)),
+      "New "+difficulty+" maze created. Your previous maze is safe in My mazes.");
   });
   for(const [buttonId,copy] of [["moveTileButton",false],["copyTileButton",true]]) {
     el(buttonId).addEventListener("click",()=>{

@@ -166,17 +166,101 @@ export function examineMaze(maze) {
   };
 }
 
-/** Deterministic original-format *new* sample; not a copied Seedling level. */
-export function sampleMaze() {
-  let maze=newMaze("Practice maze");
-  const obstacles=[];
-  for(let z=3;z<=14;z++)if(z!==7)obstacles.push([5,z]);
-  for(let z=2;z<=14;z++)if(z!==12)obstacles.push([11,z]);
-  for(let x=5;x<=11;x++)if(x!==8)obstacles.push([x,10]);
-  for(const [x,z] of obstacles)maze=paintTile(maze,x,z,"wall");
-  maze=paintTile(maze,2,2,"map");
-  maze=paintTile(maze,4,7,"speed_powerup");
-  maze=paintTile(maze,9,12,"timer_powerup");
-  if(!findRoute(maze))throw new Error("Practice maze must be solvable");
+/**
+ * Eight independently generated training mazes in four recovered environment
+ * identifiers, NOT reproductions of the original bundled levels. Stable seeds
+ * make layouts reproducible without distributing proprietary maze documents.
+ */
+export function sampleMaze(theme="marble_maze",difficulty="practice") {
+  const designs={
+    adventure:{label:"Temple",seed:0x06ab37c1,waypoints:[[15,1],[15,15]]},
+    hedge:{label:"Garden",seed:0x06ab37c2,waypoints:[[1,15],[15,15]]},
+    marble_maze:{label:"Workshop",seed:0x06ab37c3,
+      waypoints:[[7,1],[7,9],[15,9],[15,15]]},
+    space:{label:"Starship",seed:0x06ab37c4,
+      waypoints:[[1,7],[11,7],[11,15],[15,15]]}
+  };
+  if(!Object.hasOwn(designs,theme))throw new RangeError("Unknown practice environment");
+  if(!["practice","challenge"].includes(difficulty))
+    throw new RangeError("Unknown practice difficulty");
+  const design=designs[theme],challenge=difficulty==="challenge";
+  let seed=(design.seed^(challenge?0x9e3779b9:0))>>>0;
+  const random=()=>{
+    seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;
+    return (seed>>>0)/4294967296;
+  };
+  const point=(x,z)=>x+","+z;
+  const open=new Set([point(1,1)]),visited=new Set(open);
+  const stack=[[1,1]];
+  // A spanning-tree maze on an 8x8 node lattice. Connecting squares are
+  // individual 18x18 document cells; Challenge has a unique route to Finish.
+  while(stack.length){
+    const [x,z]=stack[stack.length-1],options=[];
+    for(const [dx,dz] of [[2,0],[-2,0],[0,2],[0,-2]]){
+      const nx=x+dx,nz=z+dz;
+      if(nx>=1&&nx<=15&&nz>=1&&nz<=15&&!visited.has(point(nx,nz)))
+        options.push([nx,nz,dx/2,dz/2]);
+    }
+    if(!options.length){stack.pop();continue;}
+    const [nx,nz,mx,mz]=options[Math.floor(random()*options.length)];
+    open.add(point(x+mx,z+mz));open.add(point(nx,nz));
+    visited.add(point(nx,nz));stack.push([nx,nz]);
+  }
+  if(!challenge){
+    // Short, theme-dependent route plus loops and explorable side corridors.
+    let x=1,z=1;
+    for(const [targetX,targetZ] of design.waypoints){
+      while(x!==targetX||z!==targetZ){
+        x+=Math.sign(targetX-x);z+=Math.sign(targetZ-z);
+        open.add(point(x,z));
+      }
+    }
+    for(let i=0;i<18;i++){
+      const x=1+2*Math.floor(random()*8),z=1+2*Math.floor(random()*8);
+      const [dx,dz]=random()<.5?[1,0]:[0,1];
+      if(x+2*dx<=15&&z+2*dz<=15)open.add(point(x+dx,z+dz));
+    }
+  }
+  // Derive safe, separated interaction positions from the actual shortest
+  // path rather than assigning arbitrary cells that might be inside walls.
+  const queue=[[1,1]],parents=new Map([[point(1,1),null]]);
+  for(let i=0;i<queue.length;i++){
+    const [x,z]=queue[i],here=point(x,z);
+    if(here===point(15,15))break;
+    for(const [dx,dz] of [[1,0],[-1,0],[0,1],[0,-1]]){
+      const nx=x+dx,nz=z+dz,key=point(nx,nz);
+      if(!open.has(key)||parents.has(key))continue;
+      parents.set(key,here);queue.push([nx,nz]);
+    }
+  }
+  if(!parents.has(point(15,15)))throw new Error("Training maze generation failed");
+  const route=[];
+  for(let here=point(15,15);here!==null;here=parents.get(here))
+    route.push(here.split(",").map(Number));
+  route.reverse();
+  const cells=[{position:pos(1,1),type:"entrance"},
+    {position:pos(15,15),type:"exit"}];
+  for(let z=0;z<SIZE;z++)for(let x=0;x<SIZE;x++)
+    if(!open.has(point(x,z)))
+      cells.push({position:pos(x,z),type:"wall",variant:"0"});
+  const place=(fraction,type,properties={})=>{
+    const [x,z]=route[Math.round((route.length-1)*fraction)];
+    cells.push({position:pos(x,z),type,...properties});
+  };
+  if(challenge){
+    const keyId="training-"+theme;
+    place(.24,"info",{text:"A key for the locked door ahead.",
+      repropagation:{keyId}});
+    place(.43,"map");
+    place(.55,"timer_powerup");
+    place(.68,"gate",{variant:keyId});
+    place(.84,"speed_hazard");
+  }else{
+    place(.22,"map");
+    place(.45,"speed_powerup");
+    place(.72,"timer_powerup");
+  }
+  const maze=newMaze(design.label+" - "+(challenge?"Challenge":"Practice"),theme);
+  maze.data.cells=cells;
   return maze;
 }

@@ -160,6 +160,8 @@
           </div>
           <details id="gridEdgeDetails" class="edge-calibration">
             <summary>Fine-tune individual edges</summary>
+            <button id="suggestGridEdgesButton" type="button">Suggest margins from photograph</button>
+            <p id="edgeSuggestionStatus" role="status">Optional: look for a distinct paper border. This does not calibrate the physical grid or bypass review.</p>
             <div class="edge-calibration-grid">
               <div><label for="gridInsetTopSlider">Top <output id="gridInsetTopValue" for="gridInsetTopSlider">0%</output></label><input id="gridInsetTopSlider" type="range" min="0" max="20" step="1" value="0"></div>
               <div><label for="gridInsetRightSlider">Right <output id="gridInsetRightValue" for="gridInsetRightSlider">0%</output></label><input id="gridInsetRightSlider" type="range" min="0" max="20" step="1" value="0"></div>

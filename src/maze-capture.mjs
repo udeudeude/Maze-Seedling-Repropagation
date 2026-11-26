@@ -108,3 +108,84 @@ export function insetRectifiedBoard(image,margin=0) {
     {x:x0,y:y0},{x:x1,y:y0},{x:x1,y:y1},{x:x0,y:y1}
   ],width);
 }
+
+
+/**
+ * Conservatively suggest outer paper-grid margins in a rectified maze photo.
+ * These are visual border estimates, not measurements of the Seedling kit's
+ * physical grid pitch or reproductions of its original scanning algorithm.
+ * No source photograph or maze document is changed.
+ */
+export function suggestPlayableGridEdges(image) {
+  const {width:w,height:h,data}=image??{};
+  if(!Number.isInteger(w)||w<100||h!==w||data?.length!==w*h*4)
+    throw new TypeError("Expected a square rectified RGBA photograph at least 100 pixels wide");
+  const median=values=>{
+    const sorted=values.slice().sort((a,b)=>a-b);
+    return sorted[Math.floor(sorted.length/2)];
+  };
+  const mean=(values,from,to)=>{
+    let sum=0;
+    for(let i=from;i<to;i++)sum+=values[i];
+    return sum/Math.max(1,to-from);
+  };
+  const profiles=[];
+  for(const axis of ["x","y"]){
+    const entries=[];
+    for(let pos=0;pos<w;pos++){
+      const rgb=[[],[],[]];
+      // Central samples resist isolated wall blocks and thin paper grid lines.
+      for(let k=0;k<41;k++){
+        const cross=Math.round((.2+.6*(k+.5)/41)*(w-1));
+        const at=axis==="x"?(cross*w+pos)*4:(pos*w+cross)*4;
+        if(data[at+3]<200)continue;
+        for(let c=0;c<3;c++)rgb[c].push(data[at+c]);
+      }
+      entries.push(rgb[0].length>=30?rgb.map(median):null);
+    }
+    const interior=[];
+    for(let i=Math.floor(w*.32);i<Math.ceil(w*.68);i++)
+      if(entries[i])interior.push(entries[i]);
+    if(interior.length<Math.floor(w*.30))return null;
+    const paper=[0,1,2].map(c=>median(interior.map(v=>v[c])));
+    // RGB distance recognizes a green frame as well as a dark one.
+    const distance=entries.map(v=>v?
+      Math.hypot(...v.map((n,c)=>n-paper[c]))/Math.sqrt(3):0);
+    const radius=Math.max(2,Math.round(w*.004));
+    profiles.push(distance.map((_,i)=>mean(distance,
+      Math.max(0,i-radius),Math.min(w,i+radius+1))));
+  }
+  const edges={top:0,right:0,bottom:0,left:0},detected=[];
+  const minimum=Math.ceil(w*.02),maximum=Math.floor(w*.2);
+  const window=Math.max(4,Math.round(w*.012));
+  const settle=Math.max(9,Math.round(w*.045));
+  for(const side of ["top","right","bottom","left"]){
+    const alongX=side==="left"||side==="right";
+    const profile=profiles[alongX?0:1];
+    const signal=side==="right"||side==="bottom"?profile.slice().reverse():profile;
+    let best=null;
+    for(let p=minimum;p<=maximum;p++){
+      const before=mean(signal,p-window,p);
+      const after=mean(signal,p,p+window);
+      const outer=mean(signal,0,p);
+      const settled=mean(signal,p+window,p+window+settle);
+      const drop=before-after;
+      const sustained=signal.slice(0,Math.max(1,p-window))
+        .filter(v=>v>32).length/Math.max(1,p-window);
+      // Require a continuous border followed by a sharp, sustained
+      // transition to pale paper; gradients and narrow dark strips fail.
+      if(outer<42||sustained<.7||before<42||drop<31||
+          after>39||settled>26)continue;
+      const score=drop-.6*after-.2*settled;
+      if(!best||score>best.score)best={p,score};
+    }
+    if(best){
+      const percent=Math.round(best.p/w*100);
+      if(percent>=2&&percent<=20){
+        edges[side]=percent;
+        detected.push(side);
+      }
+    }
+  }
+  return detected.length?{edges,detected}:null;
+}

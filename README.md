@@ -106,3 +106,8 @@ In **Build**, choose **Check route** to highlight a route that can actually coll
 ### Put a player portrait on a snapshot (optional)
 
 Create a local player identity in **Explore → Player**. When taking a **Snapshot**, you can check **Include my player portrait and name in this image** to add an unobtrusive player card to the saved picture. This is **off for every new screenshot**, including screenshots you share; the picture is previewed before saving. You can change the choice without moving your explorer or altering the maze. The card is an independently designed reconstruction feature, not evidence of the original Seedling avatar layout.
+
+
+### Optional photographed-board border suggestions (November 26, 2026)
+
+In Capture review, expand **Fine-tune individual edges** and choose **Suggest margins from photograph** to estimate visible paper-border cropping separately on each side. This is a conservative color-transition heuristic, not automatic physical-grid calibration; if the image provides insufficient evidence, no suggestion is made. Always inspect and correct all four controls and the refreshed walls, holes and markers before importing. This feature runs locally and leaves original photographs and maze documents untouched.

@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {solveLinear,homographyForCorners,initialCorners,warpSquarePixels,insetRectifiedBoard} from "../src/maze-capture.mjs";
+import {solveLinear,homographyForCorners,initialCorners,warpSquarePixels,insetRectifiedBoard,suggestPlayableGridEdges} from "../src/maze-capture.mjs";
 import {readFileSync} from "node:fs";
 
 const close=(actual,expected,tol=1e-7)=>assert.ok(Math.abs(actual-expected)<tol,actual+" ≠ "+expected);
@@ -112,4 +112,73 @@ test("capture shows and recalculates a correctable playable-grid margin",()=>{
   assert.match(app,/el\("gridInset"\+edge\+"Slider"\)/);
   assert.match(html,/id="gridEdgeDetails"/);
   assert.match(app,/slider.addEventListener\("change",restartAlignedScan\)/);
+});
+
+
+function borderFixture({width=504,edges={},green=false,grid=true,wall=true,gradient=false}={}){
+  const data=new Uint8ClampedArray(width*width*4);
+  for(let y=0;y<width;y++)for(let x=0;x<width;x++){
+    const border=x<width*(edges.left??0)/100||
+      x>=width*(1-(edges.right??0)/100)||
+      y<width*(edges.top??0)/100||
+      y>=width*(1-(edges.bottom??0)/100);
+    const printed=grid&&(x%28===0||y%28===0);
+    const wallBlock=wall&&x>=width*.40&&x<width*.43&&
+      y>=width*.26&&y<width*.72;
+    const rgb=border?(green?[125,187,115]:[18,21,24]):
+      wallBlock?[28,29,32]:printed?[165,160,149]:
+      gradient?[230-x/width*75,230-x/width*75,224-x/width*75]:
+      [232,230,220];
+    data.set([...rgb,255],(y*width+x)*4);
+  }
+  return {width,height:width,data};
+}
+test("offers independent border suggestions amid printed grid lines and wall blocks",()=>{
+  const result=suggestPlayableGridEdges(borderFixture({
+    edges:{top:5,right:9,bottom:17,left:14}}));
+  assert.ok(result);
+  for(const [side,expected] of Object.entries({top:5,right:9,bottom:17,left:14}))
+    assert.ok(Math.abs(result.edges[side]-expected)<=1,
+      side+": "+JSON.stringify(result));
+  assert.equal(result.detected.length,4);
+});
+test("suggests colored borders without assuming charcoal edges",()=>{
+  const result=suggestPlayableGridEdges(borderFixture({
+    edges:{top:8,right:10,bottom:5,left:12},green:true}));
+  assert.ok(result);
+  for(const [side,expected] of Object.entries({top:8,right:10,bottom:5,left:12}))
+    assert.ok(Math.abs(result.edges[side]-expected)<=1,
+      side+": "+JSON.stringify(result));
+});
+test("only proposes supported edges, never fabricating margins for clear sides",()=>{
+  const result=suggestPlayableGridEdges(borderFixture({edges:{left:12,bottom:8}}));
+  assert.ok(result);
+  assert.ok(Math.abs(result.edges.left-12)<=1);
+  assert.ok(Math.abs(result.edges.bottom-8)<=1);
+  assert.equal(result.edges.top,0);
+  assert.equal(result.edges.right,0);
+});
+test("refuses grids without borders and smooth lighting gradients",()=>{
+  assert.equal(suggestPlayableGridEdges(borderFixture()),null);
+  assert.equal(suggestPlayableGridEdges(borderFixture({grid:false,wall:false})),null);
+  assert.equal(suggestPlayableGridEdges(borderFixture({
+    grid:false,wall:false,gradient:true})),null);
+});
+test("border estimator preserves source pixels and validates input dimensions",()=>{
+  const image=borderFixture({edges:{left:9}}),before=image.data.slice();
+  suggestPlayableGridEdges(image);
+  assert.deepEqual(image.data,before);
+  for(const invalid of [null,
+    {width:90,height:90,data:new Uint8Array(90*90*4)},
+    {width:504,height:503,data:new Uint8Array(504*503*4)}])
+    assert.throws(()=>suggestPlayableGridEdges(invalid),TypeError);
+});
+test("border proposal is explicitly user-invoked and rechecks all manual corrections",()=>{
+  const html=readFileSync(new URL("../index.html",import.meta.url),"utf8");
+  const app=readFileSync(new URL("../src/app.mjs",import.meta.url),"utf8");
+  assert.match(html,/id="suggestGridEdgesButton"/);
+  assert.match(html,/id="edgeSuggestionStatus"/);
+  assert.match(app,/suggestPlayableGridEdges\(scanBoardPixels\)/);
+  assert.match(app,/el\("suggestGridEdgesButton"\)\.addEventListener\("click"/);
+  assert.match(app,/restartAlignedScan\(\)/);
 });

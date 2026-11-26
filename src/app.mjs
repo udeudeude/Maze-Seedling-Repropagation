@@ -10,7 +10,7 @@ import {AUDIO_SETTINGS_KEY,audioPreferences,createMazeAudio} from "./maze-audio.
 import {MAX_PHOTO_DATA_URL_LENGTH,photoAt,photoEdit,photoDataUrl} from "./maze-media.mjs";
 import {avatarAt,avatarEdit,avatarCropRect} from "./maze-avatar.mjs";
 import {voiceAt,voiceEdit,createVoiceRecorder} from "./maze-voice.mjs";
-import {warpSquarePixels,initialCorners,insetRectifiedBoard} from "./maze-capture.mjs";
+import {warpSquarePixels,initialCorners,insetRectifiedBoard,suggestPlayableGridEdges} from "./maze-capture.mjs";
 import {suggestBoardCorners} from "./maze-board-corners.mjs";
 import {assessCameraFrame,createCameraSession,projectBoardOutline} from "./maze-live.mjs";
 import {snapshotFileName,sceneAsPng,canShareSnapshot,drawSnapshotPlayerBadge} from "./maze-snapshot.mjs";
@@ -1821,6 +1821,37 @@ function initializePhoto() {
     scanMarkers.clear();scanMarkerEdits.clear();
     analyzePhoto(false);
   };
+
+  el("suggestGridEdgesButton").addEventListener("click",()=>{
+    try{
+      if(!scanBoardPixels)scanBoardPixels=rectifyPhoto().warped;
+      const proposal=suggestPlayableGridEdges(scanBoardPixels);
+      if(!proposal){
+        el("edgeSuggestionStatus").textContent=
+          "No convincing outer border found. Keep or adjust the margins manually.";
+        return;
+      }
+      for(const edge of gridEdges){
+        const side=edge.toLowerCase(),value=proposal.edges[side];
+        el("gridInset"+edge+"Slider").value=String(value);
+        el("gridInset"+edge+"Value").textContent=value+"%";
+      }
+      const suggested=gridEdges.map(edge=>proposal.edges[edge.toLowerCase()]);
+      if(suggested.every(value=>value===suggested[0])){
+        el("gridInsetSlider").value=String(suggested[0]);
+        el("gridInsetValue").textContent=suggested[0]+"%";
+      }else{
+        el("gridInsetValue").textContent="Custom";
+      }
+      el("edgeSuggestionStatus").textContent=
+        "Possible border on "+proposal.detected.join(", ")+
+        ". Review all four margins and newly detected tiles before importing.";
+      restartAlignedScan();
+    }catch(error){
+      el("edgeSuggestionStatus").textContent=
+        "Could not estimate board margins: "+error.message;
+    }
+  });
   el("gridInsetSlider").addEventListener("input",()=>{
     const value=el("gridInsetSlider").value;
     el("gridInsetValue").textContent=value+"%";

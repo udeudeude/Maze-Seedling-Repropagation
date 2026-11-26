@@ -39,6 +39,14 @@ test("untrusted image URLs, SVG and overlong embedded photos cannot become selfi
   imported.repropagation={playerAvatar:{name:"Guest",dataUrl:"https://example.org/img"}};
   assert.deepEqual(avatarAt(imported),{name:"Guest",dataUrl:null});
 });
+test("unknown imported root extension formats are never overwritten by the selfie editor",()=>{
+  const one=newMaze();one.repropagation="foreign";
+  assert.throws(()=>avatarEdit(one,{name:"A"}),TypeError);
+  assert.equal(one.repropagation,"foreign");
+  const two=newMaze();two.repropagation={playerAvatar:"imported-opaque",other:{x:1}};
+  assert.throws(()=>avatarEdit(two,{name:"B"}),TypeError);
+  assert.equal(two.repropagation.playerAvatar,"imported-opaque");
+});
 test("names are bounded and displayed as plain text",()=>{
   const original=newMaze();
   assert.equal(avatarAt(avatarEdit(original,{name:"  Jo\n  Lee \t " })).name,"Jo Lee");
@@ -62,6 +70,7 @@ test("selfie editing UI is explicitly opt-in and includes cancellation and safe 
     assert.match(html,new RegExp('id="'+id+'"'));
   assert.match(app,/function initializeAvatar\(/);
   assert.match(app,/avatarImportGeneration/);
+  assert.match(app,/!el\("avatarDialog"\)\.open/);
   assert.match(app,/saveActiveDocument\(library,next\)/);
   assert.match(app,/localStorage\.setItem\(LIBRARY_STORAGE_KEY,JSON\.stringify\(updated\)\)/);
   assert.match(worker,/src\/maze-avatar\.mjs/);

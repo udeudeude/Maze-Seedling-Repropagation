@@ -25,8 +25,13 @@ export function avatarEdit(source,{name="",dataUrl=null}={}) {
   if(dataUrl!==null&&!photoDataUrl(dataUrl))
     throw new TypeError("Selfie must be a small embedded JPEG");
   const next=parseMaze(source);
-  const extension=plainObject(next.repropagation)?{...next.repropagation}:{};
-  const previous=plainObject(extension.playerAvatar)?{...extension.playerAvatar}:{};
+  // Never silently destroy a foreign extension with an unexpected shape.
+  if(next.repropagation!==undefined&&!plainObject(next.repropagation))
+    throw new TypeError("Unknown root extension cannot be replaced");
+  const extension={...(next.repropagation??{})};
+  if(extension.playerAvatar!==undefined&&!plainObject(extension.playerAvatar))
+    throw new TypeError("Unknown player avatar record cannot be replaced");
+  const previous={...(extension.playerAvatar??{})};
   if(label)previous.name=label;
   else delete previous.name;
   if(dataUrl)previous.dataUrl=dataUrl;

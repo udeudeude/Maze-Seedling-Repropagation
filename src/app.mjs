@@ -843,7 +843,8 @@ function motionMessage(message) {
   const status=el("motionStatus");status.hidden=!stereo;status.textContent=message;
 }
 function onDeviceOrientation(event) {
-  if(!stereo||view!=="explore"||document.hidden||snapshotOpen)return;
+  if(!stereo||view!=="explore"||document.hidden||snapshotOpen||
+     el("avatarDialog").open)return;
   const rotation=screenRotation();
   if(motionRotation!==rotation) {
     motionRotation=rotation;motionAnchor=null;motionHeading=play.heading;
@@ -943,7 +944,7 @@ function renderPlay() {
   const ctx=canvas.getContext("2d");
   renderScene(ctx,maze,play,{stereo,pitch:stereo?motionPitch:0});
   if(showMap)renderMapOverlay(ctx);
-  if(!snapshotOpen)audio.updateScene(play);
+  if(!snapshotOpen&&!el("avatarDialog").open)audio.updateScene(play);
   const seconds=Math.ceil(play.remaining);
   el("timeReadout").textContent=Math.floor(seconds/60)+":"+String(seconds%60).padStart(2,"0");
   el("playReadout").textContent=play.ended?(play.won?"Completed":"Game over"):play.message;
@@ -1214,7 +1215,7 @@ function initializePlay() {
   const frame=time=>{
     if(view==="explore" && !document.hidden){
       const dt=lastFrame?Math.min(.075,(time-lastFrame)/1000):0;lastFrame=time;
-      if(dt&&!play.ended&&!snapshotOpen) {
+      if(dt&&!play.ended&&!snapshotOpen&&!el("avatarDialog").open) {
         const before=play;
         const turn=Number(holding.has("turnRight"))-Number(holding.has("turnLeft"));
         const forward=Number(holding.has("forward"))-Number(holding.has("backward"));

@@ -63,7 +63,10 @@
       <section class="view view-explore" id="exploreView" hidden aria-labelledby="exploreTitle">
         <div class="section-top">
           <div><p class="eyebrow">THROUGH THE MAZE</p><h1 id="exploreTitle">Explore</h1></div>
-          <button class="quiet-button" id="restartButton" type="button">Restart</button>
+          <div class="explore-head-actions">
+            <button id="playerButton" type="button" class="quiet-button player-button" aria-haspopup="dialog" aria-controls="avatarDialog" aria-label="Add a player selfie"><img id="playerButtonImage" alt="" hidden><span id="playerButtonLabel">Player</span></button>
+            <button class="quiet-button" id="restartButton" type="button">Restart</button>
+          </div>
         </div>
         <div class="scene-wrap">
           <canvas id="sceneCanvas" aria-label="First-person view into your maze"></canvas>
@@ -172,6 +175,20 @@
       <button id="snapshotCloseButton" type="button">Continue exploring</button>
     </div>
     <small>On some iPhones, Save image opens the image. Use Share → Save Image to keep it in Photos.</small>
+  </dialog>
+  <dialog id="avatarDialog" class="sheet" aria-labelledby="avatarHeading">
+    <form method="dialog" class="sheet-header"><h2 id="avatarHeading">Your player</h2><button aria-label="Close player editor" class="icon-button">✕</button></form>
+    <div class="sheet-body">
+      <img id="avatarPhotoPreview" class="avatar-preview" alt="Your selected player portrait" hidden>
+      <label class="field-label" for="avatarNameInput">Player name (optional)</label>
+      <input id="avatarNameInput" type="text" maxlength="48" autocomplete="off" placeholder="Explorer">
+      <label class="field-label" for="avatarPhotoInput">Selfie (optional)</label>
+      <input id="avatarPhotoInput" type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif,.heic,.heif">
+      <button id="removeAvatarPhotoButton" type="button" class="full-button" disabled>Remove selfie</button>
+      <p id="avatarStatus" role="status" aria-live="polite" class="sheet-hint">A small selfie can represent you while exploring.</p>
+      <button id="saveAvatarButton" type="button" class="full-button primary">Save player</button>
+      <p class="sheet-hint">Your selfie is optional and stored inside this maze on your device. It is included if you export, back up, or share the maze. This is an independent recreation, not the original multiplayer avatar format.</p>
+    </div>
   </dialog>
   <dialog id="menuDialog" class="sheet">
     <form method="dialog" class="sheet-header"><h2>Maze files</h2><button aria-label="Close menu" class="icon-button">✕</button></form>

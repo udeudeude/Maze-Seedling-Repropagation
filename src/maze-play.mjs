@@ -1,6 +1,7 @@
 import {cellCoordinates, locate, primaryCell, passable} from "./maze-world.mjs";
 import {photoAt} from "./maze-media.mjs";
 import {voiceAt} from "./maze-voice.mjs";
+import {drawWorldBackdrop,drawWallDetail} from "./maze-environments.mjs";
 
 export const THEMATIC = Object.freeze({
   adventure:{sky:"#27322d",floor:"#8d754b",wall:"#a28b58",mortar:"#3f4035",accent:"#f0c274",name:"Forbidden Temple"},
@@ -462,6 +463,7 @@ export function renderScene(ctx,maze,player,{stereo=false,pitch=0,photoResolver=
   for(let eye=0;eye<views;eye++){
     const left=eye*(w/views),vw=w/views,eyeOffset=stereo?(eye===0?-0.022:0.022):0;
     ctx.save();ctx.beginPath();ctx.rect(left,0,vw,h);ctx.clip();
+    drawWorldBackdrop(ctx,maze.data.theme,left,vw,h,horizon);
     const beamStep=2;
     const fov=stereo?1.05:1.15;
     // Lightweight floor-hole silhouettes, hidden behind the wall columns
@@ -501,6 +503,8 @@ export function renderScene(ctx,maze,player,{stereo=false,pitch=0,photoResolver=
       ctx.globalAlpha=clamp((hit.distance/12)*.36,.1,.28);
       if(hit.texture<.06||hit.texture>.94)ctx.fillRect(left+px,top,beamStep+1,wallHeight);
       ctx.globalAlpha=1;
+      drawWallDetail(ctx,maze.data.theme,hit,left+px,top,beamStep+1,wallHeight,
+        clamp(1-hit.distance/28,.3,.9));
       if(hit.kind==="gate"){
         ctx.fillStyle=color.accent;ctx.globalAlpha=.55;
         ctx.fillRect(left+px,top,beamStep+1,wallHeight);ctx.globalAlpha=1;

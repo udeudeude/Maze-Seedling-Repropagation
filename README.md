@@ -33,6 +33,10 @@ In **Capture**, a single **Choose or take a photograph** button opens iPhone's n
 
 The **Maze files** menu now includes **My mazes**, an offline collection: open, duplicate, rename or delete designs; import a JSON maze as a separate entry; create fresh blank and practice mazes without replacing earlier work. The old single-maze autosave remains available as a local backup. Export is still recommended before clearing browser data or changing devices.
 
+### Four distinct exploratory environments (independent artwork)
+
+The four recovered environments no longer differ only by palette: stone courses in Forbidden Temple, layered foliage in Castle Quest, inlaid marble in Marble Mayhem, and luminous ship bulkheads in Space Race. This procedural Canvas architecture is newly authored and **does not reproduce proprietary original game art**. Performance, fidelity and Cardboard comfort remain unverified on physical devices.
+
 ### Cardboard head tracking and viewer trigger (experimental)
 
 In **Explore**, tap **Cardboard** to fill the phone viewport with the two-eye scene and grant motion access if requested. Tap the view or use a compatible headset screen-touch trigger to take a short forward step; drag to turn, and use Exit or Recenter after removing the phone from the viewer. Manual movement buttons remain visible when motion tracking has not started. This is not optically calibrated for any particular headset.  Turn the phone to look around, ideally in landscape, and use **Recenter** to align your current physical direction with the maze's starting direction. The view responds to head yaw and pitch rather than merely splitting the picture. Manual turning remains available without sensors. Viewer lens distortion, gaze/trigger controls and real-hardware calibration remain missing.

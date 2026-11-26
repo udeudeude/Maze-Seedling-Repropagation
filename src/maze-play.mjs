@@ -295,6 +295,114 @@ export function castRay(maze,x,z,heading,maxDistance=28,wallIndex=null) {
   }
   return null;
 }
+
+/**
+ * Independent, copyright-safe signposts for native interactive tile categories.
+ * The original game used three-dimensional objects, but their artwork has not
+ * been recovered. Keeping them visible is essential: effects must not be
+ * discoverable only by accidentally walking across an invisible floor tile.
+ * This is a rendering projection, never a mutation of original document data.
+ */
+const LANDMARK_TYPES=new Set([
+  "exit","map","info","riddle","secret_passage","timer_powerup",
+  "timer_hazard","speed_powerup","speed_hazard"
+]);
+
+export function sceneLandmarks(maze,player,{eyeOffset=0,fov=1.15,
+  maxDistance=14,wallIndex=null}={}) {
+  const index=wallIndex??createWallIndex(maze,player.keys??[]);
+  const lateral=player.heading+Math.PI/2;
+  const ox=player.x+Math.cos(lateral)*eyeOffset;
+  const oz=player.z+Math.sin(lateral)*eyeOffset;
+  const cosine=Math.cos(player.heading),sine=Math.sin(player.heading);
+  const tanHalf=Math.tan(fov/2),visited=new Set(player.visited??[]);
+  const result=[];
+  for(const cell of maze.data.cells) {
+    if(!LANDMARK_TYPES.has(cell.type))continue;
+    const [x,z]=cellCoordinates(cell),key=x+","+z;
+    if(!Number.isInteger(x)||!Number.isInteger(z))continue;
+    // Passage portals can be reused; the finish must remain visible.
+    if(cell.type!=="exit"&&cell.type!=="secret_passage"&&
+      (visited.has(key)||(cell.type==="map"&&player.mapRevealed)))continue;
+    const dx=x+.5-ox,dz=z+.5-oz;
+    const forward=dx*cosine+dz*sine;
+    if(forward<=.22||forward>maxDistance)continue;
+    const screenX=(-dx*sine+dz*cosine)/(forward*tanHalf);
+    if(Math.abs(screenX)>1.3)continue;
+    const distance=Math.hypot(dx,dz);
+    const hit=castRay(maze,ox,oz,Math.atan2(dz,dx),distance,index);
+    if(hit&&hit.distance<distance-.22)continue;
+    result.push({type:cell.type,key,screenX,forward,
+      isKey:cell.type==="info"&&!!keyPickupId(cell)});
+  }
+  // Distant billboards are painted first, so nearby objects cover them.
+  return result.sort((a,b)=>b.forward-a.forward);
+}
+
+/** Small, perspective-scaled floor markers, not copied Seedling graphics. */
+function drawSceneLandmark(ctx,item,x,groundY,height,theme) {
+  const size=Math.min(height*.45,height*.53/Math.max(item.forward,.45));
+  if(size<2)return;
+  const hazard=item.type.endsWith("_hazard");
+  const ink=hazard?"#f08e6b":theme.accent;
+  ctx.save();
+  ctx.translate(x,groundY);ctx.scale(size,size);
+  ctx.globalAlpha=clamp(1-item.forward/32,.55,1);
+  ctx.fillStyle="rgba(7,12,20,.55)";
+  ctx.beginPath();ctx.ellipse(0,-.04,.34,.11,0,0,Math.PI*2);ctx.fill();
+  ctx.lineWidth=.045;ctx.strokeStyle=ink;
+  ctx.fillStyle="rgba(12,20,27,.88)";
+  if(item.type==="exit"){
+    ctx.fillRect(-.27,-.93,.54,.84);
+    ctx.strokeRect(-.27,-.93,.54,.84);
+    ctx.fillStyle=ink;ctx.fillRect(-.17,-.83,.34,.67);
+    ctx.fillStyle="rgba(14,19,24,.75)";ctx.fillRect(-.115,-.76,.23,.6);
+  }else{
+    ctx.beginPath();ctx.ellipse(0,-.52,.31,.34,0,0,Math.PI*2);
+    ctx.fill();ctx.stroke();
+    ctx.strokeStyle=ink;ctx.fillStyle=ink;ctx.lineWidth=.052;
+    if(item.type==="map"){
+      ctx.strokeRect(-.19,-.69,.38,.31);
+      ctx.beginPath();ctx.moveTo(-.06,-.69);ctx.lineTo(-.06,-.38);
+      ctx.moveTo(.08,-.69);ctx.lineTo(.08,-.38);ctx.stroke();
+    }else if(item.type==="info"){
+      if(item.isKey){
+        ctx.beginPath();ctx.arc(-.085,-.55,.083,0,Math.PI*2);
+        ctx.moveTo(-.01,-.55);ctx.lineTo(.2,-.55);
+        ctx.moveTo(.13,-.55);ctx.lineTo(.13,-.43);ctx.stroke();
+      }else{
+        ctx.strokeRect(-.2,-.66,.4,.29);
+        ctx.beginPath();ctx.moveTo(-.2,-.65);ctx.lineTo(0,-.49);
+        ctx.lineTo(.2,-.65);ctx.stroke();
+      }
+    }else if(item.type==="riddle"){
+      ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.font="bold .53px sans-serif";ctx.fillText("?",0,-.53);
+    }else if(item.type==="secret_passage"){
+      ctx.beginPath();ctx.arc(0,-.52,.19,-Math.PI*.25,Math.PI*1.2);
+      ctx.lineTo(-.13,-.39);ctx.stroke();
+      ctx.beginPath();ctx.arc(0,-.52,.075,0,Math.PI*2);ctx.fill();
+    }else if(item.type.startsWith("timer_")){
+      ctx.beginPath();ctx.moveTo(-.14,-.72);ctx.lineTo(.14,-.72);
+      ctx.lineTo(-.11,-.36);ctx.lineTo(.11,-.36);ctx.closePath();ctx.stroke();
+      ctx.beginPath();ctx.moveTo(-.11,-.39);ctx.lineTo(.11,-.39);
+      ctx.lineTo(0,-.49);ctx.closePath();ctx.fill();
+      if(hazard){ctx.beginPath();ctx.moveTo(-.1,-.68);ctx.lineTo(.1,-.68);
+        ctx.lineTo(0,-.59);ctx.closePath();ctx.fill();}
+    }else if(item.type.startsWith("speed_")){
+      for(const cx of [-.11,.09]){
+        ctx.beginPath();
+        if(hazard){ctx.moveTo(cx+.08,-.7);ctx.lineTo(cx-.035,-.52);
+          ctx.lineTo(cx+.08,-.35);}
+        else{ctx.moveTo(cx-.08,-.7);ctx.lineTo(cx+.035,-.52);
+          ctx.lineTo(cx-.08,-.35);}
+        ctx.stroke();
+      }
+    }
+  }
+  ctx.restore();
+}
+
 export function renderScene(ctx,maze,player,{stereo=false,pitch=0}={}) {
   if(!ctx)return;
   const canvas=ctx.canvas,{width:w,height:h}=canvas;
@@ -352,6 +460,13 @@ export function renderScene(ctx,maze,player,{stereo=false,pitch=0}={}) {
         ctx.fillStyle=color.accent;ctx.globalAlpha=.55;
         ctx.fillRect(left+px,top,beamStep+1,wallHeight);ctx.globalAlpha=1;
       }
+    }
+
+    // Native interaction tiles now have visible objects in the 3D scene.
+    for(const item of sceneLandmarks(maze,player,{eyeOffset,fov,wallIndex:walls})){
+      const sx=left+(item.screenX+1)*vw/2;
+      const groundY=horizon+h*.31/Math.max(item.forward,.35);
+      drawSceneLandmark(ctx,item,sx,groundY,h,color);
     }
 
     // First-person shadow sprites share the camera and raycast wall occlusion.

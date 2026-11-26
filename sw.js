@@ -1,5 +1,5 @@
 /* Maze Repropagation: offline shell; photographs remain on the user's device. */
-const VERSION="maze-shell-2026-11-26-09";
+const VERSION="maze-shell-2026-11-26-10";
 const ASSETS=[
   "./","./index.html","./style.css","./manifest.webmanifest",
   "./src/app.mjs","./src/maze-document.mjs","./src/maze-world.mjs",

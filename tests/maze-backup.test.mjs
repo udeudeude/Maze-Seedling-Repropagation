@@ -25,7 +25,7 @@ test("whole-library backup preserves documents, original metadata, voice and pho
 
 test("restore merges additively, never changes active ID, skips duplicates and remaps conflicting IDs",()=>{
   const current=newLibrary(newMaze("Original"),"collision",999);
-  const incoming=addMaze(newLibrary(newMaze("Original"),"different",100),
+  const incoming=addMaze(newLibrary(activeDocument(current),"different",100),
     newMaze("Another","hedge"),{id:"collision",updated:200});
   const before=JSON.stringify(current);
   const result=mergeLibraryBackup(current,createLibraryBackup(incoming),

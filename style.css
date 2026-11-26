@@ -232,3 +232,14 @@ body.stereoscopic .tabbar,body.stereoscopic .topbar{display:none}
 #playPhotoCaption{font-size:15px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 #photoContinueButton{width:100%;min-height:48px;border-radius:10px;border:1px solid #e4ad66;
   background:var(--accent);color:#171b20;font-weight:700}
+
+.tile-voice-editor{display:grid;gap:10px;padding:12px 0;border-top:1px solid var(--line)}
+.tile-voice-editor[hidden],.tile-photo-editor[hidden]{display:none}
+.tile-voice-editor audio,.photo-message-dialog audio{display:block;width:100%;max-width:100%}
+.tile-voice-editor audio[hidden],.photo-message-dialog audio[hidden],
+.photo-message-dialog img[hidden]{display:none}
+.tile-voice-actions{display:flex;flex-wrap:wrap;gap:8px}
+.tile-voice-actions button{flex:1 1 130px;min-height:44px;border:1px solid #657480;
+  border-radius:9px;background:#2c3c46;padding:8px 10px;font-weight:600}
+.tile-voice-actions button:disabled{opacity:.4}
+#tileVoiceStatus{min-height:1.4em}

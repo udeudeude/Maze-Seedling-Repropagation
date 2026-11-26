@@ -7,6 +7,7 @@ import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answer
 import {orientationPose,relativePose,shortestAngle} from "./maze-orientation.mjs";
 import {AUDIO_SETTINGS_KEY,audioPreferences,createMazeAudio} from "./maze-audio.mjs";
 import {MAX_PHOTO_DATA_URL_LENGTH,photoAt,photoEdit} from "./maze-media.mjs";
+import {voiceAt,voiceEdit,createVoiceRecorder} from "./maze-voice.mjs";
 import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
@@ -48,6 +49,15 @@ try{
 let undo=[],redo=[],selected="wall",inspection=false,route=null,view="build";
 let currentTile=null,photoImage=null,photoCorners=null,photoGuide=null;
 let pendingTilePhoto=null,tilePhotoChanged=false,photoImportGeneration=0;
+let pendingTileVoice=null,tileVoiceChanged=false;
+const voiceRecorder=createVoiceRecorder({
+  onStatus:message=>{el("tileVoiceStatus").textContent=message;},
+  onReady:url=>{
+    if(!el("tileDialog").open)return;
+    pendingTileVoice=url;tileVoiceChanged=true;renderTileVoiceEditor();
+  },
+  onBusy:()=>renderTileVoiceEditor()
+});
 let scanPixels=null,scanGuide=null,scanResult=null,scanSelected=new Set();
 let scanAdded=new Set(),scanRemoved=new Set();
 let scanSelectedHoles=new Map(),scanAddedHoles=new Map(),scanRejectedHoles=new Set();
@@ -396,6 +406,20 @@ function initializeBoardInput() {
   });
 }
 
+function renderTileVoiceEditor(){
+  const preview=el("tileVoicePreview");
+  if(pendingTileVoice){
+    if(preview.getAttribute("src")!==pendingTileVoice)preview.src=pendingTileVoice;
+    preview.hidden=false;
+  }else{
+    preview.pause();preview.removeAttribute("src");preview.hidden=true;
+  }
+  const busy=voiceRecorder.isBusy();
+  el("recordVoiceButton").disabled=busy;
+  el("stopVoiceButton").disabled=!busy;
+  el("removeTileVoiceButton").disabled=busy||!pendingTileVoice;
+  el("saveTileButton").disabled=busy;
+}
 function renderTilePhotoEditor() {
   const preview=el("tilePhotoPreview");
   if(pendingTilePhoto){preview.src=pendingTilePhoto;preview.hidden=false;}
@@ -442,6 +466,11 @@ function openTileDialog(x,z) {
   el("tilePhotoInput").value="";
   el("tilePhotoStatus").textContent="Photos are saved within the maze and included in JSON exports.";
   renderTilePhotoEditor();
+  voiceRecorder.cancel();
+  el("tileVoiceEditor").hidden=present.type!=="info";
+  pendingTileVoice=voiceAt(present);tileVoiceChanged=false;
+  el("tileVoiceStatus").textContent="Record and listen here. Save tile to keep the recording.";
+  renderTileVoiceEditor();
   const isRiddle=present.type==="riddle";
   el("riddleEditor").hidden=!isRiddle;
   el("messageInputLabel").hidden=isRiddle;
@@ -458,6 +487,15 @@ function openTileDialog(x,z) {
   el("tileDialog").showModal();
 }
 function initializeDialogs() {
+  el("recordVoiceButton").addEventListener("click",()=>voiceRecorder.start());
+  el("stopVoiceButton").addEventListener("click",()=>voiceRecorder.stop());
+  el("removeTileVoiceButton").addEventListener("click",()=>{
+    pendingTileVoice=null;tileVoiceChanged=true;renderTileVoiceEditor();
+    el("tileVoiceStatus").textContent="Recording will be removed when you Save tile.";
+  });
+  el("tileDialog").addEventListener("close",()=>{
+    voiceRecorder.cancel();el("tileVoicePreview").pause();
+  });
   el("tilePhotoInput").addEventListener("change",event=>{
     const file=event.target.files?.[0];event.target.value="";
     if(!file)return;
@@ -547,7 +585,7 @@ function initializeDialogs() {
     });
   }
   el("saveTileButton").addEventListener("click",()=>{
-    if(!currentTile)return;
+    if(!currentTile||voiceRecorder.isBusy())return;
     const [x,z]=currentTile;
     const original=primaryCell(maze,x,z)?.cell;
     if(!original)return;
@@ -577,8 +615,11 @@ function initializeDialogs() {
         else delete extension.keyId;
         edits.repropagation=extension;
         if(tilePhotoChanged)
-          edits.repropagation=photoEdit({type:"info",repropagation:extension},
+          edits.repropagation=photoEdit({type:"info",repropagation:edits.repropagation},
             pendingTilePhoto).repropagation;
+        if(tileVoiceChanged)
+          edits.repropagation=voiceEdit({type:"info",repropagation:edits.repropagation},
+            pendingTileVoice).repropagation;
       }
     }
     commit(changeCellDetails(maze,x,z,edits));
@@ -596,6 +637,7 @@ function setView(next) {
   if(next!=="build")clearPlacement();
   if(next!=="explore"&&stereo)leaveCardboard();
   if(next!=="explore"&&el("tilePhotoDialog").open){
+    el("playVoiceAudio").pause();
     el("tilePhotoDialog").close();play=dismissPhoto(play);
   }
   if(next!=="explore"&&el("riddleDialog").open){
@@ -746,10 +788,17 @@ function renderPlay() {
   const photoDialog=el("tilePhotoDialog");
   if(play.pendingPhoto&&!photoDialog.open){
     holding.clear();
-    el("playPhotoImage").src=play.pendingPhoto.url;
+    const image=el("playPhotoImage"),voice=el("playVoiceAudio");
+    if(play.pendingPhoto.url){image.src=play.pendingPhoto.url;image.hidden=false;}
+    else{image.removeAttribute("src");image.hidden=true;}
+    if(play.pendingPhoto.voiceUrl){voice.src=play.pendingPhoto.voiceUrl;voice.hidden=false;}
+    else{voice.removeAttribute("src");voice.hidden=true;}
+    el("photoMessageHeading").textContent=play.pendingPhoto.voiceUrl?
+      "A message in your maze":"A photograph in your maze";
     el("playPhotoCaption").textContent=play.pendingPhoto.caption;
     photoDialog.showModal();
   }else if(!play.pendingPhoto&&photoDialog.open){
+    el("playVoiceAudio").pause();el("playVoiceAudio").removeAttribute("src");
     photoDialog.close();el("playPhotoImage").removeAttribute("src");
   }
   const canvas=el("sceneCanvas");
@@ -799,7 +848,9 @@ function initializeAudio(){
   updateAudioUI();
 }
 function initializePlay() {
-  const continuePhoto=()=>{play=dismissPhoto(play);renderPlay();};
+  const continuePhoto=()=>{
+    el("playVoiceAudio").pause();play=dismissPhoto(play);renderPlay();
+  };
   el("photoContinueButton").addEventListener("click",continuePhoto);
   el("tilePhotoDialog").addEventListener("cancel",event=>{
     event.preventDefault();continuePhoto();

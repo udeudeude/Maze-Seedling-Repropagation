@@ -1,5 +1,6 @@
 import {cellCoordinates, locate, primaryCell, passable} from "./maze-world.mjs";
 import {photoAt} from "./maze-media.mjs";
+import {voiceAt} from "./maze-voice.mjs";
 
 export const THEMATIC = Object.freeze({
   adventure:{sky:"#27322d",floor:"#8d754b",wall:"#a28b58",mortar:"#3f4035",accent:"#f0c274",name:"Forbidden Temple"},
@@ -114,8 +115,9 @@ export function collectAt(maze,state) {
     const id=keyPickupId(cell);
     const caption=typeof cell.text==="string"?cell.text:
       typeof cell.message==="string"?cell.message:"";
-    const url=photoAt(cell);
-    const pendingPhoto=url?{key,url,caption}:null;
+    const url=photoAt(cell),voiceUrl=voiceAt(cell);
+    const pendingPhoto=url||voiceUrl?
+      {key,url,caption,...(voiceUrl?{voiceUrl}:{})}:null;
     if(id) {
       const keys=next.keys.includes(id)?next.keys:[...next.keys,id];
       return {...next,keys,pendingPhoto,

@@ -182,6 +182,16 @@
         <button id="removeTilePhotoButton" type="button" class="tile-photo-remove" disabled>Remove photograph</button>
         <p class="sheet-hint" id="tilePhotoStatus" role="status">Photos are kept on this device and exported with the maze.</p>
       </div>
+      <div class="tile-voice-editor" id="tileVoiceEditor" hidden>
+        <label class="field-label" for="recordVoiceButton">Recorded voice message</label>
+        <audio id="tileVoicePreview" controls preload="none" aria-label="Listen to the recorded message" hidden></audio>
+        <div class="tile-voice-actions">
+          <button id="recordVoiceButton" type="button">Record voice</button>
+          <button id="stopVoiceButton" type="button" disabled>Stop recording</button>
+          <button id="removeTileVoiceButton" type="button" disabled>Remove recording</button>
+        </div>
+        <p class="sheet-hint" id="tileVoiceStatus" role="status" aria-live="polite">Record a voice message on this device.</p>
+      </div>
       <p class="sheet-hint" id="gateHelp" hidden>A Gate blocks movement until a matching key is collected. Place a Message / key tile and give it the same identifier. An empty gate identifier means 0.</p>
       <div class="riddle-editor" id="riddleEditor" hidden>
         <label class="field-label" for="riddleQuestionInput">Question</label>
@@ -203,6 +213,7 @@
   <dialog id="tilePhotoDialog" class="photo-message-dialog" aria-labelledby="photoMessageHeading">
     <h2 id="photoMessageHeading">A photograph in your maze</h2>
     <img id="playPhotoImage" alt="Photograph left at this maze location">
+    <audio id="playVoiceAudio" controls preload="none" aria-label="Play recorded voice message" hidden></audio>
     <p id="playPhotoCaption"></p>
     <button id="photoContinueButton" type="button" class="primary">Continue exploring</button>
   </dialog>

@@ -73,3 +73,7 @@ Open **Explore → Sound off**, select Music and/or Sound effects, then choose *
 ### Photographs on maze messages (experimental)
 
 In **Build**, inspect a **Message / key** tile, choose a photograph, and tap **Save tile**. The image is reduced to a compact JPEG inside the maze JSON; it is never uploaded. Add a caption in the message field. In **Explore**, entering that tile opens the image and pauses the game until Continue. Photos survive export/import, duplication, copying and offline storage. Too many photos can exhaust browser storage, so keep backups. This does not reproduce the original photo-wall placement or selfie system.
+
+### Record a voice message (experimental)
+
+In **Build**, inspect a **Message / key** tile, tap **Record voice** and grant microphone permission. Tap **Stop recording** within 15 seconds, listen to the preview, then **Save tile**. Use Remove recording if desired. Voice notes remain local, are embedded in maze exports, and can accompany captions or photographs. Enter the tile in **Explore** to view the message and press Play explicitly; exploration waits until Continue. The browser chooses MP4 or WebM, so an exported WebM note may not play on older iPhone browsers. Audio storage and permissions still need physical-device testing; this is not a historically verified Seedling voice implementation.

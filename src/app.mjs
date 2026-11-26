@@ -9,6 +9,7 @@ import {AUDIO_SETTINGS_KEY,audioPreferences,createMazeAudio} from "./maze-audio.
 import {MAX_PHOTO_DATA_URL_LENGTH,photoAt,photoEdit} from "./maze-media.mjs";
 import {voiceAt,voiceEdit,createVoiceRecorder} from "./maze-voice.mjs";
 import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
+import {assessCameraFrame,createCameraSession} from "./maze-live.mjs";
 import {snapshotFileName,sceneAsPng,canShareSnapshot} from "./maze-snapshot.mjs";
 import {MAX_BACKUP_BYTES,createLibraryBackup,parseLibraryBackup,mergeLibraryBackup,
   libraryBackupFileName,mazeFileName,canShareMaze} from "./maze-backup.mjs";
@@ -51,6 +52,7 @@ try{
 }
 let undo=[],redo=[],selected="wall",inspection=false,route=null,view="build";
 let currentTile=null,photoImage=null,photoCorners=null,photoGuide=null;
+let stopLiveCamera=()=>{};
 let pendingTilePhoto=null,tilePhotoChanged=false,photoImportGeneration=0;
 let pendingTileVoice=null,tileVoiceChanged=false;
 const voiceRecorder=createVoiceRecorder({
@@ -698,6 +700,7 @@ function initializeDialogs() {
 }
 
 function setView(next) {
+  if(next!=="photo")stopLiveCamera();
   if(next!=="explore"){
     audio.pause();snapshotRequest++;
     snapshotOpen=false;
@@ -1082,32 +1085,135 @@ function renderPhoto() {
   });
 }
 function initializePhoto() {
-  const canvas=el("photoCanvas");
+  const canvas=el("photoCanvas"),video=el("liveCameraVideo");
+  const cameraSession=createCameraSession(()=>
+    navigator.mediaDevices.getUserMedia({
+      audio:false,video:{facingMode:{ideal:"environment"},
+        width:{ideal:1280},height:{ideal:960}}
+    }));
+  const sample=document.createElement("canvas");
+  sample.width=96;sample.height=72;
+  const sampleContext=sample.getContext("2d",{willReadFrequently:true});
+  let liveRequest=0,previewFrame=0,lastPreviewCheck=0,photoLoadToken=0;
+  function stopCamera(){
+    liveRequest++;
+    cameraSession.stop();
+    if(previewFrame)cancelAnimationFrame(previewFrame);
+    previewFrame=0;
+    video.pause();video.srcObject=null;
+    el("liveCameraStage").hidden=true;
+    el("startLiveCameraButton").disabled=false;
+    el("captureLiveButton").disabled=true;
+  }
+  stopLiveCamera=stopCamera;
+  function inspectPreview(timestamp){
+    if(!cameraSession.getStream()||view!=="photo"||document.hidden)return;
+    if(timestamp-lastPreviewCheck>850&&video.readyState>=2){
+      lastPreviewCheck=timestamp;
+      try{
+        sampleContext.drawImage(video,0,0,sample.width,sample.height);
+        const report=assessCameraFrame(sampleContext.getImageData(
+          0,0,sample.width,sample.height));
+        el("liveCameraStatus").textContent=report.message;
+      }catch(error){
+        el("liveCameraStatus").textContent="Preview active. Center the board, then capture.";
+      }
+    }
+    previewFrame=requestAnimationFrame(inspectPreview);
+  }
+  el("startLiveCameraButton").addEventListener("click",async()=>{
+    if(!navigator.mediaDevices?.getUserMedia){
+      el("liveCameraStatus").textContent=
+        "Live preview is unavailable in this browser. Use the photograph picker.";
+      return;
+    }
+    stopCamera();
+    const request=liveRequest;
+    el("startLiveCameraButton").disabled=true;
+    el("liveCameraStage").hidden=false;
+    el("liveCameraStatus").textContent="Requesting camera permission…";
+    try{
+      const stream=await cameraSession.start();
+      if(!stream||request!==liveRequest)return;
+      if(view!=="photo"){stopCamera();return;}
+      video.srcObject=stream;
+      await video.play();
+      if(request!==liveRequest||cameraSession.getStream()!==stream)return;
+      el("captureLiveButton").disabled=false;
+      lastPreviewCheck=-1000;
+      previewFrame=requestAnimationFrame(inspectPreview);
+    }catch(error){
+      if(request!==liveRequest)return;
+      stopCamera();
+      el("liveCameraStatus").textContent=error?.name==="NotAllowedError"?
+        "Camera access was denied. You can still choose a photograph.":
+        "Live camera could not open. Use the photograph picker instead.";
+    }
+  });
+  el("stopLiveCameraButton").addEventListener("click",()=>{
+    stopCamera();
+    el("liveCameraStatus").textContent="Live camera closed. No image was saved.";
+  });
+  document.addEventListener("visibilitychange",()=>{
+    if(document.hidden)stopCamera();
+  });
+  window.addEventListener("pagehide",stopCamera);
+  function acceptPhoto(source,width,height) {
+    if(!width||!height)throw new Error("No image pixels are available");
+    photoImage=source;
+    const max=980,scale=Math.min(max/width,max/height,1);
+    canvas.width=Math.max(1,Math.round(width*scale));
+    canvas.height=Math.max(1,Math.round(height*scale));
+    canvas.style.aspectRatio=canvas.width+" / "+canvas.height;
+    photoCorners=initialCorners(canvas.width,canvas.height);
+    scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
+    scanAdded.clear();scanRemoved.clear();
+    scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
+    scanMarkers.clear();scanMarkerEdits.clear();
+    el("scanStage").hidden=true;
+    el("photoStage").hidden=false;
+    el("photoActions").hidden=false;
+    el("detectButton").disabled=false;
+    el("traceButton").disabled=false;el("clearPhotoButton").disabled=false;
+    renderPhoto();
+  }
+  el("captureLiveButton").addEventListener("click",()=>{
+    if(!cameraSession.getStream()||video.readyState<2)return;
+    try{
+      const scale=Math.min(980/video.videoWidth,980/video.videoHeight,1);
+      const frame=document.createElement("canvas");
+      frame.width=Math.max(1,Math.round(video.videoWidth*scale));
+      frame.height=Math.max(1,Math.round(video.videoHeight*scale));
+      frame.getContext("2d").drawImage(video,0,0,frame.width,frame.height);
+      photoLoadToken++;
+      stopCamera();
+      acceptPhoto(frame,frame.width,frame.height);
+      el("liveCameraStatus").textContent=
+        "Frame captured on this device. Drag the four numbered handles to align the board.";
+    }catch(error){
+      el("liveCameraStatus").textContent=
+        "Could not capture a frame. Try again or choose a photograph.";
+    }
+  });
   function loadPhoto(event) {
     const file=event.target.files?.[0];if(!file)return;
-    if(!file.type.startsWith("image/")){notice("Select a photograph");return;}
-    const url=URL.createObjectURL(file);
+    if(!file.type.startsWith("image/")){
+      el("liveCameraStatus").textContent="Please select an image file.";return;
+    }
+    stopCamera();
+    const token=++photoLoadToken,url=URL.createObjectURL(file);
     const image=new Image();
     image.onload=()=>{
       URL.revokeObjectURL(url);
-      photoImage=image;
-      const max=980,scale=Math.min(max/image.naturalWidth,max/image.naturalHeight,1);
-      canvas.width=Math.max(1,Math.round(image.naturalWidth*scale));
-      canvas.height=Math.max(1,Math.round(image.naturalHeight*scale));
-      canvas.style.aspectRatio=canvas.width+" / "+canvas.height;
-      photoCorners=initialCorners(canvas.width,canvas.height);
-      scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
-      scanAdded.clear();scanRemoved.clear();
-      scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
-      scanMarkers.clear();scanMarkerEdits.clear();
-      el("scanStage").hidden=true;
-      el("photoStage").hidden=false;
-      el("photoActions").hidden=false;
-      el("detectButton").disabled=false;
-      el("traceButton").disabled=false;el("clearPhotoButton").disabled=false;
-      renderPhoto();
+      if(token!==photoLoadToken)return;
+      acceptPhoto(image,image.naturalWidth,image.naturalHeight);
+      el("liveCameraStatus").textContent="Photograph loaded locally. Align the four corners.";
     };
-    image.onerror=()=>{URL.revokeObjectURL(url);alert("Unable to decode this photograph.");};
+    image.onerror=()=>{
+      URL.revokeObjectURL(url);
+      if(token===photoLoadToken)el("liveCameraStatus").textContent=
+        "This photograph could not be decoded.";
+    };
     image.src=url;
     event.target.value="";
   }
@@ -1374,6 +1480,7 @@ function initializePhoto() {
     }
   });
   el("clearPhotoButton").addEventListener("click",()=>{
+    photoLoadToken++;stopCamera();
     photoImage=null;photoCorners=null;photoGuide=null;
     scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();

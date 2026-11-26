@@ -94,13 +94,28 @@
       </section>
       <section class="view view-photo" id="photoView" hidden aria-labelledby="photoTitle">
         <div class="section-top"><div><p class="eyebrow">FROM WOOD TO WORLD</p><h1 id="photoTitle">Capture your maze</h1></div></div>
-        <p class="capture-intro">Choose or take a photograph, then align the four board corners. Review suggested walls before adding them to your maze, or trace manually.</p>
+        <p class="capture-intro">Choose or take a photograph, or use the optional live preview to frame the board, then align its four corners. Review suggested walls before adding them to your maze, or trace manually.</p>
         <label class="photo-picker photo-picker-single">
           <input id="photoInput" type="file" accept="image/*,.heic,.heif">
           <span class="photo-icon" aria-hidden="true">▧</span>
           <strong>Choose or take a photograph</strong>
           <small>Photo Library · Camera · Files</small>
         </label>
+        <div class="live-camera-launch">
+          <button type="button" id="startLiveCameraButton">Frame with live camera</button>
+          <p id="liveCameraStatus" role="status">Optional live preview: center the physical maze and check lighting before capturing. Nothing is uploaded.</p>
+        </div>
+        <div class="live-camera-stage" id="liveCameraStage" hidden>
+          <div class="live-camera-frame">
+            <video id="liveCameraVideo" autoplay muted playsinline aria-label="Live camera preview of the physical maze"></video>
+            <div class="live-board-guide" aria-hidden="true"><span>BOARD FRAMING GUIDE</span></div>
+          </div>
+          <div class="live-camera-actions">
+            <button type="button" class="primary" id="captureLiveButton" disabled>Use this frame</button>
+            <button type="button" id="stopLiveCameraButton">Close camera</button>
+          </div>
+          <small>The guide is approximate. Adjust the four corners on the captured photograph.</small>
+        </div>
         <div class="photo-stage" id="photoStage" hidden>
           <canvas id="photoCanvas" aria-label="Photograph of physical maze with four adjustable corners"></canvas>
           <span class="photo-hint">Drag the numbered corners onto the board's four corners.</span>

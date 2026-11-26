@@ -92,7 +92,9 @@ export function insetRectifiedBoard(image,margin=0) {
   if(!Number.isFinite(margin)||margin<0||margin>.2)
     throw new RangeError("Grid margin must be between 0 and 20 percent");
   if(margin===0)return {width,height,data:data.slice()};
-  const lo=width*margin,hi=width*(1-margin);
+  // Keep the last interpolated output pixel inside the playable grid:
+  // sampling past the final interior pixel would blend the outer border back in.
+  const lo=width*margin,hi=width*(1-margin)-1;
   return warpSquarePixels(data,width,height,[
     {x:lo,y:lo},{x:hi,y:lo},{x:hi,y:hi},{x:lo,y:hi}
   ],width);

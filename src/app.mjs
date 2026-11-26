@@ -3,7 +3,7 @@ import {
   SIZE,TILE_NAMES,newMaze,sampleMaze,paintTile,eraseAt,changeCellDetails,transferTile,
   cellCoordinates,primaryCell,locate
 } from "./maze-world.mjs";
-import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answerRiddle,keyPickupId,mapVisibleCells,advanceShadows,dismissPhoto} from "./maze-play.mjs";
+import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answerRiddle,keyPickupId,mapVisibleCells,advanceShadows,dismissPhoto,cardboardTriggerStep,isCardboardTriggerTap} from "./maze-play.mjs";
 import {findPlayableRoute} from "./maze-route.mjs";
 import {orientationPose,relativePose,shortestAngle} from "./maze-orientation.mjs";
 import {AUDIO_SETTINGS_KEY,audioPreferences,createMazeAudio} from "./maze-audio.mjs";
@@ -880,6 +880,7 @@ function onDeviceOrientation(event) {
   play={...play,heading:next.heading};motionPitch=next.pitch;
   if(!motionActive){
     motionActive=true;
+    el("exploreView").classList.remove("cardboard-manual");
     motionMessage("Head tracking active · Recenter if the view drifts.");
   }
 }
@@ -891,7 +892,9 @@ function leaveCardboard() {
   el("stereoButton").setAttribute("aria-pressed","false");
   el("recenterButton").hidden=true;
   el("mapButton").disabled=false;
-  el("exploreView").classList.remove("cardboard-view");
+  el("exploreView").classList.remove("cardboard-view","cardboard-manual");
+  el("cardboardCommands").hidden=true;
+  clearHeldControls();lastFrame=0;
   motionMessage("");
 }
 async function enterCardboard() {
@@ -902,8 +905,10 @@ async function enterCardboard() {
   el("stereoButton").textContent="Exit Cardboard";
   el("stereoButton").setAttribute("aria-pressed","true");
   el("recenterButton").hidden=false;
-  el("exploreView").classList.add("cardboard-view");
-  motionMessage("Allow motion access to look around. Landscape works best.");
+  el("exploreView").classList.add("cardboard-view","cardboard-manual");
+  el("cardboardCommands").hidden=false;
+  clearHeldControls();lastFrame=0;
+  motionMessage("Tap the view or the viewer trigger to step. Rotate to landscape.");
   renderPlay();
   if(typeof window.DeviceOrientationEvent!=="function"){
     motionMessage("Motion sensors unavailable. Use the turn buttons.");
@@ -1249,6 +1254,10 @@ function initializePlay() {
     else enterCardboard();
   });
   el("recenterButton").addEventListener("click",recenterHeadset);
+  el("cardboardRecenterButton").addEventListener("click",recenterHeadset);
+  el("cardboardExitButton").addEventListener("click",()=>{
+    leaveCardboard();renderPlay();
+  });
   document.querySelectorAll("[data-control]").forEach(button=>{
     const name=button.dataset.control;
     const release=()=>{holding.delete(name);button.classList.remove("pressed");};
@@ -1270,21 +1279,47 @@ function initializePlay() {
   });
   window.addEventListener("keyup",event=>{const move=keyMap[event.code];if(move)holding.delete(move);});
   const canvas=el("sceneCanvas");
-  let lookX=null;
-  canvas.addEventListener("pointerdown",event=>{lookX=event.clientX;canvas.setPointerCapture(event.pointerId);});
+  let lookX=null,triggerStart=null;
+  canvas.addEventListener("pointerdown",event=>{
+    if(event.pointerType==="mouse"&&event.button!==0)return;
+    // A second pointer invalidates any pending viewer trigger.
+    if(triggerStart){triggerStart.moved=true;return;}
+    lookX=event.clientX;
+    triggerStart={id:event.pointerId,x:event.clientX,y:event.clientY,
+      at:event.timeStamp,moved:false};
+    canvas.setPointerCapture(event.pointerId);
+  });
   canvas.addEventListener("pointermove",event=>{
-    if(lookX===null)return;
+    if(lookX===null||triggerStart?.id!==event.pointerId)return;
+    if(Math.hypot(event.clientX-triggerStart.x,event.clientY-triggerStart.y)>14)
+      triggerStart.moved=true;
     const delta=(event.clientX-lookX)*.008;
-    play=rotatePlayer(play,delta);
-    if(motionActive&&motionAnchor)motionHeading=shortestAngle(motionHeading+delta);
+    if(delta){
+      play=rotatePlayer(play,delta);
+      if(motionActive&&motionAnchor)motionHeading=shortestAngle(motionHeading+delta);
+    }
     lookX=event.clientX;renderPlay();
   });
-  const endLook=()=>{lookX=null;};
-  window.addEventListener("blur",()=>holding.clear());
+  const endLook=()=>{lookX=null;triggerStart=null;};
+  canvas.addEventListener("pointerup",event=>{
+    const tapped=isCardboardTriggerTap(triggerStart,
+      {id:event.pointerId,x:event.clientX,y:event.clientY,at:event.timeStamp});
+    endLook();
+    if(!tapped||!stereo||view!=="explore"||snapshotOpen||
+      el("avatarDialog").open||el("riddleDialog").open||
+      el("tilePhotoDialog").open||document.hidden)return;
+    const before=play;
+    play=cardboardTriggerStep(maze,play);
+    audio.noteTransition(before,play);
+    if(play.ended&&runEnabled)setRun(false);
+    renderPlay();
+  });
+  window.addEventListener("blur",()=>{holding.clear();endLook();});
   document.addEventListener("visibilitychange",()=>{
     if(document.hidden){clearHeldControls();lastFrame=0;audio.pause();updateAudioUI();}
   });
-  canvas.addEventListener("pointerup",endLook);canvas.addEventListener("pointercancel",endLook);
+  canvas.addEventListener("pointercancel",endLook);
+  canvas.addEventListener("lostpointercapture",endLook);
   const frame=time=>{
     if(view==="explore" && !document.hidden){
       const dt=lastFrame?Math.min(.075,(time-lastFrame)/1000):0;lastFrame=time;

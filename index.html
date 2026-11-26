@@ -69,7 +69,11 @@
           </div>
         </div>
         <div class="scene-wrap">
-          <canvas id="sceneCanvas" aria-label="First-person view into your maze"></canvas>
+          <canvas id="sceneCanvas" aria-label="First-person maze view. In Cardboard, tap the view or use a viewer trigger to step forward. Drag to turn."></canvas>
+          <div class="cardboard-commands" id="cardboardCommands" hidden>
+            <button id="cardboardRecenterButton" type="button" aria-label="Recenter Cardboard orientation">Recenter</button>
+            <button id="cardboardExitButton" type="button" aria-label="Exit Cardboard view">Exit</button>
+          </div>
           <div class="scene-data"><span id="timeReadout">5:00</span><span id="paceReadout" hidden></span><span id="keyInventory" aria-live="polite" hidden></span><span id="playReadout" aria-live="polite">Find the exit</span></div>
         </div>
         <div class="explore-actions">
@@ -79,7 +83,7 @@
           <button id="soundButton" type="button" aria-pressed="false" aria-haspopup="dialog" aria-controls="audioDialog">Sound off</button>
           <button id="stereoButton" type="button" aria-pressed="false">Cardboard</button>
           <button id="recenterButton" type="button" hidden>Recenter</button>
-          <span class="explore-tip">Hold arrows to move · Tap Run for speed</span>
+          <span class="explore-tip">Hold arrows to move · Cardboard: tap view to step</span>
           <span class="motion-status" id="motionStatus" role="status" hidden></span>
         </div>
         <div class="touch-controls" aria-label="Movement controls">

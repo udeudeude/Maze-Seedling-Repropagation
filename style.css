@@ -302,3 +302,42 @@ body.stereoscopic .tabbar,body.stereoscopic .topbar{display:none}
   min-height:44px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;
   background:#26313a;font-size:13px;line-height:1.35}
 .snapshot-player-option input{width:20px;height:20px;flex:none;accent-color:var(--accent)}
+
+/* Immersive Cardboard fills the phone viewport instead of presenting two tiny
+   eye views above inaccessible controls. CSS works in iPhone Safari even when
+   the browser Fullscreen API is unavailable. No optical calibration is implied. */
+.view-explore.cardboard-view{
+  position:fixed;inset:0;z-index:200;max-width:none;
+  display:flex;flex-direction:column;padding:0;margin:0;
+  background:#090e14;overflow:hidden;
+}
+.view-explore.cardboard-view .scene-wrap{
+  flex:1 1 auto;width:100%;height:100dvh;min-height:0;max-height:none;
+  aspect-ratio:auto;border:0;border-radius:0;
+}
+.view-explore.cardboard-view .section-top,
+.view-explore.cardboard-view .explore-actions,
+.view-explore.cardboard-view .play-message,
+.view-explore.cardboard-view .scene-data,
+.view-explore.cardboard-view .touch-controls{display:none}
+.cardboard-commands{
+  position:absolute;z-index:4;top:calc(env(safe-area-inset-top,0px) + 9px);
+  right:calc(env(safe-area-inset-right,0px) + 9px);
+  display:flex;align-items:center;gap:8px;
+}
+.cardboard-commands button{
+  min-width:60px;min-height:44px;padding:6px 12px;
+  border:1px solid #70808b;border-radius:9px;
+  background:#101b23dc;color:#eef1ef;font-size:12px;font-weight:650;
+}
+.cardboard-commands button:focus-visible{outline:3px solid #ffd28c}
+.view-explore.cardboard-manual .touch-controls{
+  display:flex;position:absolute;z-index:3;
+  bottom:calc(env(safe-area-inset-bottom,0px) + 4px);
+  left:50%;transform:translateX(-50%);
+  width:min(94%,500px);max-width:none;margin:0;gap:10px;
+  padding:5px;background:#080f18aa;border-radius:12px;
+}
+.view-explore.cardboard-manual .touch-controls button{
+  min-height:43px;font-size:19px;background:#303c46cc;
+}

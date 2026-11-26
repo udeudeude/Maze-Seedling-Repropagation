@@ -88,6 +88,23 @@ export function movePlayer(maze,state,forward,strafe=0,sprint=false) {
   return next;
 }
 /**
+ * Viewer button / screen tap: a short swept move in the looked-at direction.
+ * Reuses the same wall, gate, hole, shadow, and collectible rules as touch
+ * movement. A tap is not a teleport; power-ups still affect step distance.
+ */
+export function cardboardTriggerStep(maze,state) {
+  return movePlayer(maze,state,2.7,0,false);
+}
+/** A release counts as a viewer trigger, never a drag, hold, or second finger. */
+export function isCardboardTriggerTap(start,end) {
+  return !!start&&!!end&&!start.moved&&start.id===end.id&&
+    Number.isFinite(start.x)&&Number.isFinite(start.y)&&
+    Number.isFinite(end.x)&&Number.isFinite(end.y)&&
+    Number.isFinite(start.at)&&Number.isFinite(end.at)&&
+    end.at>=start.at&&end.at-start.at<=650&&
+    Math.hypot(end.x-start.x,end.y-start.y)<=14;
+}
+/**
  * Optional reconstructed interactions. Never reinterpret unknown native riddle
  * objects or invent an original tile type: user-authored puzzles are namespaced.
  */

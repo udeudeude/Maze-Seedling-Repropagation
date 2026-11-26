@@ -168,10 +168,14 @@
       <div class="separator"></div>
       <button id="importButton" class="full-button" type="button">Import Seedling maze file</button>
       <input type="file" id="importInput" accept=".json,application/json" hidden>
-      <button id="exportButton" class="full-button" type="button">Export maze JSON</button>
+      <button id="exportButton" class="full-button" type="button">Save or share current maze</button>
+      <button id="backupButton" class="full-button" type="button">Back up all mazes</button>
+      <button id="restoreBackupButton" class="full-button" type="button">Restore mazes from a backup</button>
+      <input type="file" id="restoreBackupInput" accept=".json,application/json" hidden>
+      <p id="transferStatus" class="sheet-hint" role="status" aria-live="polite">A backup includes every maze, with personal photographs and voice messages. Choose carefully who receives it. Restoring adds missing designs without overwriting existing ones.</p>
       <button id="newButton" class="full-button" type="button">Create new blank maze</button>
       <button id="practiceButton" class="full-button" type="button">Create maze from practice layout</button>
-      <p class="sheet-hint">Each maze is saved locally on this device. Export a copy for a portable backup. Removing browser data can erase the collection.</p>
+      <p class="sheet-hint">Each maze is saved locally on this device. Keep a library backup outside the browser. Removing browser data can erase the collection.</p>
     </div>
   </dialog>
   <dialog id="tileDialog" class="sheet">

@@ -10,6 +10,8 @@ import {MAX_PHOTO_DATA_URL_LENGTH,photoAt,photoEdit} from "./maze-media.mjs";
 import {voiceAt,voiceEdit,createVoiceRecorder} from "./maze-voice.mjs";
 import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
 import {snapshotFileName,sceneAsPng,canShareSnapshot} from "./maze-snapshot.mjs";
+import {MAX_BACKUP_BYTES,createLibraryBackup,parseLibraryBackup,mergeLibraryBackup,
+  libraryBackupFileName,mazeFileName,canShareMaze} from "./maze-backup.mjs";
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
   addMaze,openMaze,duplicateMaze,deleteMaze,sortedMazes} from "./maze-library.mjs";
@@ -99,16 +101,25 @@ function notice(message) {
   el("playMessage").textContent=message;
 }
 function activateLibrary(updated,message){
-  library=updated;
-  maze=activeDocument(library);
+  const next=activeDocument(updated);
+  // Commit atomically before changing the active maze, so quota failures
+  // cannot make a switch or deletion appear successful.
+  try{localStorage.setItem(LIBRARY_STORAGE_KEY,JSON.stringify(updated));}
+  catch(error){
+    el("savedIndicator").textContent="Save unavailable";
+    console.warn("Could not save maze collection",error);
+    alert("Storage is full or unavailable; no maze was changed. Save a backup before continuing.");
+    return false;
+  }
+  library=updated;maze=next;
   undo=[];redo=[];route=null;currentTile=null;photoGuide=null;
-  play=startPlay(maze);
-  clearPlacement();
-  persist();
-  el("menuDialog").close();
-  setView("build");
-  redrawAll();
+  play=startPlay(maze);clearPlacement();
+  try{localStorage.setItem(STORAGE,serializeMaze(maze));}
+  catch(error){console.warn("Legacy recovery copy was not updated",error);}
+  el("savedIndicator").textContent="Saved locally";
+  el("menuDialog").close();setView("build");redrawAll();
   notice(message||"Maze opened");
+  return true;
 }
 function renderLibraryList(){
   const list=el("libraryList");
@@ -556,15 +567,67 @@ function initializeDialogs() {
     }catch(error){alert("Could not read this maze file: "+error.message);}
     event.target.value="";
   });
-  el("exportButton").addEventListener("click",()=>{
-    const text=serializeMaze(maze);
+  // A file goes to a native destination only when the user requests it.
+  // No account, upload API or network connection is involved.
+  async function offerJsonFile(text,filename,title){
     const blob=new Blob([text],{type:"application/json"});
+    const file=typeof File==="function"?
+      new File([blob],filename,{type:"application/json"}):null;
+    if(canShareMaze(navigator,file)){
+      try{
+        await navigator.share({files:[file],title});
+        return "Share sheet closed. Verify the file was saved or received.";
+      }catch(error){
+        if(error?.name==="AbortError")return null;
+        throw error;
+      }
+    }
     const url=URL.createObjectURL(blob);
     const link=document.createElement("a");
-    link.href=url;link.download=(maze.name||"my-maze").replace(/[^a-z0-9_-]+/gi,"-")+".json";
+    link.href=url;link.download=filename;
     document.body.append(link);link.click();link.remove();
     setTimeout(()=>URL.revokeObjectURL(url),20000);
-    el("menuDialog").close();notice("Maze exported to Files or Downloads");
+    return "Download started. Keep this file outside browser storage.";
+  }
+  el("exportButton").addEventListener("click",async()=>{
+    try{
+      const status=await offerJsonFile(serializeMaze(maze),
+        mazeFileName(maze.name),maze.name||"My maze");
+      if(status)el("transferStatus").textContent=status;
+    }catch(error){el("transferStatus").textContent="Export failed: "+error.message;}
+  });
+  el("backupButton").addEventListener("click",async()=>{
+    try{
+      if(!persist())throw new Error("The library could not be saved first.");
+      const status=await offerJsonFile(createLibraryBackup(library),
+        libraryBackupFileName(),"Maze library backup");
+      if(status)el("transferStatus").textContent=status;
+    }catch(error){el("transferStatus").textContent="Backup failed: "+error.message;}
+  });
+  el("restoreBackupButton").addEventListener("click",()=>el("restoreBackupInput").click());
+  el("restoreBackupInput").addEventListener("change",async event=>{
+    const file=event.target.files?.[0];event.target.value="";
+    if(!file)return;
+    try{
+      if(file.size>MAX_BACKUP_BYTES)throw new RangeError("Choose a file under 25 megabytes.");
+      const incoming=parseLibraryBackup(await file.text());
+      if(!persist())throw new Error("Current maze not saved; restore cancelled.");
+      const result=mergeLibraryBackup(library,incoming);
+      if(!result.added){
+        el("transferStatus").textContent="All "+result.total+" mazes are already present.";
+        return;
+      }
+      if(!confirm("Add "+result.added+" maze"+(result.added===1?"":"s")+
+        " from this backup? "+result.skipped+" duplicates will be skipped. Existing mazes are preserved."))return;
+      // Only adopt the restored library after storage has accepted it.
+      localStorage.setItem(LIBRARY_STORAGE_KEY,JSON.stringify(result.library));
+      library=result.library;renderLibraryList();
+      el("savedIndicator").textContent="Saved locally";
+      el("transferStatus").textContent="Restored "+result.added+" maze"+
+        (result.added===1?"":"s")+"; "+result.skipped+" duplicates skipped. Your current maze is unchanged.";
+    }catch(error){
+      el("transferStatus").textContent="Restore failed; existing mazes are unchanged: "+error.message;
+    }
   });
   el("newButton").addEventListener("click",()=>{
     if(!persist())return alert("Save unavailable. Export your current maze before creating another.");

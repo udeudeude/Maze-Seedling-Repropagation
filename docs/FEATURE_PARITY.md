@@ -22,7 +22,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 | Race nearby friends | **Missing** | Nearby Wi-Fi/Bluetooth or an equivalent direct peer system, synchronization, races |
 | Selfie player avatars and screenshots | **Partial:** save/share current first-person scene as a portable image with a preview | Selfie player avatars, original photo effects and native iPhone share-sheet verification |
 | Eight built-in mazes in four themes | One independently created practice maze | Historically accurate tutorial and standard/hard experiences; original distribution rights review |
-| Multiple saved mazes / sharing | **Implemented local collection:** separately autosaved mazes, open, duplicate, rename, delete, import as new, independent recovery copy | Device-to-device transfer, indexed backups, sharing, quota recovery and iPhone field tests |
+| Multiple saved mazes / sharing | **Partial:** local collection, native-format individual maze export, whole-library JSON backups, additive merge restoration and opt-in native file share | Actual nearby multiplayer, comprehensive quota recovery, iPhone share-sheet and download validation |
 | Original iPhone pressure gestures | **Missing** | Accessible pan and speed equivalents without requiring 3D Touch |
 | Original user interface and graphics | **Not faithful** | Reconstruct from original app screenshots, not generic dark controls |
 | Offline / modern phone compatibility | **Partial** offline shell | Field testing on current iPhones, storage, orientation, updating, image permissions |
@@ -137,3 +137,10 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - **Save image** points to a temporary local image, and **Share image** opens the native file share sheet where supported. No automatic upload or transmission occurs. Unsupported browsers hide the share action; users can still save or open the PNG.
 - Export filenames are derived safely from the current maze. Closing the preview releases the object URL and resumes exploration without editing the original document. Encoding failures are reported, not silently treated as valid images.
 - Tests cover PNG encoding and failure, filenames, capability fallback, offline caching, and interface wiring. **Not yet verified:** physical iPhone share/download behavior (especially home-screen apps) and historical selfie avatars.
+
+## November 25, 2026: portable library backup and direct file exchange
+
+- A versioned whole-library JSON export preserves user-created and native maze fields, collection names, timestamps, personal photographs and voice messages. Single-maze export remains in original Seedling-compatible format. Library archives are deliberately distinguishable so they cannot be mistaken for original documents.
+- A validated restore merges without replacing any existing maze or changing the current maze. Duplicate documents are skipped, incoming colliding library IDs are remapped, and repeat restoration is idempotent. Invalid documents and browser storage quota failures leave the existing library untouched.
+- Save or share this maze and whole-library backups invoke the user's native file sharing sheet where supported (Save to Files or AirDrop may be offered). Other browsers receive local downloads. Nothing uploads automatically, and the menu warns that archives include personal media.
+- Switching or deleting a maze now saves the collection before changing in-memory active state, avoiding silent data loss when storage is full. New tests cover native data and media preservation, conflict resolution, idempotence, malformed backups, filenames and browser sharing. **Still missing:** live multiplayer, automatic synchronization, device-tested iPhone file sharing, storage quota recovery and accessibility verification.

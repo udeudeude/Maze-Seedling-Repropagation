@@ -81,3 +81,7 @@ In **Build**, inspect a **Message / key** tile, tap **Record voice** and grant m
 ### Save or share a view
 
 In **Explore**, press **Snapshot** to pause and preview the current first-person scene, including the optional map. Select **Save image** to keep a PNG locally or **Share image** for the native phone sharing menu when supported; **Continue exploring** resumes play. Nothing is uploaded automatically, and no maze data changes. iPhone Safari and home-screen saving still need physical testing. Selfie avatars are not yet reconstructed.
+
+### Back up, restore and share the whole collection
+
+Under **Maze files**, **Save or share current maze** exports an individual native-format JSON maze. **Back up all mazes** creates a versioned JSON archive containing every local maze and any personal photograph or voice attachments. On supported iPhones, the native share sheet offers destinations including Save to Files or AirDrop; otherwise the browser downloads the file. A backup is not uploaded automatically. **Restore mazes from a backup** validates each maze and adds only missing designs without replacing or changing the current one, remapping conflicting library identifiers. Restoring the same backup again skips identical designs. Backups are not synchronized across phones; keep a copy outside Safari storage. The original game's live multiplayer remains unimplemented.

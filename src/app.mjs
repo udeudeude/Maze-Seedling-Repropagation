@@ -3,7 +3,7 @@ import {
   SIZE,TILE_NAMES,newMaze,sampleMaze,paintTile,eraseAt,changeCellDetails,transferTile,
   cellCoordinates,primaryCell,locate
 } from "./maze-world.mjs";
-import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answerRiddle,keyPickupId,advanceShadows,dismissPhoto} from "./maze-play.mjs";
+import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answerRiddle,keyPickupId,mapVisibleCells,advanceShadows,dismissPhoto} from "./maze-play.mjs";
 import {findPlayableRoute} from "./maze-route.mjs";
 import {orientationPose,relativePose,shortestAngle} from "./maze-orientation.mjs";
 import {AUDIO_SETTINGS_KEY,audioPreferences,createMazeAudio} from "./maze-audio.mjs";
@@ -755,13 +755,26 @@ function renderMapOverlay(ctx) {
   const w=ctx.canvas.width,h=ctx.canvas.height;
   const size=Math.min(w*.32,h*.56),x=16,y=h-size-15;
   const gw=Number(maze.data.scale[0]),gh=Number(maze.data.scale[2]);
-  ctx.save();ctx.globalAlpha=.87;ctx.fillStyle="#18242b";ctx.fillRect(x-5,y-5,size+10,size+10);
+  const visible=mapVisibleCells(maze,play);
+  ctx.save();
+  ctx.globalAlpha=.9;ctx.fillStyle="#18242b";
+  ctx.fillRect(x-5,y-5,size+10,size+10);
   ctx.globalAlpha=1;
-  ctx.fillStyle="#9ba9ae";ctx.fillRect(x,y,size,size);
+  ctx.fillStyle=visible?"#26333c":"#9ba9ae";
+  ctx.fillRect(x,y,size,size);
   const tw=size/gw,th=size/gh;
+  if(visible) {
+    const visited=new Set(play.explored??[]);
+    for(const key of visible){
+      const [cx,cz]=key.split(",").map(Number);
+      ctx.fillStyle=visited.has(key)?"#9ba9ae":"#647a82";
+      ctx.fillRect(x+cx*tw,y+cz*th,tw,th);
+    }
+  }
   for(const item of maze.data.cells){
     const [cx,cz]=cellCoordinates(item);
-    if(cx<0||cz<0||cx>=gw||cz>=gh)continue;
+    if(cx<0||cz<0||cx>=gw||cz>=gh||
+      (visible&&!visible.has(cx+","+cz)))continue;
     ctx.fillStyle=keyPickupId(item)?"#f4d08b":
       item.type==="wall"?"#3d4448":item.type==="gate"?
       (play.keys.includes(String(item.variant??"0").trim())?"#5daf87":"#e7bd78"):
@@ -770,19 +783,24 @@ function renderMapOverlay(ctx) {
   }
   for(const hole of maze.repropagation?.physicalHoles??[]){
     const hx=Number(hole.position?.[0]),hz=Number(hole.position?.[2]);
-    if(!Number.isInteger(hx)||!Number.isInteger(hz)||hx<0||hz<0||hx>=gw||hz>=gh)continue;
+    if(!Number.isInteger(hx)||!Number.isInteger(hz)||hx<0||hz<0||hx>=gw||hz>=gh||
+      (visible&&!visible.has(hx+","+hz)))continue;
     ctx.beginPath();ctx.arc(x+(hx+.5)*tw,y+(hz+.5)*th,
       Math.max(1.8,tw*.32),0,Math.PI*2);
     ctx.fillStyle="#101113";ctx.fill();
     ctx.strokeStyle="#f2b765";ctx.lineWidth=1;ctx.stroke();
   }
   for(const shadow of play.shadows??[]) {
+    if(visible&&!visible.has(Math.floor(shadow.x)+","+Math.floor(shadow.z)))continue;
     ctx.beginPath();ctx.arc(x+shadow.x*tw,y+shadow.z*th,Math.max(2.5,tw*.48),0,Math.PI*2);
     ctx.fillStyle="#8f3e55";ctx.fill();
     ctx.strokeStyle="#ffd4a0";ctx.lineWidth=Math.max(1,tw*.1);ctx.stroke();
   }
   ctx.fillStyle="#fdf7e4";ctx.beginPath();
   ctx.arc(x+play.x*tw,y+play.z*th,Math.max(3,tw*.65),0,Math.PI*2);ctx.fill();
+  ctx.font=Math.max(12,Math.round(tw*1.6))+"px system-ui";
+  ctx.textBaseline="bottom";ctx.fillStyle="#e8f0ed";
+  ctx.fillText(visible?"EXPLORED MAP":"FULL MAP",x,y-8);
   ctx.restore();
 }
 function screenRotation() {
@@ -897,6 +915,8 @@ function renderPlay() {
   const seconds=Math.ceil(play.remaining);
   el("timeReadout").textContent=Math.floor(seconds/60)+":"+String(seconds%60).padStart(2,"0");
   el("playReadout").textContent=play.ended?(play.won?"Completed":"Game over"):play.message;
+  el("mapButton").title=play.mapRevealed?"Toggle full maze map":
+    "Toggle explored map · Find a Map tile to reveal the entire layout";
   const pace=el("paceReadout");
   const running=runEnabled||holding.has("sprint");
   pace.textContent=play.slowUntil>0?"Slowed":play.boostUntil>0?

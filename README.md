@@ -93,3 +93,8 @@ In **Explore**, tap **Run** to move faster using the existing directional contro
 ### Check playable routes, including keys and passages
 
 In **Build**, choose **Check route** to highlight a route that can actually collect the needed Message-tile keys, open the matching gates, and traverse valid pairs of secret passages. It will not route you through annotated physical holes. The result distinguishes a blocked route from a malformed Start/Finish setup or a maze too complex to analyze. This checks possible movement, not a guaranteed win against moving shadows, the countdown or unverified historical game rules. Maze documents are never modified by the check.
+
+
+### Collectible maps and exploration
+
+**Explore → Map** now opens a chart of rooms you have walked through and the squares immediately beside them. This avoids revealing a maze's distant exit and hazards before exploring. Place a **Map** tile in Build: reaching it reveals the complete layout for that run. Secret-passage destinations also appear on your explored chart. Restarting resets the discovery. This makes the original Map tile category playable, but its reveal behavior is a documented reconstruction choice rather than a claim of historical accuracy.

@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {newMaze,paintTile,passable} from "../src/maze-world.mjs";
-import {startPlay,movePlayer,rotatePlayer,tickPlayer,castRay,collectAt,answerRiddle,keyPickupId,createWallIndex,advanceShadows,shadowTouches} from "../src/maze-play.mjs";
+import {startPlay,movePlayer,rotatePlayer,tickPlayer,castRay,collectAt,answerRiddle,keyPickupId,mapVisibleCells,createWallIndex,advanceShadows,shadowTouches} from "../src/maze-play.mjs";
 
 test("player spawns at original entrance and faces east",()=>{
   const maze=newMaze();
@@ -241,4 +241,40 @@ test("shadows pause during riddles and after the run ends",()=>{
   const ended={...state,ended:true};
   assert.equal(advanceShadows(maze,ended,3),ended);
   assert.equal(advanceShadows(maze,state,0),state);
+});
+
+
+test("explored map reveals traversed squares and adjacent walls without spoiling the maze",()=>{
+  const maze=newMaze(),source=JSON.stringify(maze);
+  const initial=startPlay(maze);
+  assert.deepEqual(initial.explored,["1,1"]);
+  assert.equal(initial.mapRevealed,false);
+  const nearby=mapVisibleCells(maze,initial);
+  for(const key of ["1,1","0,1","2,1","1,0","1,2"])assert.ok(nearby.has(key));
+  assert.ok(!nearby.has("16,16"),"A distant exit should remain hidden");
+  const advanced=movePlayer(maze,initial,3);
+  assert.ok(advanced.explored.includes("2,1"),"Empty floor must count as explored");
+  assert.ok(mapVisibleCells(maze,advanced).has("3,1"),"Nearby unexplored cells remain visible");
+  assert.ok(!mapVisibleCells(maze,advanced).has("16,16"));
+  assert.deepEqual(initial.explored,["1,1"],"Exploration must not mutate earlier states");
+  assert.deepEqual(advanced.visited,[],"Mapping must not consume one-time tile effects");
+  assert.equal(JSON.stringify(maze),source,"Map discovery must not change maze documents");
+});
+
+test("a collectible Map tile opens the full chart, with reset and passage destinations tracked",()=>{
+  const maze=paintTile(newMaze(),3,1,"map"),source=JSON.stringify(maze);
+  const found=movePlayer(maze,startPlay(maze),9);
+  assert.equal(found.mapRevealed,true);
+  assert.equal(mapVisibleCells(maze,found),null,"Collecting a Map reveals the whole layout");
+  assert.match(found.message,/Full layout revealed/);
+  assert.deepEqual(found.explored.slice(0,3),["1,1","2,1","3,1"]);
+  assert.equal(startPlay(maze).mapRevealed,false,"Restart restores the unexplored chart");
+  assert.equal(JSON.stringify(maze),source,"Collecting the map must never modify the source");
+  const passages=paintTile(
+    paintTile(newMaze(),2,1,"secret_passage","pair"),
+    9,8,"secret_passage","pair");
+  const jumped=collectAt(passages,{...startPlay(passages),x:2.5,z:1.5});
+  assert.ok(jumped.explored.includes("2,1"));
+  assert.ok(jumped.explored.includes("9,8"),"Teleport arrival must be surveyed");
+  assert.ok(!mapVisibleCells(passages,jumped).has("16,16"));
 });

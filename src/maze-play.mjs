@@ -15,9 +15,40 @@ export function startPlay(maze) {
   return {x:entry[0]+0.5,z:entry[1]+0.5,heading:0,remaining:Math.max(1,Number(maze.data.duration)||300),
     ended:false,won:false,visited:[],message:"Find the exit.",keys:[],boostUntil:0,slowUntil:0,
     passageLatch:null,pendingRiddle:null,pendingPhoto:null,solvedRiddles:[],
+    // Exploration is run-local, distinct from 'visited' (one-time tile effects).
+    explored:[entry.join(",")],mapRevealed:false,
     // Original shadow spawn tiles are never moved in the maze document.
     shadows:locate(maze,"shadow").filter(([x,z])=>passable(maze,x,z))
       .map(([x,z])=>({x:x+.5,z:z+.5,target:null}))};
+}
+/** Record a visited square without retriggering its one-time tile effect. */
+function noteExplored(state) {
+  const key=Math.floor(state.x)+","+Math.floor(state.z);
+  return (state.explored??[]).includes(key)?state:
+    {...state,explored:[...(state.explored??[]),key]};
+}
+
+/**
+ * A Map tile reveals the whole chart. Until then the map shows traversed
+ * squares and their immediate neighbors. null means fully revealed.
+ * This is a reconstruction rule, not a recovered native scoring mechanic.
+ */
+export function mapVisibleCells(maze,state) {
+  if(state.mapRevealed)return null;
+  const width=Number(maze.data.scale[0]),height=Number(maze.data.scale[2]);
+  const visible=new Set();
+  const explored=state.explored?.length?state.explored:
+    [Math.floor(state.x)+","+Math.floor(state.z)];
+  for(const key of explored){
+    const match=/^(\d+),(\d+)$/.exec(key);
+    if(!match)continue;
+    const x=Number(match[1]),z=Number(match[2]);
+    for(const [dx,dz] of [[0,0],[-1,0],[1,0],[0,-1],[0,1]]){
+      const nx=x+dx,nz=z+dz;
+      if(nx>=0&&nz>=0&&nx<width&&nz<height)visible.add(nx+","+nz);
+    }
+  }
+  return visible;
 }
 export function rotatePlayer(state,delta) {
   return {...state,heading:(state.heading+delta+Math.PI*8)%(Math.PI*2)};
@@ -88,12 +119,14 @@ export function dismissPhoto(state) {
 }
 export function collectAt(maze,state) {
   if(state.ended||state.pendingRiddle||state.pendingPhoto)return state;
-  if(shadowTouches(state))return catchShadow(state);
-  const x=Math.floor(state.x),z=Math.floor(state.z),key=x+","+z;
+  // Record every traversed square, including empty floor and physical holes.
+  const surveyed=noteExplored(state);
+  if(shadowTouches(surveyed))return catchShadow(surveyed);
+  const x=Math.floor(surveyed.x),z=Math.floor(surveyed.z),key=x+","+z;
   // The latch prevents an immediate return trip on arrival at the other end.
   // Stepping off a passage arms it again for a later visit.
-  const active=state.passageLatch&&state.passageLatch!==key
-    ?{...state,passageLatch:null}:state;
+  const active=surveyed.passageLatch&&surveyed.passageLatch!==key
+    ?{...surveyed,passageLatch:null}:surveyed;
   const isPhysicalHole=(maze.repropagation?.physicalHoles??[])
     .some(item=>Number(item.position?.[0])===x&&Number(item.position?.[2])===z);
   if(isPhysicalHole)return {...active,ended:true,won:false,
@@ -112,9 +145,9 @@ export function collectAt(maze,state) {
         Number(hole.position?.[0])===target[0]&&
         Number(hole.position?.[2])===target[1]);
       if(!blocked&&passable(maze,...target,active.keys))
-        return catchShadow({...active,x:target[0]+.5,z:target[1]+.5,
+        return catchShadow(noteExplored({...active,x:target[0]+.5,z:target[1]+.5,
           passageLatch:targetKey,visited:[...new Set([...active.visited,key,targetKey])],
-          message:"Secret passage: transported to "+(target[0]+1)+", "+(target[1]+1)});
+          message:"Secret passage: transported to "+(target[0]+1)+", "+(target[1]+1)}));
     }
     if(active.visited.includes(key))return active;
     return {...active,visited:[...active.visited,key],
@@ -150,7 +183,7 @@ export function collectAt(maze,state) {
   }
   if(cell.type==="gate")return {...next,
     message:"Opened gate "+String(cell.variant??"0").trim()};
-  if(cell.type==="map")return {...next,message:"Map discovered"};
+  if(cell.type==="map")return {...next,mapRevealed:true,message:"Map found · Full layout revealed"};
   return next;
 }
 

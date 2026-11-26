@@ -12,6 +12,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 | Start/end, hazards, moving chasers | Start and finish placeable; time/speed hazards rudimentary; physical holes trigger provisional loss; **experimental moving shadow chasers** | Recognize markers, correct trap effects, original shadow patrol speeds and animations |
 | Gates, collectible keys, inventory | **Partial:** opt-in collectible keys on Message tiles, matching gate variants, collision unlocking, visible inventory, and key-aware route diagnostics | Recover historical key representation, original pickup effects, gate behavior and 3D visuals |
 | Secret passages | **Partial:** paired variant codes transport in exploration with return-trip latch; route check models paired transport | Verify original linkage rules and add original sound/visual treatment |
+| Collectible map | **Experimental:** exploring charts visited rooms and neighbors; collecting the original `map` tile reveals the full layout | Verify historical map reveal rules and appearance from original device evidence |
 | Riddles/questions/answers | **Partial:** authored questions and answers with playable, skippable interaction | Recover original answer consequences, scoring and native data mapping |
 | Time and speed power-ups | **Partial:** boosts accelerate, slow hazards reduce speed for 12 seconds, time tiles change countdown | Historical timing, effect strength, configuration and device validation |
 | Message, photo and voice content | **Partial:** Message tiles accept short personal microphone recordings, portable photographs and notes; voice and photo open during exploration and pause play | Native photo-wall placement, historical presentation, physical microphone tests, device quota and camera testing |
@@ -186,3 +187,11 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - Routes are overlaid on the board and report the number of moves, necessary keys and successful passage transfers. Missing or duplicate Start/Finish markers and overlarge search spaces are reported separately rather than misclassified as impossible mazes.
 - **Not a win guarantee:** dynamic moving shadows, countdown deadlines, and player motor skills are not simulated. Unknown original native rules also remain unresolved. This is a reconstruction-specific authoring aid, not evidence of an original game's route checker.
 - Dedicated tests cover gate-before-key ordering, mismatched identifiers, portal pairing, photographed holes, round-trip data preservation and bounded search.
+
+
+## November 26, 2026: playable collectible Map tiles
+
+- The original document model includes a real `map` tile type. Previously entering it only displayed “Map discovered” while Explore's map button exposed the entire maze at all times; the pickup had no gameplay effect.
+- Explore now maintains a **run-local chart** showing walked squares and their immediate neighboring cells. A Map tile reveals the entire layout, including gates and annotated physical holes, when collected. Prior to pickup, distant hidden cells and pursuing shadows are not disclosed by the map overlay. The player can still open the partial chart at any time.
+- Exploration and one-time tile activation are tracked independently, so backtracking does not retrigger power-ups or messages; both ends of a secret-passage transfer count as explored. Restart clears the chart. This does not modify maze JSON or override opaque imported native fields.
+- Automated tests cover unexplored exits, floor traversal, pickup/restart, passage transfers and source preservation. **Historical uncertainty:** exactly when and how Seedling revealed maps is not recovered. The explored-chart rule is an explicit reconstruction choice, and mobile readability still needs field testing.

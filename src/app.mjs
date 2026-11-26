@@ -13,7 +13,7 @@ import {voiceAt,voiceEdit,createVoiceRecorder} from "./maze-voice.mjs";
 import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
 import {suggestBoardCorners} from "./maze-board-corners.mjs";
 import {assessCameraFrame,createCameraSession,projectBoardOutline} from "./maze-live.mjs";
-import {snapshotFileName,sceneAsPng,canShareSnapshot} from "./maze-snapshot.mjs";
+import {snapshotFileName,sceneAsPng,canShareSnapshot,drawSnapshotPlayerBadge} from "./maze-snapshot.mjs";
 import {MAX_BACKUP_BYTES,createLibraryBackup,parseLibraryBackup,mergeLibraryBackup,
   libraryBackupFileName,mazeFileName,canShareMaze} from "./maze-backup.mjs";
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
@@ -106,7 +106,7 @@ function setRun(enabled) {
   button.textContent=runEnabled?"Running":"Run";
   button.setAttribute("aria-pressed",String(runEnabled));
 }
-let snapshotOpen=false,snapshotBlob=null,snapshotURL=null,snapshotRequest=0;
+let snapshotOpen=false,snapshotBlob=null,snapshotURL=null,snapshotRequest=0,snapshotBase=null;
 const audio=createMazeAudio();
 let audioOptions;
 try{audioOptions=audioPreferences(localStorage.getItem(AUDIO_SETTINGS_KEY));}
@@ -1109,54 +1109,105 @@ function initializeAvatar() {
     dialog.close();redrawAll();renderPlay();
   });
 }
+/** Only embedded photographs are decoded; snapshot identity is opt-in per image. */
+function loadSnapshotPortrait(url) {
+  if(!photoDataUrl(url))return Promise.resolve(null);
+  return new Promise(resolve=>{
+    const image=new Image();
+    image.onload=()=>resolve(image.naturalWidth>0?image:null);
+    image.onerror=()=>resolve(null);
+    image.src=url;
+  });
+}
 function initializeSnapshot(){
   const dialog=el("snapshotDialog"),preview=el("snapshotPreview");
   const save=el("snapshotSaveLink"),share=el("snapshotShareButton");
-  const status=el("snapshotStatus");
-  dialog.addEventListener("close",()=>{
-    snapshotOpen=false;snapshotRequest++;
-    if(snapshotURL)URL.revokeObjectURL(snapshotURL);
-    snapshotURL=null;snapshotBlob=null;
-    preview.removeAttribute("src");save.removeAttribute("href");
-    share.hidden=true;clearHeldControls();lastFrame=0;
-  });
-  el("snapshotCloseButton").addEventListener("click",()=>dialog.close());
-  el("snapshotButton").addEventListener("click",async()=>{
-    if(view!=="explore"||snapshotOpen)return;
+  const status=el("snapshotStatus"),include=el("snapshotIncludePlayer");
+  async function updateImage(){
+    if(!snapshotOpen||!snapshotBase)return;
     const request=++snapshotRequest;
-    snapshotOpen=true;clearHeldControls();lastFrame=0;
+    // Never offer a stale image for download while the chosen version renders.
+    save.hidden=true;save.removeAttribute("href");share.hidden=true;
+    status.textContent="Preparing your screenshot…";
     try{
-      renderPlay();
-      const blob=await sceneAsPng(el("sceneCanvas"));
-      if(request!==snapshotRequest||view!=="explore")return;
+      const avatar=avatarAt(maze);
+      const portrait=include.checked&&avatar.dataUrl?
+        await loadSnapshotPortrait(avatar.dataUrl):null;
+      if(request!==snapshotRequest||!snapshotOpen)return;
+      const output=document.createElement("canvas");
+      output.width=snapshotBase.width;output.height=snapshotBase.height;
+      const ctx=output.getContext("2d");
+      if(!ctx)throw new Error("Canvas unavailable");
+      ctx.drawImage(snapshotBase,0,0);
+      if(include.checked)drawSnapshotPlayerBadge(ctx,avatar,portrait);
+      const blob=await sceneAsPng(output);
+      if(request!==snapshotRequest||!snapshotOpen)return;
+      const previous=snapshotURL;
       snapshotBlob=blob;snapshotURL=URL.createObjectURL(blob);
       preview.src=snapshotURL;
       save.href=snapshotURL;save.download=snapshotFileName(maze.name);
+      save.hidden=false;
       const file=typeof File==="function"?
         new File([blob],save.download,{type:"image/png"}):null;
       share.hidden=!canShareSnapshot(navigator,file);
-      status.textContent="Your screenshot stays on this device unless you choose to share it.";
-      dialog.showModal();
+      status.textContent=include.checked?
+        "Player identity appears on this image. Save or share only if intended.":
+        "Player identity is excluded. Your screenshot stays on this device unless shared.";
+      if(previous)URL.revokeObjectURL(previous);
     }catch(error){
-      if(request===snapshotRequest){
-        snapshotOpen=false;
-        console.warn("Screenshot failed",error);
-        alert("Could not capture the scene: "+error.message);
-      }
+      if(request!==snapshotRequest||!snapshotOpen)return;
+      console.warn("Screenshot failed",error);
+      status.textContent="Could not prepare this screenshot: "+error.message;
+    }
+  }
+  dialog.addEventListener("close",()=>{
+    snapshotOpen=false;snapshotRequest++;snapshotBase=null;
+    if(snapshotURL)URL.revokeObjectURL(snapshotURL);
+    snapshotURL=null;snapshotBlob=null;
+    preview.removeAttribute("src");save.removeAttribute("href");
+    save.hidden=true;share.hidden=true;clearHeldControls();lastFrame=0;
+  });
+  el("snapshotCloseButton").addEventListener("click",()=>dialog.close());
+  include.addEventListener("change",()=>{void updateImage();});
+  el("snapshotButton").addEventListener("click",()=>{
+    if(view!=="explore"||snapshotOpen)return;
+    snapshotOpen=true;clearHeldControls();lastFrame=0;
+    try{
+      renderPlay();
+      const scene=el("sceneCanvas");
+      snapshotBase=document.createElement("canvas");
+      snapshotBase.width=scene.width;snapshotBase.height=scene.height;
+      if(!snapshotBase.width||!snapshotBase.height)
+        throw new Error("The scene is not ready to capture");
+      const ctx=snapshotBase.getContext("2d");
+      if(!ctx)throw new Error("Canvas unavailable");
+      ctx.drawImage(scene,0,0);
+      const avatar=avatarAt(maze);
+      el("snapshotPlayerOption").hidden=!(avatar.name||avatar.dataUrl);
+      include.checked=false; // A selfie is never added to a shared image by default.
+      save.hidden=true;share.hidden=true;
+      dialog.showModal();
+      void updateImage();
+    }catch(error){
+      snapshotOpen=false;snapshotBase=null;snapshotRequest++;
+      console.warn("Screenshot failed",error);
+      alert("Could not capture the scene: "+error.message);
     }
   });
   share.addEventListener("click",async()=>{
-    if(!snapshotBlob||typeof File!=="function")return;
+    if(!snapshotBlob||!save.href||typeof File!=="function")return;
     const file=new File([snapshotBlob],snapshotFileName(maze.name),{type:"image/png"});
     if(!canShareSnapshot(navigator,file))return;
     try{
       await navigator.share({files:[file],title:maze.name||"Maze screenshot"});
-      status.textContent="The share sheet has closed.";
+      if(dialog.open)status.textContent="The share sheet has closed.";
     }catch(error){
-      if(error?.name!=="AbortError")status.textContent="Sharing failed: "+error.message;
+      if(dialog.open&&error?.name!=="AbortError")
+        status.textContent="Sharing failed: "+error.message;
     }
   });
 }
+
 function initializePlay() {
   const continuePhoto=()=>{
     el("playVoiceAudio").pause();play=dismissPhoto(play);renderPlay();

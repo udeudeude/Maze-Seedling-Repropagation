@@ -296,3 +296,9 @@ body.stereoscopic .tabbar,body.stereoscopic .topbar{display:none}
 .avatar-preview{display:block;width:min(100%,170px);height:auto;aspect-ratio:1;object-fit:cover;
   border:2px solid #74838d;border-radius:50%;margin:2px auto 8px}
 .avatar-preview[hidden]{display:none}
+
+/* A deliberate opt-in for personal identity on exported screenshots. */
+.snapshot-player-option{display:flex;align-items:center;gap:10px;margin:11px 0;
+  min-height:44px;padding:9px 11px;border:1px solid var(--line);border-radius:10px;
+  background:#26313a;font-size:13px;line-height:1.35}
+.snapshot-player-option input{width:20px;height:20px;flex:none;accent-color:var(--accent)}

@@ -98,3 +98,7 @@ In **Build**, choose **Check route** to highlight a route that can actually coll
 ### Collectible maps and exploration
 
 **Explore → Map** now opens a chart of rooms you have walked through and the squares immediately beside them. This avoids revealing a maze's distant exit and hazards before exploring. Place a **Map** tile in Build: reaching it reveals the complete layout for that run. Secret-passage destinations also appear on your explored chart. Restarting resets the discovery. This makes the original Map tile category playable, but its reveal behavior is a documented reconstruction choice rather than a claim of historical accuracy.
+
+### Put a player portrait on a snapshot (optional)
+
+Create a local player identity in **Explore → Player**. When taking a **Snapshot**, you can check **Include my player portrait and name in this image** to add an unobtrusive player card to the saved picture. This is **off for every new screenshot**, including screenshots you share; the picture is previewed before saving. You can change the choice without moving your explorer or altering the maze. The card is an independently designed reconstruction feature, not evidence of the original Seedling avatar layout.

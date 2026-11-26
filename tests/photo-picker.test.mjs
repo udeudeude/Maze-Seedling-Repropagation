@@ -55,3 +55,14 @@ test("key editor and visible inventory are wired without a new native cell type"
   assert.match(app,/keyPickupId\(item\)/);
   assert.match(app,/inventory\.textContent/);
 });
+
+test("message photo editor and paused exploration viewer are wired and cached",()=>{
+  for(const id of ["tilePhotoEditor","tilePhotoInput","tilePhotoPreview",
+    "removeTilePhotoButton","tilePhotoStatus","tilePhotoDialog",
+    "playPhotoImage","playPhotoCaption","photoContinueButton"])
+    assert.ok(page.includes('id="'+id+'"'),"Missing "+id);
+  assert.match(app,/pendingTilePhoto=compressTilePhoto\(image\)/);
+  assert.match(app,/edits\.repropagation=photoEdit\(/);
+  assert.match(app,/play=dismissPhoto\(play\)/);
+  assert.match(sw,/\.\/src\/maze-media\.mjs/);
+});

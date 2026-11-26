@@ -3,9 +3,10 @@ import {
   SIZE,TILE_NAMES,newMaze,sampleMaze,paintTile,eraseAt,changeCellDetails,transferTile,
   cellCoordinates,primaryCell,locate,findRoute,examineMaze
 } from "./maze-world.mjs";
-import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answerRiddle,keyPickupId,advanceShadows} from "./maze-play.mjs";
+import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answerRiddle,keyPickupId,advanceShadows,dismissPhoto} from "./maze-play.mjs";
 import {orientationPose,relativePose,shortestAngle} from "./maze-orientation.mjs";
 import {AUDIO_SETTINGS_KEY,audioPreferences,createMazeAudio} from "./maze-audio.mjs";
+import {MAX_PHOTO_DATA_URL_LENGTH,photoAt,photoEdit} from "./maze-media.mjs";
 import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
@@ -46,6 +47,7 @@ try{
 }
 let undo=[],redo=[],selected="wall",inspection=false,route=null,view="build";
 let currentTile=null,photoImage=null,photoCorners=null,photoGuide=null;
+let pendingTilePhoto=null,tilePhotoChanged=false,photoImportGeneration=0;
 let scanPixels=null,scanGuide=null,scanResult=null,scanSelected=new Set();
 let scanAdded=new Set(),scanRemoved=new Set();
 let scanSelectedHoles=new Map(),scanAddedHoles=new Map(),scanRejectedHoles=new Set();
@@ -394,6 +396,33 @@ function initializeBoardInput() {
   });
 }
 
+function renderTilePhotoEditor() {
+  const preview=el("tilePhotoPreview");
+  if(pendingTilePhoto){preview.src=pendingTilePhoto;preview.hidden=false;}
+  else{preview.removeAttribute("src");preview.hidden=true;}
+  el("removeTilePhotoButton").disabled=!pendingTilePhoto;
+}
+function compressTilePhoto(image) {
+  if(!image.naturalWidth||!image.naturalHeight)
+    throw new Error("This image could not be decoded.");
+  const canvas=document.createElement("canvas"),context=canvas.getContext("2d");
+  if(!context)throw new Error("Image processing is unavailable.");
+  const originalMax=Math.max(image.naturalWidth,image.naturalHeight);
+  let edge=Math.min(560,originalMax);
+  for(let iteration=0;iteration<5;iteration++){
+    const factor=edge/originalMax;
+    canvas.width=Math.max(1,Math.round(image.naturalWidth*factor));
+    canvas.height=Math.max(1,Math.round(image.naturalHeight*factor));
+    context.drawImage(image,0,0,canvas.width,canvas.height);
+    for(const quality of [.78,.64,.48,.34,.24]){
+      const dataUrl=canvas.toDataURL("image/jpeg",quality);
+      if(dataUrl.startsWith("data:image/jpeg;base64,")&&
+        dataUrl.length<=MAX_PHOTO_DATA_URL_LENGTH)return dataUrl;
+    }
+    edge=Math.max(100,Math.floor(edge*.72));
+  }
+  throw new Error("Photograph is too detailed to save safely. Choose a simpler image.");
+}
 function openTileDialog(x,z) {
   const present=primaryCell(maze,x,z)?.cell;
   if(!present){notice("No tile at "+(x+1)+", "+(z+1));return;}
@@ -407,6 +436,12 @@ function openTileDialog(x,z) {
   el("gateHelp").hidden=present.type!=="gate";
   el("keyEditor").hidden=present.type!=="info";
   el("keyIdInput").value=keyPickupId(present)??"";
+  el("tilePhotoEditor").hidden=present.type!=="info";
+  pendingTilePhoto=photoAt(present);
+  tilePhotoChanged=false;photoImportGeneration++;
+  el("tilePhotoInput").value="";
+  el("tilePhotoStatus").textContent="Photos are saved within the maze and included in JSON exports.";
+  renderTilePhotoEditor();
   const isRiddle=present.type==="riddle";
   el("riddleEditor").hidden=!isRiddle;
   el("messageInputLabel").hidden=isRiddle;
@@ -423,6 +458,39 @@ function openTileDialog(x,z) {
   el("tileDialog").showModal();
 }
 function initializeDialogs() {
+  el("tilePhotoInput").addEventListener("change",event=>{
+    const file=event.target.files?.[0];event.target.value="";
+    if(!file)return;
+    if(!file.type.startsWith("image/")&&!/\.hei[cf]$/i.test(file.name)){
+      el("tilePhotoStatus").textContent="Choose an image file.";return;
+    }
+    if(file.size>25*1024*1024){
+      el("tilePhotoStatus").textContent="Choose an image under 25 megabytes.";return;
+    }
+    const generation=++photoImportGeneration;
+    const url=URL.createObjectURL(file),image=new Image();
+    el("tilePhotoStatus").textContent="Preparing photograph on this device…";
+    image.onload=()=>{
+      URL.revokeObjectURL(url);
+      if(generation!==photoImportGeneration||!el("tileDialog").open)return;
+      try{
+        pendingTilePhoto=compressTilePhoto(image);
+        tilePhotoChanged=true;renderTilePhotoEditor();
+        el("tilePhotoStatus").textContent="Ready. Save tile to keep this photo.";
+      }catch(error){el("tilePhotoStatus").textContent=error.message;}
+    };
+    image.onerror=()=>{
+      URL.revokeObjectURL(url);
+      if(generation===photoImportGeneration)
+        el("tilePhotoStatus").textContent="This image could not be opened by the browser.";
+    };
+    image.src=url;
+  });
+  el("removeTilePhotoButton").addEventListener("click",()=>{
+    photoImportGeneration++;pendingTilePhoto=null;tilePhotoChanged=true;
+    renderTilePhotoEditor();
+    el("tilePhotoStatus").textContent="Photo removal will apply when you save this tile.";
+  });
   el("menuButton").addEventListener("click",()=>{
     el("mazeNameInput").value=maze.name??"";
     renderLibraryList();
@@ -508,6 +576,9 @@ function initializeDialogs() {
         if(id)extension.keyId=id;
         else delete extension.keyId;
         edits.repropagation=extension;
+        if(tilePhotoChanged)
+          edits.repropagation=photoEdit({type:"info",repropagation:extension},
+            pendingTilePhoto).repropagation;
       }
     }
     commit(changeCellDetails(maze,x,z,edits));
@@ -524,6 +595,9 @@ function setView(next) {
   if(next!=="explore")audio.pause();
   if(next!=="build")clearPlacement();
   if(next!=="explore"&&stereo)leaveCardboard();
+  if(next!=="explore"&&el("tilePhotoDialog").open){
+    el("tilePhotoDialog").close();play=dismissPhoto(play);
+  }
   if(next!=="explore"&&el("riddleDialog").open){
     el("riddleDialog").close();
     play=answerRiddle(play,"",{skip:true});
@@ -669,6 +743,15 @@ function renderPlay() {
     el("riddleFeedback").textContent="";
     riddleDialog.showModal();
   }else if(!play.pendingRiddle&&riddleDialog.open)riddleDialog.close();
+  const photoDialog=el("tilePhotoDialog");
+  if(play.pendingPhoto&&!photoDialog.open){
+    holding.clear();
+    el("playPhotoImage").src=play.pendingPhoto.url;
+    el("playPhotoCaption").textContent=play.pendingPhoto.caption;
+    photoDialog.showModal();
+  }else if(!play.pendingPhoto&&photoDialog.open){
+    photoDialog.close();el("playPhotoImage").removeAttribute("src");
+  }
   const canvas=el("sceneCanvas");
   if(canvas.offsetParent===null)return;
   canvasSize(canvas,1024);
@@ -716,6 +799,11 @@ function initializeAudio(){
   updateAudioUI();
 }
 function initializePlay() {
+  const continuePhoto=()=>{play=dismissPhoto(play);renderPlay();};
+  el("photoContinueButton").addEventListener("click",continuePhoto);
+  el("tilePhotoDialog").addEventListener("cancel",event=>{
+    event.preventDefault();continuePhoto();
+  });
   el("restartButton").addEventListener("click",()=>{
     holding.clear();play=startPlay(maze);renderPlay();
   });

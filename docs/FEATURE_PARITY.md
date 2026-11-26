@@ -14,7 +14,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 | Secret passages | **Partial:** paired variant codes transport in exploration with return-trip latch | Verify original linkage rules and add original sound/visual treatment |
 | Riddles/questions/answers | **Partial:** authored questions and answers with playable, skippable interaction | Recover original answer consequences, scoring and native data mapping |
 | Time and speed power-ups | **Partial** simplified effects | Accurate timing/duration, configuration, sound and notifications |
-| Message and photo wall content | Text field only | Recorded audio/text messages, custom pictures/selfies, playback/display |
+| Message and photo wall content | **Partial:** Message tiles accept compact personal photographs and notes; photo opens during exploration and pauses play | Native photo-wall placement, voice recording, media presentation, device quota and camera testing |
 | Four original environments | Four **palette placeholders** | Rebuild original models, geometry, animation, textures, environmental details, and lighting |
 | Original sound/music | **Partial:** four newly synthesized atmospheres and state-driven interaction cues, explicit audio activation and independent music/effects preferences | Historically faithful music, genuine environmental/3D spatial audio, volume controls, physical iPhone listening tests |
 | Flat-screen game | **Partial** raycast corridors and touch controls | Original movement speed, physics, controls, collectibles, map behavior |
@@ -114,3 +114,11 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - A single Sound control opens accessible settings with separate Music and Sound effects toggles. The engine creates its audio context only after an explicit user action. Playback pauses outside Explore or while the browser is hidden, and can resume on an intentional return to Explore. Preferences remain local, with no external requests or audio asset downloads.
 - Added game-state transition cues for collecting keys, opening gates, riddles, secret passages, time and speed changes, winning, timeout, shadow encounters and physical trap holes, without repeating every render frame.
 - Unit tests cover four unique musical patterns, audible bounds, transition triggers, opt-in lifecycle, preference switches and offline publication. **Still incomplete:** historical scores, calibrated three-dimensional spatial audio and speaker balance on real devices.
+
+
+## November 25, 2026: personally authored photograph messages
+
+- The Message / key tile inspector now supports attaching, replacing and removing personal photographs, without a redundant camera control. JPEG encoding and downscaling happen locally, with a maximum embedded data URL length of 110,000 characters (roughly 80 kilobytes).
+- The image is embedded in the namespaced cell.repropagation.photo.dataUrl extension, which survives JSON export/import, offline storage, copying and moving. Imported original photoPath and other document metadata are preserved. Remote links, SVG and active HTML are rejected as photo attachments.
+- During exploration, entering a Message tile with a personal photograph opens the image and caption in a dismissible dialog and pauses movement, countdown and shadow pursuit. Existing key pickup remains functional. The photograph appears once per tile per run.
+- Tests cover safe, bounded input, editing/removal, metadata preservation, portable JSON and paused play. This is a modern approximation, not the original photo-wall or selfie system. Local browser storage quotas and real iPhone image orientation require field testing; users should export backups.

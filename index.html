@@ -175,6 +175,13 @@
         <input id="keyIdInput" maxlength="60" autocomplete="off" placeholder="Example: copper">
         <p class="sheet-hint">A Message tile with a key identifier becomes a collectible key. Use the same identifier on a Gate tile to unlock it. Leave blank for a normal message. Original file data is preserved.</p>
       </div>
+      <div class="tile-photo-editor" id="tilePhotoEditor" hidden>
+        <label class="field-label" for="tilePhotoInput">Photograph for this message</label>
+        <img id="tilePhotoPreview" class="tile-photo-preview" alt="Photograph attached to this maze message" hidden>
+        <input id="tilePhotoInput" type="file" accept="image/*,.heic,.heif" aria-describedby="tilePhotoStatus">
+        <button id="removeTilePhotoButton" type="button" class="tile-photo-remove" disabled>Remove photograph</button>
+        <p class="sheet-hint" id="tilePhotoStatus" role="status">Photos are kept on this device and exported with the maze.</p>
+      </div>
       <p class="sheet-hint" id="gateHelp" hidden>A Gate blocks movement until a matching key is collected. Place a Message / key tile and give it the same identifier. An empty gate identifier means 0.</p>
       <div class="riddle-editor" id="riddleEditor" hidden>
         <label class="field-label" for="riddleQuestionInput">Question</label>
@@ -192,6 +199,12 @@
       <p class="sheet-hint">Move or copy onto an empty square. Imported layers and tile details are preserved. Undo reverses the change.</p>
       <button type="button" class="full-button" id="deleteTileButton">Erase this tile</button>
     </div>
+  </dialog>
+  <dialog id="tilePhotoDialog" class="photo-message-dialog" aria-labelledby="photoMessageHeading">
+    <h2 id="photoMessageHeading">A photograph in your maze</h2>
+    <img id="playPhotoImage" alt="Photograph left at this maze location">
+    <p id="playPhotoCaption"></p>
+    <button id="photoContinueButton" type="button" class="primary">Continue exploring</button>
   </dialog>
   <dialog id="audioDialog" class="sheet" aria-labelledby="audioHeading">
     <form method="dialog" class="sheet-header"><h2 id="audioHeading">Exploration sound</h2><button class="icon-button" aria-label="Close sound settings">✕</button></form>

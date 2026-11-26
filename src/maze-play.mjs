@@ -1,4 +1,5 @@
 import {cellCoordinates, locate, primaryCell, passable} from "./maze-world.mjs";
+import {photoAt} from "./maze-media.mjs";
 
 export const THEMATIC = Object.freeze({
   adventure:{sky:"#27322d",floor:"#8d754b",wall:"#a28b58",mortar:"#3f4035",accent:"#f0c274",name:"Forbidden Temple"},
@@ -12,7 +13,7 @@ export function startPlay(maze) {
   const entry=locate(maze,"entrance")[0]??[1,1];
   return {x:entry[0]+0.5,z:entry[1]+0.5,heading:0,remaining:Math.max(1,Number(maze.data.duration)||300),
     ended:false,won:false,visited:[],message:"Find the exit.",keys:[],boostUntil:0,
-    passageLatch:null,pendingRiddle:null,solvedRiddles:[],
+    passageLatch:null,pendingRiddle:null,pendingPhoto:null,solvedRiddles:[],
     // Original shadow spawn tiles are never moved in the maze document.
     shadows:locate(maze,"shadow").filter(([x,z])=>passable(maze,x,z))
       .map(([x,z])=>({x:x+.5,z:z+.5,target:null}))};
@@ -21,7 +22,7 @@ export function rotatePlayer(state,delta) {
   return {...state,heading:(state.heading+delta+Math.PI*8)%(Math.PI*2)};
 }
 export function movePlayer(maze,state,forward,strafe=0) {
-  if(state.ended||state.pendingRiddle)return state;
+  if(state.ended||state.pendingRiddle||state.pendingPhoto)return state;
   const speed=state.boostUntil>0?0.35:0.24;
   const dx=Math.cos(state.heading)*forward*speed+
     Math.cos(state.heading+Math.PI/2)*strafe*speed;
@@ -64,8 +65,11 @@ export function keyPickupId(cell) {
   const id=cell?.type==="info"?cell.repropagation?.keyId:null;
   return typeof id==="string"&&id.trim()?id.trim():null;
 }
+export function dismissPhoto(state) {
+  return state.pendingPhoto?{...state,pendingPhoto:null}:state;
+}
 export function collectAt(maze,state) {
-  if(state.ended||state.pendingRiddle)return state;
+  if(state.ended||state.pendingRiddle||state.pendingPhoto)return state;
   if(shadowTouches(state))return catchShadow(state);
   const x=Math.floor(state.x),z=Math.floor(state.z),key=x+","+z;
   // The latch prevents an immediate return trip on arrival at the other end.
@@ -108,13 +112,16 @@ export function collectAt(maze,state) {
   if(cell.type==="speed_hazard")return {...next,boostUntil:0,message:"Speed boost lost"};
   if(cell.type==="info") {
     const id=keyPickupId(cell);
+    const caption=typeof cell.text==="string"?cell.text:
+      typeof cell.message==="string"?cell.message:"";
+    const url=photoAt(cell);
+    const pendingPhoto=url?{key,url,caption}:null;
     if(id) {
       const keys=next.keys.includes(id)?next.keys:[...next.keys,id];
-      const message=typeof cell.text==="string"?cell.text:
-        typeof cell.message==="string"?cell.message:"";
-      return {...next,keys,message:"Picked up key "+id+(message?" · "+message:"")};
+      return {...next,keys,pendingPhoto,
+        message:"Picked up key "+id+(caption?" · "+caption:"")};
     }
-    return {...next,message:cell.text??cell.message??"A message"};
+    return {...next,pendingPhoto,message:caption||"A message"};
   }
   if(cell.type==="riddle") {
     const puzzle=riddleAt(cell);
@@ -162,7 +169,7 @@ function nextShadowCell(maze,fromX,fromZ,toX,toZ,keys,holes) {
   return null;
 }
 export function advanceShadows(maze,state,seconds) {
-  if(state.ended||state.pendingRiddle||!state.shadows?.length||!(seconds>0))return state;
+  if(state.ended||state.pendingRiddle||state.pendingPhoto||!state.shadows?.length||!(seconds>0))return state;
   const shadows=state.shadows.map(actor=>({...actor,target:actor.target?[...actor.target]:null}));
   const next={...state,shadows};
   if(shadowTouches(next))return catchShadow(next);
@@ -194,7 +201,7 @@ export function advanceShadows(maze,state,seconds) {
 }
 
 export function tickPlayer(state,seconds) {
-  if(state.ended||state.pendingRiddle||seconds<=0)return state;
+  if(state.ended||state.pendingRiddle||state.pendingPhoto||seconds<=0)return state;
   const remaining=Math.max(0,state.remaining-seconds);
   return {...state,remaining,boostUntil:Math.max(0,state.boostUntil-seconds),
     ended:remaining===0,won:false,message:remaining===0?"Time is up":state.message};

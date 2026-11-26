@@ -68,3 +68,8 @@ The user's private `udeudeude/work-and-research` repository is available for res
 ### Exploration sound (new procedural audio)
 
 Open **Explore → Sound off**, select Music and/or Sound effects, then choose **Turn sound on**. Four different soundscapes and interaction cues are synthesized on the phone without downloads or original proprietary material. Sound is off until intentionally enabled and stops when leaving exploration. Preferences stay on the device. These are modern replacement compositions, not historically faithful Seedling recordings; physical iPhone sound balance still needs testing.
+
+
+### Photographs on maze messages (experimental)
+
+In **Build**, inspect a **Message / key** tile, choose a photograph, and tap **Save tile**. The image is reduced to a compact JPEG inside the maze JSON; it is never uploaded. Add a caption in the message field. In **Explore**, entering that tile opens the image and pauses the game until Continue. Photos survive export/import, duplication, copying and offline storage. Too many photos can exhaust browser storage, so keep backups. This does not reproduce the original photo-wall placement or selfie system.

@@ -68,3 +68,53 @@ test("renderer paints copyright-safe landmarks in both single and stereo scenes"
   renderScene(ctx,maze,player,{stereo:true});
   assert.equal(questionMarks,3,"Each stereo eye needs its own landmark");
 });
+
+test("personal photographs appear as visible, wall-occluded scene panels in both eyes",()=>{
+  let maze=paintTile(newMaze(),3,1,"info");
+  const photoUrl="data:image/jpeg;base64,/9j/4AAQ";
+  const message=maze.data.cells.find(c=>c.type==="info");
+  message.repropagation={keyId:"amber",photo:{dataUrl:photoUrl}};
+  const saved=JSON.stringify(maze),player=startPlay(maze);
+  const [item]=sceneLandmarks(maze,player);
+  assert.equal(item.photoUrl,photoUrl);
+  assert.equal(item.isKey,true);
+  const picture={naturalWidth:160,naturalHeight:90};
+  const shown=[],requested=[];
+  const ctx={canvas:{width:240,height:120},save(){},restore(){},
+    beginPath(){},rect(){},clip(){},fillRect(){},ellipse(){},fill(){},
+    stroke(){},moveTo(){},lineTo(){},translate(){},scale(){},
+    strokeRect(){},arc(){},closePath(){},fillText(){},
+    drawImage(...args){shown.push(args);}};
+  const photoResolver=url=>{requested.push(url);return picture;};
+  renderScene(ctx,maze,player,{photoResolver});
+  assert.deepEqual(requested,[photoUrl]);
+  assert.equal(shown.length,1);
+  assert.equal(shown[0][0],picture);
+  assert.ok(shown[0][3]>shown[0][4],"Wide photo retains aspect ratio");
+  renderScene(ctx,maze,player,{stereo:true,photoResolver});
+  assert.equal(shown.length,3,"Each eye sees the authored image");
+  maze=paintTile(maze,2,1,"wall");
+  renderScene(ctx,maze,player,{photoResolver});
+  assert.equal(shown.length,3,"A wall hides the picture");
+  assert.equal(JSON.stringify(message.repropagation.photo),JSON.stringify({dataUrl:photoUrl}));
+  assert.equal(saved.includes(photoUrl),true);
+});
+
+test("invalid or unready images fall back to the ordinary Message marker",()=>{
+  const maze=paintTile(newMaze(),3,1,"info");
+  const message=maze.data.cells.find(c=>c.type==="info");
+  message.repropagation={photo:{dataUrl:"https://remote.example/photo.jpg"}};
+  assert.equal(sceneLandmarks(maze,startPlay(maze))[0].photoUrl,null);
+  message.repropagation.photo.dataUrl="data:image/jpeg;base64,/9j/4AAQ";
+  let resolved=0,drawn=0;
+  const ctx={canvas:{width:240,height:120},save(){},restore(){},
+    beginPath(){},rect(){},clip(){},fillRect(){},ellipse(){},fill(){},
+    stroke(){},moveTo(){},lineTo(){},translate(){},scale(){},
+    strokeRect(){},arc(){},closePath(){},fillText(){},
+    drawImage(){drawn++;}};
+  renderScene(ctx,maze,startPlay(maze),{photoResolver:()=>{
+    resolved++;return {naturalWidth:0,naturalHeight:0};
+  }});
+  assert.equal(resolved,1);
+  assert.equal(drawn,0);
+});

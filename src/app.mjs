@@ -73,6 +73,28 @@ let scanSelectedHoles=new Map(),scanAddedHoles=new Map(),scanRejectedHoles=new S
 let scanMode="walls",markerBrush="entrance";
 let scanMarkers=new Map(),scanMarkerEdits=new Map();
 let play=startPlay(maze),stereo=false,showMap=false,holding=new Set(),runEnabled=false;
+// Scene photographs are never fetched from a server. A bounded cache of
+// decoded, locally embedded JPEGs is scoped to the current maze document.
+let scenePhotoMaze=maze;
+const scenePhotoImages=new Map();
+function resolveScenePhoto(url) {
+  if(!photoDataUrl(url))return null;
+  if(scenePhotoMaze!==maze){
+    scenePhotoImages.clear();
+    scenePhotoMaze=maze;
+  }
+  let image=scenePhotoImages.get(url);
+  if(!image){
+    if(scenePhotoImages.size>=24)
+      scenePhotoImages.delete(scenePhotoImages.keys().next().value);
+    image=new Image();
+    image.decoding="async";
+    scenePhotoImages.set(url,image);
+    image.src=url;
+  }
+  return image.complete&&image.naturalWidth>0?image:null;
+}
+
 function clearHeldControls() {
   holding.clear();
   document.querySelectorAll("[data-control].pressed")
@@ -942,7 +964,7 @@ function renderPlay() {
   if(canvas.offsetParent===null)return;
   canvasSize(canvas,1024);
   const ctx=canvas.getContext("2d");
-  renderScene(ctx,maze,play,{stereo,pitch:stereo?motionPitch:0});
+  renderScene(ctx,maze,play,{stereo,pitch:stereo?motionPitch:0,photoResolver:resolveScenePhoto});
   if(showMap)renderMapOverlay(ctx);
   if(!snapshotOpen&&!el("avatarDialog").open)audio.updateScene(play);
   const seconds=Math.ceil(play.remaining);

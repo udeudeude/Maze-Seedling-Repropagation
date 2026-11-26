@@ -333,14 +333,15 @@ export function sceneLandmarks(maze,player,{eyeOffset=0,fov=1.15,
     const hit=castRay(maze,ox,oz,Math.atan2(dz,dx),distance,index);
     if(hit&&hit.distance<distance-.22)continue;
     result.push({type:cell.type,key,screenX,forward,
-      isKey:cell.type==="info"&&!!keyPickupId(cell)});
+      isKey:cell.type==="info"&&!!keyPickupId(cell),
+      photoUrl:cell.type==="info"?photoAt(cell):null});
   }
   // Distant billboards are painted first, so nearby objects cover them.
   return result.sort((a,b)=>b.forward-a.forward);
 }
 
 /** Small, perspective-scaled floor markers, not copied Seedling graphics. */
-function drawSceneLandmark(ctx,item,x,groundY,height,theme) {
+function drawSceneLandmark(ctx,item,x,groundY,height,theme,photoResolver=null) {
   const size=Math.min(height*.45,height*.53/Math.max(item.forward,.45));
   if(size<2)return;
   const hazard=item.type.endsWith("_hazard");
@@ -352,6 +353,33 @@ function drawSceneLandmark(ctx,item,x,groundY,height,theme) {
   ctx.beginPath();ctx.ellipse(0,-.04,.34,.11,0,0,Math.PI*2);ctx.fill();
   ctx.lineWidth=.045;ctx.strokeStyle=ink;
   ctx.fillStyle="rgba(12,20,27,.88)";
+  // Only locally authored, bounded JPEGs reach this resolver. An unavailable
+  // or undecodable image leaves the normal interaction symbol in place.
+  if(item.type==="info"&&item.photoUrl&&photoResolver) {
+    const photo=photoResolver(item.photoUrl);
+    const width=Number(photo?.naturalWidth),height=Number(photo?.naturalHeight);
+    if(width>0&&height>0) {
+      ctx.fillStyle="rgba(9,15,22,.94)";
+      ctx.fillRect(-.33,-.88,.66,.65);
+      ctx.strokeRect(-.33,-.88,.66,.65);
+      // Letterbox, rather than crop, personal photos: their full contents
+      // matter more than an edge-to-edge decorative thumbnail.
+      const fit=Math.min(.56/width,.55/height);
+      ctx.drawImage(photo,-width*fit/2,-.555-height*fit/2,width*fit,height*fit);
+      if(item.isKey) {
+        // A small keyed corner preserves the gate clue when a photograph
+        // and collectible key share the same original Message tile.
+        ctx.fillStyle=ink;
+        ctx.beginPath();ctx.arc(.245,-.29,.115,0,Math.PI*2);ctx.fill();
+        ctx.lineWidth=.023;ctx.strokeStyle="#111820";
+        ctx.beginPath();ctx.arc(.215,-.3,.035,0,Math.PI*2);
+        ctx.moveTo(.25,-.3);ctx.lineTo(.305,-.3);
+        ctx.moveTo(.29,-.3);ctx.lineTo(.29,-.26);ctx.stroke();
+      }
+      ctx.restore();
+      return;
+    }
+  }
   if(item.type==="exit"){
     ctx.fillRect(-.27,-.93,.54,.84);
     ctx.strokeRect(-.27,-.93,.54,.84);
@@ -403,7 +431,7 @@ function drawSceneLandmark(ctx,item,x,groundY,height,theme) {
   ctx.restore();
 }
 
-export function renderScene(ctx,maze,player,{stereo=false,pitch=0}={}) {
+export function renderScene(ctx,maze,player,{stereo=false,pitch=0,photoResolver=null}={}) {
   if(!ctx)return;
   const canvas=ctx.canvas,{width:w,height:h}=canvas;
   const color=THEMATIC[maze.data.theme]??THEMATIC.marble_maze;
@@ -466,7 +494,7 @@ export function renderScene(ctx,maze,player,{stereo=false,pitch=0}={}) {
     for(const item of sceneLandmarks(maze,player,{eyeOffset,fov,wallIndex:walls})){
       const sx=left+(item.screenX+1)*vw/2;
       const groundY=horizon+h*.31/Math.max(item.forward,.35);
-      drawSceneLandmark(ctx,item,sx,groundY,h,color);
+      drawSceneLandmark(ctx,item,sx,groundY,h,color,photoResolver);
     }
 
     // First-person shadow sprites share the camera and raycast wall occlusion.

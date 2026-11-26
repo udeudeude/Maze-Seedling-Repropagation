@@ -154,13 +154,18 @@
           </div>
           <canvas id="scanCanvas" tabindex="0" aria-label="Corrected photograph with green wall traces and amber possible holes. Tap to correct the selected feature type."></canvas>
           <div class="scan-slider">
+            <label for="gridInsetSlider">Playable grid margin <output id="gridInsetValue" for="gridInsetSlider">0%</output></label>
+            <input id="gridInsetSlider" type="range" min="0" max="20" step="1" value="0" aria-describedby="gridInsetHelp">
+            <span id="gridInsetHelp">If the board has a border outside the playable squares, crop equally from each side until the grid lines align. Adjusting this resets corrections for a fresh review.</span>
+          </div>
+          <div class="scan-slider">
             <label for="sensitivitySlider">Detection sensitivity</label>
             <input id="sensitivitySlider" type="range" min="0" max="100" step="5" value="50">
             <span>Fewer walls <span aria-hidden="true">·</span> More walls</span>
           </div>
 
         </div>
-        <p class="capture-note">Wall suggestions are experimental, not the original scanner. Align corners carefully, inspect the suggestions, and correct mistakes before applying them. Detection of holes and colored start/finish markers is provisional. Exact physical board calibration and recognition accuracy are not yet established.</p>
+        <p class="capture-note">Wall suggestions are experimental, not the original scanner. Align corners carefully, inspect the suggestions, and correct mistakes before applying them. Detection of holes and colored start/finish markers is provisional. The grid margin is manual and symmetric; exact physical board calibration and recognition accuracy are not yet established.</p>
       </section>
     </main>
     <nav class="tabbar" aria-label="Main navigation">

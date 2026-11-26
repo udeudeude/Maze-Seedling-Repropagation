@@ -10,7 +10,7 @@ import {AUDIO_SETTINGS_KEY,audioPreferences,createMazeAudio} from "./maze-audio.
 import {MAX_PHOTO_DATA_URL_LENGTH,photoAt,photoEdit,photoDataUrl} from "./maze-media.mjs";
 import {avatarAt,avatarEdit,avatarCropRect} from "./maze-avatar.mjs";
 import {voiceAt,voiceEdit,createVoiceRecorder} from "./maze-voice.mjs";
-import {warpSquarePixels,initialCorners} from "./maze-capture.mjs";
+import {warpSquarePixels,initialCorners,insetRectifiedBoard} from "./maze-capture.mjs";
 import {suggestBoardCorners} from "./maze-board-corners.mjs";
 import {assessCameraFrame,createCameraSession,projectBoardOutline} from "./maze-live.mjs";
 import {snapshotFileName,sceneAsPng,canShareSnapshot,drawSnapshotPlayerBadge} from "./maze-snapshot.mjs";
@@ -67,7 +67,7 @@ const voiceRecorder=createVoiceRecorder({
   },
   onBusy:()=>renderTileVoiceEditor()
 });
-let scanPixels=null,scanGuide=null,scanResult=null,scanSelected=new Set();
+let scanBoardPixels=null,scanPixels=null,scanGuide=null,scanResult=null,scanSelected=new Set();
 let scanAdded=new Set(),scanRemoved=new Set();
 let scanSelectedHoles=new Map(),scanAddedHoles=new Map(),scanRejectedHoles=new Set();
 let scanMode="walls",markerBrush="entrance";
@@ -1522,10 +1522,12 @@ function initializePhoto() {
         if(estimate){photoCorners=estimate.corners;foundAlignment=true;}
       }catch{}
     }
-    scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
+    scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
     scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
     scanMarkers.clear();scanMarkerEdits.clear();
+    el("gridInsetSlider").value="0";
+    el("gridInsetValue").textContent="0%";
     el("scanStage").hidden=true;
     el("photoStage").hidden=false;
     el("photoActions").hidden=false;
@@ -1594,7 +1596,7 @@ function initializePhoto() {
       // Only alignment handles change; user must still inspect and approve
       // every proposed wall, marker and hole before modifying the document.
       photoCorners=estimate.corners;
-      scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
+      scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
       scanAdded.clear();scanRemoved.clear();
       scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
       scanMarkers.clear();scanMarkerEdits.clear();
@@ -1631,7 +1633,7 @@ function initializePhoto() {
       x:Math.max(0,Math.min(canvas.width-1,p.x)),
       y:Math.max(0,Math.min(canvas.height-1,p.y))
     };
-    scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
+    scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
     scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
     scanMarkers.clear();scanMarkerEdits.clear();
@@ -1738,8 +1740,15 @@ function initializePhoto() {
     try {
       // Re-evaluate the same aligned image when sensitivity changes.
       if(!scanPixels){
-        const rectified=rectifyPhoto();
-        scanPixels=rectified.warped;scanGuide=rectified.target;
+        // Rectification is reused while the user adjusts the playable-grid
+        // margin. A new alignment or photograph invalidates both images.
+        if(!scanBoardPixels)scanBoardPixels=rectifyPhoto().warped;
+        scanPixels=insetRectifiedBoard(scanBoardPixels,
+          Number(el("gridInsetSlider").value)/100);
+        scanGuide=document.createElement("canvas");
+        scanGuide.width=scanPixels.width;scanGuide.height=scanPixels.height;
+        scanGuide.getContext("2d").putImageData(
+          new ImageData(scanPixels.data,scanPixels.width,scanPixels.height),0,0);
       }
       scanResult=suggestWalls(scanPixels,{
         columns:Number(maze.data.scale[0]),rows:Number(maze.data.scale[2]),
@@ -1793,6 +1802,19 @@ function initializePhoto() {
     renderScan();
   });
   el("detectButton").addEventListener("click",()=>analyzePhoto(true));
+  el("gridInsetSlider").addEventListener("input",()=>{
+    el("gridInsetValue").textContent=el("gridInsetSlider").value+"%";
+  });
+  el("gridInsetSlider").addEventListener("change",()=>{
+    if(!scanBoardPixels)return;
+    // A moved grid changes tile coordinates. Never silently transplant
+    // corrections from a previous alignment into this fresh analysis.
+    scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
+    scanAdded.clear();scanRemoved.clear();
+    scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
+    scanMarkers.clear();scanMarkerEdits.clear();
+    analyzePhoto(false);
+  });
   el("sensitivitySlider").addEventListener("input",()=>{
     if(scanPixels)analyzePhoto(false);
   });
@@ -1850,14 +1872,16 @@ function initializePhoto() {
       const [x,z]=key.split(",").map(Number);
       return {x,z};
     });
-    const {maze:updated,appliedWalls,annotatedHoles,movedMarkers}=applyCaptureFindings(
+    const {maze:updated,appliedWalls,annotatedHoles,movedMarkers,skippedHoles}=applyCaptureFindings(
       maze,suggestions,[...scanSelectedHoles.values()],
       Object.fromEntries(scanMarkers));
     photoGuide=scanGuide;
     commit(updated);
     setView("build");
     notice("Imported "+appliedWalls+" wall tiles, "+annotatedHoles+
-      " holes and "+movedMarkers+" updated start/finish markers. Review your maze.");
+      " holes and "+movedMarkers+" updated start/finish markers."+
+      (skippedHoles?" Skipped "+skippedHoles+" holes conflicting with existing tiles.":"")+
+      " Review your maze.");
   });
   el("traceButton").addEventListener("click",()=>{
     try {
@@ -1871,7 +1895,7 @@ function initializePhoto() {
   el("clearPhotoButton").addEventListener("click",()=>{
     photoLoadToken++;stopCamera();
     photoImage=null;photoCorners=null;photoGuide=null;
-    scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
+    scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
     scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
     scanMarkers.clear();scanMarkerEdits.clear();

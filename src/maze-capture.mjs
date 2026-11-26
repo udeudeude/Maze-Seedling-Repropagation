@@ -77,3 +77,23 @@ export function initialCorners(width,height) {
   const left=width*.08,right=width*.92,top=height*.08,bottom=height*.92;
   return [{x:left,y:top},{x:right,y:top},{x:right,y:bottom},{x:left,y:bottom}];
 }
+
+/**
+ * Crop the playable grid inside a perspective-aligned board photograph.
+ * Some physical boards include a border outside their tile grid. The inset is
+ * a user-controlled, symmetric fraction of each edge, not an inferred factory
+ * measurement. Original image pixels are never mutated.
+ */
+export function insetRectifiedBoard(image,margin=0) {
+  const {width,height,data}=image??{};
+  if(!Number.isInteger(width)||width<16||height!==width||
+      data?.length!==width*height*4)
+    throw new TypeError("Expected square, rectified RGBA photograph");
+  if(!Number.isFinite(margin)||margin<0||margin>.2)
+    throw new RangeError("Grid margin must be between 0 and 20 percent");
+  if(margin===0)return {width,height,data:data.slice()};
+  const lo=width*margin,hi=width*(1-margin);
+  return warpSquarePixels(data,width,height,[
+    {x:lo,y:lo},{x:hi,y:lo},{x:hi,y:hi},{x:lo,y:hi}
+  ],width);
+}

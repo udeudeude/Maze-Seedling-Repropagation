@@ -260,12 +260,20 @@ export function applyCaptureFindings(document,wallSuggestions,holeSuggestions,ma
     ?maze.repropagation.physicalHoles:[];
   const byPosition=new Map(existing.map(item=>
     [String(item.position?.[0])+","+String(item.position?.[2]),item]));
-  let added=0;
+  let added=0,skippedHoles=0;
   for(const hole of holeSuggestions??[]){
     if(!Number.isInteger(hole.x)||!Number.isInteger(hole.z)||
       hole.x<0||hole.z<0||hole.x>=width||hole.z>=height)continue;
     const key=hole.x+","+hole.z;
     if(byPosition.has(key))continue;
+    // A scanned hole must not silently turn an existing wall, start, gate,
+    // or other authored object into a lethal square. Explicit floor tiles
+    // can still carry a physical hole annotation.
+    if(maze.data.cells.some(cell=>
+      Number(cell.position?.[0])===hole.x&&Number(cell.position?.[2])===hole.z&&
+      !["floor","empty"].includes(cell.type))) {
+      skippedHoles++;continue;
+    }
     byPosition.set(key,{position:[String(hole.x),"0",String(hole.z)],
       kind:"physical_floor_hole",source:"photograph_review"});
     added++;
@@ -291,5 +299,5 @@ export function applyCaptureFindings(document,wallSuggestions,holeSuggestions,ma
     maze.data.cells.push({position:[String(point.x),"0",String(point.z)],type});
     movedMarkers++;
   }
-  return {maze,appliedWalls:applied,annotatedHoles:added,movedMarkers};
+  return {maze,appliedWalls:applied,annotatedHoles:added,movedMarkers,skippedHoles};
 }

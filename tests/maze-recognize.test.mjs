@@ -183,3 +183,19 @@ test("photographed holes take precedence over conflicting imported wall suggesti
   assert.equal(primaryCell(result.maze,9,9),null);
   assert.equal(primaryCell(result.maze,8,8).cell.type,"wall");
 });
+
+
+test("photo import does not conceal an existing user tile beneath a lethal hole",()=>{
+  const source=newMaze();
+  source.data.cells.push({type:"wall",position:["8","0","8"],unknown:"preserve"});
+  source.data.cells.push({type:"floor",position:["9","0","9"],native:"keep"});
+  const before=JSON.stringify(source);
+  const result=applyCaptureFindings(source,[],
+    [{x:1,z:1},{x:8,z:8},{x:9,z:9},{x:10,z:10}],{});
+  assert.equal(result.skippedHoles,2);
+  assert.equal(result.annotatedHoles,2);
+  assert.deepEqual(result.maze.repropagation.physicalHoles.map(h=>h.position),
+    [["9","0","9"],["10","0","10"]]);
+  assert.equal(result.maze.data.cells.find(c=>c.type==="wall").unknown,"preserve");
+  assert.equal(JSON.stringify(source),before);
+});

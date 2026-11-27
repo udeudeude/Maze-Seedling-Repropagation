@@ -43,3 +43,22 @@ export function compareScanReview({columns,rows,suggested,reviewed}) {
   }
   return result;
 }
+
+/**
+ * Approve a photographed hole only when its square is deliberately selected.
+ * Keep a detected circle's actual pixel center and radius rather than silently
+ * replacing them with the center of a possibly misregistered 18x18 cell.
+ */
+export function holeForPhotoReview(candidates,{x,z,width,height,columns,rows}={}){
+  if(!Array.isArray(candidates)||![x,z,width,height,columns,rows].every(Number.isFinite)||
+    ![x,z,width,height,columns,rows].every(Number.isInteger)||
+    columns<2||rows<2||width<columns||height<rows||
+    x<0||z<0||x>=columns||z>=rows)
+    throw new TypeError("Expected a valid photographic grid square");
+  const detected=candidates.find(h=>h?.x===x&&h?.z===z&&
+    Number.isFinite(h.cx)&&Number.isFinite(h.cy)&&
+    Number.isFinite(h.radius)&&h.radius>0);
+  if(detected)return {...detected};
+  return {x,z,cx:(x+.5)*width/columns,cy:(z+.5)*height/rows,
+    radius:Math.min(width/columns,height/rows)*.3,confidence:0};
+}

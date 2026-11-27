@@ -19,7 +19,7 @@ import {snapshotFileName,sceneAsPng,canShareSnapshot,drawSnapshotPlayerBadge} fr
 import {MAX_BACKUP_BYTES,createLibraryBackup,parseLibraryBackup,mergeLibraryBackup,
   libraryBackupFileName,mazeFileName,canShareMaze} from "./maze-backup.mjs";
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
-import {compareScanReview} from "./maze-scan-evaluation.mjs";
+import {compareScanReview,holeForPhotoReview} from "./maze-scan-evaluation.mjs";
 import {scanReviewWarning} from "./maze-scan-notice.mjs";
 import {reviewCellAt,centeredReviewScroll} from "./maze-scan-viewport.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
@@ -1795,9 +1795,9 @@ function initializePhoto() {
     const instruction=scanPan
       ?"Drag the magnified photograph to inspect another area. Turn Pan off to correct squares."
       :scanMode==="holes"
-        ?"Tap amber circles to remove them, or tap an unmarked square to add a hole."
+        ?"Tap a dashed circle to approve a hole, a solid circle to remove it, or an empty square to add one."
         :scanMode==="markers"
-          ?"Select Start or Finish below, then tap its position on the photograph."
+          ?"Dashed stickers are unconfirmed guesses. Choose Start or Finish below, then tap the correct square."
           :"Tap a green tile to remove it, or tap an unmarked square to add a wall.";
     const gridNotice=scanReviewWarning(scanResult);
     const unstable=scanResult.unstableSuggestions?.length??0;
@@ -1806,10 +1806,15 @@ function initializePhoto() {
       "one quarter of a cell. They are outlined in amber, NOT selected for "+
       "import. Inspect and tap each one to include it. This is a sensitivity "+
       "check, not verified calibration. ":"";
-    el("scanStatus").textContent=gridNotice+originNotice+scanSelected.size+" wall tiles, "+
-      scanSelectedHoles.size+" possible holes, "+spanCount+
-      " straight image spans, "+scanMarkers.size+" colored markers. "+instruction+
-      " Correct the proposals before importing.";
+    const unconfirmedHoles=(scanResult.holes??[]).filter(h=>
+      !scanSelectedHoles.has(h.x+","+h.z)&&!scanRejectedHoles.has(h.x+","+h.z)).length;
+    const unconfirmedMarkers=(scanResult.markers??[]).filter(m=>
+      !scanMarkers.has(m.type)&&!scanMarkerEdits.has(m.type)).length;
+    el("scanStatus").textContent=gridNotice+originNotice+scanSelected.size+" walls, "+
+      scanSelectedHoles.size+" approved holes ("+unconfirmedHoles+" unconfirmed), "+
+      spanCount+" straight image spans, "+scanMarkers.size+" approved markers ("+
+      unconfirmedMarkers+" unconfirmed). Circle and sticker guesses are NOT selected automatically: "+
+      "their positions on the physical grid have not been calibrated. "+instruction;
     el("applyScanButton").disabled=scanSelected.size===0&&scanSelectedHoles.size===0&&scanMarkers.size===0;
     el("applyScanButton").textContent="Import "+scanSelected.size+" walls, "+
       scanSelectedHoles.size+" holes, "+scanMarkers.size+" markers";
@@ -1889,7 +1894,17 @@ function initializePhoto() {
       context.lineCap="round";
       context.stroke();
     }
-    // Candidate floor holes are circles, not green wall squares.
+    // Show tentative circle centers, but do not implicitly approve their
+    // potentially wrong digital squares as lethal physical-floor holes.
+    for(const hole of scanResult?.holes??[]){
+      const key=hole.x+","+hole.z;
+      if(scanSelectedHoles.has(key)||scanRejectedHoles.has(key))continue;
+      context.beginPath();context.arc(hole.cx,hole.cy,Math.max(5,hole.radius+2),0,Math.PI*2);
+      context.strokeStyle="#d7ae62";context.lineWidth=Math.max(2,width/260);
+      context.setLineDash([Math.max(3,width/140),Math.max(3,width/220)]);
+      context.stroke();context.setLineDash([]);
+    }
+    // Only explicitly selected holes receive solid approval rings.
     for(const hole of scanSelectedHoles.values()){
       const r=Math.max(5,hole.radius+2);
       context.beginPath();
@@ -1901,6 +1916,17 @@ function initializePhoto() {
       context.arc(hole.cx,hole.cy,2,0,Math.PI*2);
       context.fillStyle="#ffd178";
       context.fill();
+    }
+    for(const marker of scanResult?.markers??[]){
+      if(scanMarkers.has(marker.type)||scanMarkerEdits.has(marker.type))continue;
+      const cx=(marker.x+.5)*tw,cy=(marker.z+.5)*th;
+      context.beginPath();context.arc(cx,cy,Math.max(9,tw*.39),0,Math.PI*2);
+      context.setLineDash([Math.max(3,width/140),Math.max(3,width/220)]);
+      context.strokeStyle="#d7ae62";context.lineWidth=Math.max(2,width/250);
+      context.stroke();context.setLineDash([]);
+      context.font="bold "+Math.round(tw*.5)+"px sans-serif";
+      context.fillStyle="#fffdf1";context.textAlign="center";
+      context.textBaseline="middle";context.fillText("?",cx,cy);
     }
     for(const marker of scanMarkers.values()){
       const cx=(marker.x+.5)*tw,cy=(marker.z+.5)*th;
@@ -1950,14 +1976,11 @@ function initializePhoto() {
         .map(item=>item.x+","+item.z));
       scanSelected=new Set([...detected].filter(key=>!scanRemoved.has(key)));
       for(const key of scanAdded)scanSelected.add(key);
+      // The real-photo probe found that four of five persistent circle
+      // candidates changed assigned squares under a 4% crop change.
       scanSelectedHoles=new Map();
-      for(const hole of scanResult.holes??[]){
-        const key=hole.x+","+hole.z;
-        if(!scanRejectedHoles.has(key))scanSelectedHoles.set(key,hole);
-      }
       for(const [key,hole] of scanAddedHoles)scanSelectedHoles.set(key,hole);
-      scanMarkers=new Map((scanResult.markers??[])
-        .map(marker=>[marker.type,marker]));
+      scanMarkers=new Map();
       for(const [type,position] of scanMarkerEdits){
         if(position)scanMarkers.set(type,position);
         else scanMarkers.delete(type);
@@ -2096,11 +2119,10 @@ function initializePhoto() {
         scanAddedHoles.delete(key);
         scanRejectedHoles.add(key);
       }else{
-        const hole={x,z,cx:(x+.5)*scanGuide.width/Number(maze.data.scale[0]),
-          cy:(z+.5)*scanGuide.height/Number(maze.data.scale[2]),
-          radius:Math.min(scanGuide.width/Number(maze.data.scale[0]),
-            scanGuide.height/Number(maze.data.scale[2]))*.3,
-          confidence:0};
+        const hole=holeForPhotoReview(scanResult?.holes??[],{
+          x,z,width:scanGuide.width,height:scanGuide.height,
+          columns:Number(maze.data.scale[0]),rows:Number(maze.data.scale[2])
+        });
         scanSelectedHoles.set(key,hole);
         scanAddedHoles.set(key,hole);
         scanRejectedHoles.delete(key);

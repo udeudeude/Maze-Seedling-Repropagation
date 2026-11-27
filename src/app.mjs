@@ -21,6 +21,7 @@ import {MAX_BACKUP_BYTES,createLibraryBackup,parseLibraryBackup,mergeLibraryBack
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
 import {compareScanReview} from "./maze-scan-evaluation.mjs";
 import {scanReviewWarning} from "./maze-scan-notice.mjs";
+import {reviewCellAt,centeredReviewScroll} from "./maze-scan-viewport.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
   addMaze,openMaze,duplicateMaze,deleteMaze,sortedMazes} from "./maze-library.mjs";
 import {saveMazeLocally,emergencyMazeExport} from "./maze-storage.mjs";
@@ -1753,11 +1754,13 @@ function initializePhoto() {
   function updateScanStatus() {
     if(!scanResult)return;
     const spanCount=scanResult.segments?.length??0;
-    const instruction=scanMode==="holes"
-      ?"Tap amber circles to remove them, or tap an unmarked square to add a hole."
-      :scanMode==="markers"
-        ?"Select Start or Finish below, then tap its position on the photograph."
-        :"Tap a green tile to remove it, or tap an unmarked square to add a wall.";
+    const instruction=scanPan
+      ?"Drag the magnified photograph to inspect another area. Turn Pan off to correct squares."
+      :scanMode==="holes"
+        ?"Tap amber circles to remove them, or tap an unmarked square to add a hole."
+        :scanMode==="markers"
+          ?"Select Start or Finish below, then tap its position on the photograph."
+          :"Tap a green tile to remove it, or tap an unmarked square to add a wall.";
     const gridNotice=scanReviewWarning(scanResult);
     el("scanStatus").textContent=gridNotice+scanSelected.size+" wall tiles, "+
       scanSelectedHoles.size+" possible holes, "+spanCount+
@@ -1767,6 +1770,41 @@ function initializePhoto() {
     el("applyScanButton").textContent="Import "+scanSelected.size+" walls, "+
       scanSelectedHoles.size+" holes, "+scanMarkers.size+" markers";
   }
+  // The historical physical-grid alignment is not yet proven. Correcting
+  // 18-by-18 proposals on a small phone requires being able to inspect each
+  // square without resampling the photograph or changing its tile coordinates.
+  const scanViewport=el("scanViewport"),scanSurface=el("scanSurface");
+  const scanCanvas=el("scanCanvas");
+  let scanZoom=1,scanPan=false,scanDrag=null;
+  function setScanPan(enabled){
+    scanPan=Boolean(enabled)&&scanZoom>1;
+    scanDrag=null;
+    el("scanPanButton").setAttribute("aria-pressed",String(scanPan));
+    scanCanvas.classList.toggle("pan-mode",scanPan);
+    if(scanResult)updateScanStatus();
+  }
+  function setScanZoom(next){
+    next=Math.max(1,Math.min(4,next));
+    if(next===scanZoom)return;
+    const previous={scrollLeft:scanViewport.scrollLeft,scrollTop:scanViewport.scrollTop,
+      contentWidth:scanViewport.scrollWidth,contentHeight:scanViewport.scrollHeight,
+      viewportWidth:scanViewport.clientWidth,viewportHeight:scanViewport.clientHeight};
+    scanZoom=next;
+    scanSurface.style.width=scanZoom*100+"%";
+    const scroll=centeredReviewScroll({...previous,
+      nextWidth:scanViewport.scrollWidth,nextHeight:scanViewport.scrollHeight});
+    scanViewport.scrollLeft=scroll.left;
+    scanViewport.scrollTop=scroll.top;
+    el("scanZoomLevel").textContent=scanZoom+"×";
+    el("scanZoomOutButton").disabled=scanZoom===1;
+    el("scanZoomInButton").disabled=scanZoom===4;
+    el("scanPanButton").disabled=scanZoom===1;
+    if(scanZoom===1)setScanPan(false);
+  }
+  el("scanZoomOutButton").addEventListener("click",()=>setScanZoom(scanZoom-1));
+  el("scanZoomInButton").addEventListener("click",()=>setScanZoom(scanZoom+1));
+  el("scanPanButton").addEventListener("click",()=>setScanPan(!scanPan));
+
   function renderScan() {
     if(!scanGuide)return;
     const output=el("scanCanvas");
@@ -1974,12 +2012,19 @@ function initializePhoto() {
   el("sensitivitySlider").addEventListener("input",()=>{
     if(scanPixels)analyzePhoto(false);
   });
-  el("scanCanvas").addEventListener("pointerdown",event=>{
-    if(!scanGuide)return;
-    const r=event.currentTarget.getBoundingClientRect();
-    const x=Math.floor((event.clientX-r.left)/r.width*Number(maze.data.scale[0]));
-    const z=Math.floor((event.clientY-r.top)/r.height*Number(maze.data.scale[2]));
-    if(x<0||z<0||x>=Number(maze.data.scale[0])||z>=Number(maze.data.scale[2]))return;
+  scanCanvas.addEventListener("pointerdown",event=>{
+    if(!scanGuide||event.button!==0)return;
+    if(scanPan){
+      scanDrag={id:event.pointerId,x:event.clientX,y:event.clientY,
+        left:scanViewport.scrollLeft,top:scanViewport.scrollTop};
+      scanCanvas.setPointerCapture(event.pointerId);
+      return;
+    }
+    const cell=reviewCellAt(event.currentTarget.getBoundingClientRect(),
+      event.clientX,event.clientY,
+      Number(maze.data.scale[0]),Number(maze.data.scale[2]));
+    if(!cell)return;
+    const {x,z}=cell;
     invalidateScanMeasurement();
     const key=x+","+z;
     if(scanMode==="markers"){
@@ -2015,6 +2060,20 @@ function initializePhoto() {
     }
     renderScan();
   });
+  scanCanvas.addEventListener("pointermove",event=>{
+    if(!scanPan||scanDrag?.id!==event.pointerId)return;
+    scanViewport.scrollLeft=scanDrag.left-(event.clientX-scanDrag.x);
+    scanViewport.scrollTop=scanDrag.top-(event.clientY-scanDrag.y);
+  });
+  const finishScanPan=event=>{
+    if(scanDrag?.id!==event.pointerId)return;
+    scanDrag=null;
+    if(scanCanvas.hasPointerCapture(event.pointerId))
+      scanCanvas.releasePointerCapture(event.pointerId);
+  };
+  scanCanvas.addEventListener("pointerup",finishScanPan);
+  scanCanvas.addEventListener("pointercancel",finishScanPan);
+  scanCanvas.addEventListener("lostpointercapture",()=>{scanDrag=null;});
   el("cancelScanButton").addEventListener("click",()=>{
     invalidateScanMeasurement();
     el("scanStage").hidden=true;

@@ -153,7 +153,19 @@
             <button id="placeFinishButton" type="button" aria-pressed="false">Place finish</button>
             <button id="clearMarkersButton" type="button">Clear markers</button>
           </div>
-          <canvas id="scanCanvas" tabindex="0" aria-label="Corrected photograph with green wall traces and amber possible holes. Tap to correct the selected feature type."></canvas>
+          <div class="scan-zoom" role="group" aria-label="Magnify the physical photograph for accurate square-by-square correction">
+            <span>Magnify for review</span>
+            <button id="scanZoomOutButton" type="button" aria-label="Zoom out photograph" disabled>−</button>
+            <output id="scanZoomLevel" aria-live="polite">1×</output>
+            <button id="scanZoomInButton" type="button" aria-label="Zoom in photograph">+</button>
+            <button id="scanPanButton" type="button" aria-pressed="false" disabled>Pan</button>
+          </div>
+          <div id="scanViewport" class="scan-viewport" aria-label="Scrollable photograph review viewport">
+            <div id="scanSurface" class="scan-surface">
+              <canvas id="scanCanvas" tabindex="0" aria-label="Rectified maze photograph. Select Walls, Holes or Markers and tap a square to correct it. Magnify up to four times; choose Pan to move the enlarged photograph without changing tiles."></canvas>
+            </div>
+          </div>
+          <p class="scan-zoom-help">Magnify to inspect each square. Pan to move the enlarged image, then turn Pan off to correct tiles. Zooming never changes the scan or your corrections.</p>
           <details class="edge-calibration scan-evaluation" id="scanEvaluationDetails">
             <summary>Measure scanner against your corrections (optional)</summary>
             <p>This is for testing with physical Seedling photographs, not necessary for importing a maze. Correct all the walls, holes, Start and Finish first. The comparison uses exact squares and never sends or saves your photograph.</p>

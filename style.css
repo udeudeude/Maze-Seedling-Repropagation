@@ -160,7 +160,18 @@ select{width:100%;min-height:36px;border:1px solid #3b4650;border-radius:9px;
 
 .scan-stage h2{font-size:18px;margin:2px 0 6px}
 .scan-stage p{font-size:12px;line-height:1.5;color:#c4c9c6;margin:0 0 12px}
-#scanCanvas{display:block;width:min(100%,440px);height:auto;aspect-ratio:1;margin:0 auto 14px;border:1px solid #7a8a8f;touch-action:none}
+.scan-zoom{display:flex;align-items:center;gap:8px;max-width:440px;margin:4px auto 10px}
+.scan-zoom span{flex:1;color:var(--dim);font-size:12px}
+.scan-zoom button{min-width:39px;min-height:40px;padding:5px 10px;background:#28333c;border:1px solid #596873;border-radius:9px;font-weight:620}
+.scan-zoom button[aria-pressed="true"]{color:var(--accent);background:var(--accent-soft);border-color:var(--accent)}
+.scan-zoom output{min-width:31px;text-align:center;font-size:12px;font-variant-numeric:tabular-nums}
+#scanViewport{width:min(100%,440px);margin:0 auto;aspect-ratio:1;overflow:auto;
+  overscroll-behavior:contain;scrollbar-width:thin;border:1px solid #7a8a8f;
+  border-radius:5px;background:#172128}
+.scan-surface{width:100%;aspect-ratio:1}
+#scanCanvas{display:block;width:100%;height:auto;aspect-ratio:1;touch-action:none;cursor:crosshair}
+#scanCanvas.pan-mode{cursor:grab}
+.scan-zoom-help{max-width:440px;margin:7px auto 14px!important}
 .scan-slider{display:grid;gap:5px;margin:7px 0 13px}
 .scan-slider label{font-size:13px;font-weight:620}
 .scan-slider input{width:100%;accent-color:var(--accent);min-height:40px}

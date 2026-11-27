@@ -14,6 +14,7 @@ import {avatarAt,avatarEdit,avatarCropRect} from "./maze-avatar.mjs";
 import {voiceAt,voiceEdit,createVoiceRecorder} from "./maze-voice.mjs";
 import {warpSquarePixels,homographyForCorners,initialCorners,nudgeBoardCorner,insetRectifiedBoard,suggestPlayableGridEdges} from "./maze-capture.mjs";
 import {projectPhotoGrid,confirmPrintedGridCorners} from "./maze-photo-grid.mjs";
+import {suggestPrintedGridRefinement} from "./maze-grid-refine.mjs";
 import {suggestBoardCorners} from "./maze-board-corners.mjs";
 import {assessCameraFrame,createCameraSession,projectBoardOutline} from "./maze-live.mjs";
 import {snapshotFileName,sceneAsPng,canShareSnapshot,drawSnapshotPlayerBadge} from "./maze-snapshot.mjs";
@@ -63,7 +64,7 @@ try{
 }
 let undo=[],redo=[],selected="wall",inspection=false,route=null,view="build";
 let currentTile=null,photoImage=null,photoCorners=null,photoGuide=null;
-let photoGridCornerDraft=null;
+let photoGridCornerDraft=null,photoRefinementDraft=null;
 let stopLiveCamera=()=>{};
 let pendingTilePhoto=null,tilePhotoChanged=false,photoImportGeneration=0;
 let pendingTileVoice=null,tileVoiceChanged=false;
@@ -1381,6 +1382,11 @@ function initializePlay() {
   requestAnimationFrame(frame);
 }
 
+function clearPhotoRefinement(){
+  photoRefinementDraft=null;
+  const control=el("refinePrintedGridButton");
+  if(control)control.textContent="Find a small printed-line correction";
+}
 function renderPhoto() {
   if(!photoImage||view!=="photo")return;
   const canvas=el("photoCanvas"),ctx=canvas.getContext("2d");
@@ -1438,6 +1444,23 @@ function renderPhoto() {
       // While a corner is being adjusted, invalid geometry must never be
       // rendered as seemingly valid grid evidence. The scanner also rejects it.
     }
+  }
+  // A candidate is only a *preview*. Do not move current mapping, change
+  // labels or show scanner predictions before the second affirmative tap.
+  if(photoRefinementDraft?.image===photoImage&&
+      photoRefinementDraft.original.every((point,i)=>
+        point.x===photoCorners[i].x&&point.y===photoCorners[i].y)){
+    const candidate=projectPhotoGrid(photoRefinementDraft.corners,0,18,18);
+    ctx.save();
+    ctx.setLineDash([Math.max(3,canvas.width/175),Math.max(3,canvas.width/200)]);
+    ctx.strokeStyle="rgba(231,154,48,.98)";
+    ctx.lineWidth=Math.max(1.8,canvas.width/330);
+    for(const lines of [candidate.vertical,candidate.horizontal])
+      for(let i=0;i<lines.length;i+=3){
+        const {from,to}=lines[i];
+        ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);ctx.stroke();
+      }
+    ctx.restore();
   }
   ctx.strokeStyle="#ffe8a2";ctx.lineWidth=Math.max(2,canvas.width/250);
   ctx.beginPath();photoCorners.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
@@ -1597,6 +1620,7 @@ function initializePhoto() {
     canvas.style.aspectRatio=canvas.width+" / "+canvas.height;
     photoCorners=initialCorners(canvas.width,canvas.height);
     photoGridCornerDraft=null;
+    clearPhotoRefinement();
     el("markPrintedCornersButton").textContent="Mark four printed-grid corners";
     el("photoCornerSelect").value="0";
     el("photoCornerFine").hidden=false;
@@ -1700,6 +1724,7 @@ function initializePhoto() {
       }
       // Only alignment handles change; user must still inspect and approve
       // every proposed wall, marker and hole before modifying the document.
+      clearPhotoRefinement();
       photoCorners=estimate.corners;
       abandonPhotoReference();
       scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
@@ -1714,6 +1739,65 @@ function initializePhoto() {
       el("liveCameraStatus").textContent=
         "Board-edge detection was unavailable. Align the corners by hand.";
     }
+  });
+  el("refinePrintedGridButton").addEventListener("click",()=>{
+    if(!photoImage||!photoCorners||photoGridCornerDraft!==null)return;
+    const edges=["Top","Right","Bottom","Left"];
+    if(edges.some(edge=>Number(el("gridInset"+edge+"Slider").value)!==0)){
+      clearPhotoRefinement();
+      el("gridRefinementStatus").textContent=
+        "This fine adjustment requires zero paper-grid margins. Mark the four actual printed-grid corners first, or align the outer border and margins manually.";
+      renderPhoto();return;
+    }
+    const same=photoRefinementDraft?.image===photoImage&&
+      photoRefinementDraft.original.every((point,i)=>
+        point.x===photoCorners[i].x&&point.y===photoCorners[i].y);
+    if(same){
+      photoCorners=photoRefinementDraft.corners.map(p=>({...p}));
+      clearPhotoRefinement();
+      // A tiny translation can change the square that holds a physical hole.
+      // All detection proposals and independently labeled coordinates are stale.
+      abandonPhotoReference();
+      scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;
+      scanSelected.clear();scanAdded.clear();scanRemoved.clear();
+      scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
+      scanMarkers.clear();scanMarkerEdits.clear();
+      el("scanStage").hidden=true;
+      invalidateScanMeasurement();
+      el("gridRefinementStatus").textContent=
+        "Fine correction applied to the four handles. Check the actual outer grid intersections and each candidate before importing; physical calibration is not independently verified.";
+      renderPhoto();return;
+    }
+    try{
+      const source=document.createElement("canvas");
+      source.width=canvas.width;source.height=canvas.height;
+      const context=source.getContext("2d",{willReadFrequently:true});
+      context.drawImage(photoImage,0,0,source.width,source.height);
+      const aligned=warpSquarePixels(context.getImageData(
+        0,0,source.width,source.height).data,
+        source.width,source.height,photoCorners,504);
+      const proposal=suggestPrintedGridRefinement(aligned,photoCorners,
+        source.width,source.height);
+      if(!proposal){
+        clearPhotoRefinement();
+        el("gridRefinementStatus").textContent=
+          "No trustworthy small translation was found in BOTH directions. Repeated lines cannot resolve whole-cell offsets, missing ink, or perspective skew. Align printed-grid corners by hand.";
+      }else{
+        photoRefinementDraft={corners:proposal.corners,
+          original:photoCorners.map(p=>({...p})),image:photoImage};
+        el("refinePrintedGridButton").textContent="Apply highlighted small correction";
+        el("gridRefinementStatus").textContent=
+          "Yellow dashed lines preview a "+proposal.shiftCells.horizontal+
+          "-cell horizontal and "+proposal.shiftCells.vertical+
+          "-cell vertical shift. Check all printed squares before applying. It cannot detect a whole-cell error.";
+      }
+    }catch(error){
+      clearPhotoRefinement();
+      el("gridRefinementStatus").textContent=
+        "Printed-line evidence could not be evaluated. Keep manual alignment: "+
+        error.message;
+    }
+    renderPhoto();
   });
   let activeCorner=-1;
   const coord=event=>{
@@ -1732,6 +1816,7 @@ function initializePhoto() {
       try{
         const next=nudgeBoardCorner(photoCorners,selected,dx,dy,
           canvas.width,canvas.height);
+        clearPhotoRefinement();
         photoCorners=next;
         abandonPhotoReference();
         scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;
@@ -1753,6 +1838,7 @@ function initializePhoto() {
     if(!photoImage)return;
     const starting=photoGridCornerDraft===null;
     photoGridCornerDraft=starting?[]:null;
+    clearPhotoRefinement();
     activeCorner=-1;
     el("markPrintedCornersButton").textContent=starting?
       "Cancel four-point alignment":"Mark four printed-grid corners";
@@ -1780,6 +1866,7 @@ function initializePhoto() {
           const chosen=confirmPrintedGridCorners(draft,canvas.width,canvas.height);
           // Only now replace the old alignment. Never mix a new direct
           // quadrilateral with stale insets, import corrections or references.
+          clearPhotoRefinement();
           photoCorners=chosen;
           photoGridCornerDraft=null;
           el("markPrintedCornersButton").textContent="Mark four printed-grid corners";
@@ -1840,6 +1927,7 @@ function initializePhoto() {
         "Corner movement would fold the grid. Keep all four handles around the paper.";
       return;
     }
+    clearPhotoRefinement();
     photoCorners=moved;
     abandonPhotoReference();
     scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
@@ -2239,6 +2327,7 @@ function initializePhoto() {
   // Inset changes remap tile coordinates: previous hand corrections would
   // now refer to different squares and must never be silently reused.
   const restartAlignedScan=()=>{
+    clearPhotoRefinement();
     renderPhoto();
     if(!scanBoardPixels)return;
     abandonPhotoReference();

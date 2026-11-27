@@ -62,3 +62,51 @@ export function holeForPhotoReview(candidates,{x,z,width,height,columns,rows}={}
   return {x,z,cx:(x+.5)*width/columns,cy:(z+.5)*height/rows,
     radius:Math.min(width/columns,height/rows)*.3,confidence:0};
 }
+
+/**
+ * Independent image-space hole-center matching, unaffected by guessed cell IDs.
+ * Maximum-cardinality one-to-one pairing avoids duplicate true positives and
+ * avoids the false misses caused by naive greedy distance matching.
+ * A 0.30-cell tolerance is an explicit research convention, not recovered
+ * Seedling camera calibration. Output contains counts, not photo coordinates.
+ */
+export function compareHoleCenters({
+  suggested,reviewed,width,height,columns,rows,toleranceCellFraction=.3
+}={}){
+  if(!Number.isInteger(width)||!Number.isInteger(height)||
+      !Number.isInteger(columns)||!Number.isInteger(rows)||
+      columns<2||rows<2||width<columns||height<rows||
+      !Number.isFinite(toleranceCellFraction)||
+      toleranceCellFraction<=0||toleranceCellFraction>=.5||
+      !Array.isArray(suggested)||!Array.isArray(reviewed))
+    throw new TypeError("Expected image dimensions and independent photo points");
+  const valid=point=>point&&Number.isFinite(point.cx)&&Number.isFinite(point.cy)&&
+    point.cx>=0&&point.cy>=0&&point.cx<width&&point.cy<height;
+  if([...suggested,...reviewed].some(point=>!valid(point)))
+    throw new TypeError("Missing or out-of-bounds photographed center");
+  const tolerancePixels=Math.min(width/columns,height/rows)*toleranceCellFraction;
+  const neighbors=suggested.map(point=>reviewed.map((other,i)=>({
+    i,distance:Math.hypot(point.cx-other.cx,point.cy-other.cy)
+  })).filter(pair=>pair.distance<=tolerancePixels)
+    .sort((a,b)=>a.distance-b.distance||a.i-b.i));
+  const owner=new Int32Array(reviewed.length).fill(-1);
+  const augment=(i,seen)=>{
+    for(const {i:target} of neighbors[i]){
+      if(seen.has(target))continue;
+      seen.add(target);
+      if(owner[target]<0||augment(owner[target],seen)){
+        owner[target]=i;
+        return true;
+      }
+    }
+    return false;
+  };
+  let matches=0;
+  for(let i=0;i<suggested.length;i++)if(augment(i,new Set()))matches++;
+  return {
+    matches,falseAlarms:suggested.length-matches,misses:reviewed.length-matches,
+    precision:suggested.length?matches/suggested.length:null,
+    recall:reviewed.length?matches/reviewed.length:null,
+    tolerancePixels:Number(tolerancePixels.toFixed(2)),toleranceCellFraction
+  };
+}

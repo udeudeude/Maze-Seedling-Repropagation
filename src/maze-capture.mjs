@@ -30,6 +30,23 @@ export function homographyForCorners(corners) {
   if(!Array.isArray(corners)||corners.length!==4||corners.some(p=>!Number.isFinite(p.x)||!Number.isFinite(p.y))){
     throw new TypeError("Expected four image-space corners");
   }
+  // Four independently dragged handles can cross, fold or nearly collapse.
+  // An eight-coefficient homography can still solve some of those inputs, but
+  // would transpose or duplicate physical tiles in the imported maze.
+  // Screen coordinates increase downward: TL, TR, BR, BL must turn clockwise
+  // with positive cross products at every corner.
+  const xs=corners.map(p=>p.x),ys=corners.map(p=>p.y);
+  const boxArea=(Math.max(...xs)-Math.min(...xs))*
+    (Math.max(...ys)-Math.min(...ys));
+  const minimumTurn=boxArea*.001;
+  if(!(boxArea>0))throw new RangeError(
+    "Board corners must enclose a visible area. Move all four handles apart.");
+  for(let i=0;i<4;i++){
+    const a=corners[i],b=corners[(i+1)%4],c=corners[(i+2)%4];
+    const turn=(b.x-a.x)*(c.y-b.y)-(b.y-a.y)*(c.x-b.x);
+    if(turn<=minimumTurn)throw new RangeError(
+      "Board corners must follow the perimeter clockwise without crossing or collapsing. Move the four handles around the visible board.");
+  }
   const square=[[0,0],[1,0],[1,1],[0,1]],matrix=[],values=[];
   square.forEach(([u,v],i)=>{
     const {x,y}=corners[i];
@@ -47,6 +64,10 @@ export function warpSquarePixels(input,width,height,corners,size=504) {
   if(!Number.isInteger(size)||size<1||size>2048)throw new RangeError("Invalid output dimension");
   if(input.length!==width*height*4)throw new Error("Invalid RGBA image data");
   const project=homographyForCorners(corners);
+  // Do not synthesize transparent margins that a downstream detector could
+  // mistake for dark holes, empty squares, or grid-edge evidence.
+  if(corners.some(p=>p.x<0||p.y<0||p.x>width-1||p.y>height-1))
+    throw new RangeError("Board corners must remain inside the photograph.");
   const out=new Uint8ClampedArray(size*size*4);
   for(let row=0;row<size;row++){
     for(let column=0;column<size;column++){

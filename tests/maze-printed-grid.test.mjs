@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import {estimatePrintedGrid} from "../src/maze-printed-grid.mjs";
 import {suggestWalls} from "../src/maze-recognize.mjs";
+import {removeThinPrintedGridInk} from "../src/maze-grid-ink.mjs";
 
 function photo({cells=18,rows=cells,grid=true,gridLinesX=true,gridLinesY=true,
   blank=false,contrast=68,shiftX=0,shiftY=0}={}){
@@ -149,4 +150,47 @@ test("proper registration and small sampling jitter do not trigger offset warnin
     assert.ok(measured.rows.phaseOffsetCells<.25);
     assert.notEqual(suggestWalls(image,{columns:18,rows:18}).quality,"grid-offset");
   }
+});
+
+test("continuous black printed lines are not classified as walls",()=>{
+  const image=photo({blank:true,contrast:170});
+  const estimate=estimatePrintedGrid(image);
+  assert.equal(estimate.columns.cells,18);
+  assert.equal(estimate.rows.cells,18);
+  const result=suggestWalls(image,{columns:18,rows:18});
+  assert.equal(result.quality!=="grid-mismatch",true);
+  assert.equal(result.quality!=="grid-offset",true);
+  assert.equal(result.suggestions.length,0,
+    "Thin ink lattice must not create walls: "+result.suggestions.length);
+});
+test("physical wall blocks remain visible across the black printed grid",()=>{
+  const image=photo({contrast:170});
+  const result=suggestWalls(image,{columns:18,rows:18});
+  assert.ok(result.suggestions.length>0,
+    "Retain actual thick dark wall blocks after ink suppression");
+  assert.ok(result.suggestions.length<60,
+    "Do not turn most of the printed grid into walls");
+});
+test("ink removal requires strong lattice support and preserves thick blocks",()=>{
+  const width=504,height=504,pitch=28;
+  const mask=new Uint8Array(width*height);
+  for(let y=0;y<height;y++)for(let x=0;x<width;x++){
+    const ink=(x%pitch===0||y%pitch===0);
+    const wall=x>=82&&x<=88&&y>=72&&y<182;
+    if(ink||wall)mask[y*width+x]=1;
+  }
+  const before=mask.slice();
+  const axis={cells:18,confidence:.99,phaseOffsetCells:0,phasePixels:0};
+  const grid={columns:axis,rows:axis};
+  const result=removeThinPrintedGridInk(mask,width,height,grid,18,18);
+  assert.ok(result.removed>5000);
+  assert.equal(result.mask[13*width+28],0,"Vertical printed line removed");
+  assert.equal(result.mask[28*width+13],0,"Horizontal printed line removed");
+  assert.equal(result.mask[100*width+85],1,"Thick physical wall survives");
+  assert.deepEqual(mask,before,"Input mask remains unchanged");
+  const uncertain=removeThinPrintedGridInk(mask,width,height,{
+    columns:{...axis,confidence:.75},rows:{...axis,confidence:.75}
+  },18,18);
+  assert.equal(uncertain.removed,0);
+  assert.deepEqual(uncertain.mask,mask);
 });

@@ -94,6 +94,9 @@ function axisEstimate(image,axis,minCells,maxCells){
     // Distance to the expected line-at-cell-boundary lattice, expressed as
     // a fraction of one cell, NOT a probability of camera alignment.
     phaseOffsetCells:Number(phaseOffsetCells.toFixed(2)),
+    // Observed ink lattice origin in rectified image pixels; meaningful only
+    // with strong, correctly registered periodic printed-line evidence.
+    phasePixels:Number(observedPhase.toFixed(2)),
     matchedLines:best.matches,observedLines:best.peaks};
 }
 

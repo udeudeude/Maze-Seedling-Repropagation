@@ -1,6 +1,7 @@
 import {separateRoundHoles,findRoundHolesByEdges,findStraightWallSpans} from "./maze-shapes.mjs";
 import {detectColoredMarkers} from "./maze-markers.mjs";
 import {estimatePrintedGrid} from "./maze-printed-grid.mjs";
+import {removeThinPrintedGridInk} from "./maze-grid-ink.mjs";
 
 /**
  * Experimental wall classifier for the original Seedling kit's DARK WALL STRIPS.
@@ -177,7 +178,11 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
       coverage:new Float32Array(columns*rows)};
     if(!withheld&&darkFraction>=.0015&&darkFraction<=.72&&contrast>=25){
       const tw=width/columns,th=height/rows;
-      const separated=separateRoundHoles(mask,width,height,columns,rows);
+      // Black printed paper-grid lines are not wooden wall pieces. Strip only
+      // independently evidenced thin, continuous ink; preserve wider blocks.
+      const wallMask=removeThinPrintedGridInk(mask,width,height,
+        printedGrid,columns,rows).mask;
+      const separated=separateRoundHoles(wallMask,width,height,columns,rows);
       const holes=[...separated.holes];
       // Circle-edge voting finds holes that are merged with nearby wall pixels.
       for(const proposed of findRoundHolesByEdges(image,columns,rows)){

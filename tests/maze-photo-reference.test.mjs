@@ -12,7 +12,7 @@ test("reference begins empty even with many scanner predictions",()=>{
   assert.deepEqual(photoReferenceLabels(reference),{walls:[],holes:[],markers:[]});
   reference=editPhotoReference(reference,{...settings,mode:"walls",x:2,z:2});
   reference=editPhotoReference(reference,{...settings,mode:"walls",x:7,z:7});
-  reference=editPhotoReference(reference,{...settings,mode:"holes",x:8,z:8});
+  reference=editPhotoReference(reference,{...settings,mode:"holes",x:8,z:8,cx:231,cy:231});
   reference=editPhotoReference(reference,{...settings,mode:"markers",markerBrush:"entrance",x:1,z:2});
   const metric=compareScanReview({columns:18,rows:18,suggested:predictions,
     reviewed:photoReferenceLabels(reference)});
@@ -27,14 +27,14 @@ test("reference begins empty even with many scanner predictions",()=>{
 test("annotation edits toggle walls and holes without consuming detector coordinates",()=>{
   const empty=newPhotoReference();
   let review=editPhotoReference(empty,{...settings,mode:"holes",x:3,z:4,
-    candidates:[{x:3,z:4,cx:9,cy:10,radius:999}]});
+    cx:103.25,cy:118.75,candidates:[{x:3,z:4,cx:9,cy:10,radius:999}]});
   assert.deepEqual(review.holes.get("3,4"),{
-    x:3,z:4,cx:98,cy:126,radius:8.4,confidence:0});
+    x:3,z:4,cx:103.25,cy:118.75,radius:8.4});
   assert.equal(empty.holes.size,0,"Original reference remains immutable");
   review=editPhotoReference(review,{...settings,mode:"walls",x:3,z:4});
   review=editPhotoReference(review,{...settings,mode:"walls",x:3,z:4});
   assert.equal(review.walls.size,0);
-  review=editPhotoReference(review,{...settings,mode:"holes",x:3,z:4});
+  review=editPhotoReference(review,{...settings,mode:"holes",x:3,z:4,cx:103.25,cy:118.75});
   assert.equal(review.holes.size,0);
 });
 test("markers may be moved, cleared and cannot create a third invented role",()=>{
@@ -54,7 +54,9 @@ test("invalid, out of bounds and malformed annotations are rejected",()=>{
     {mode:"markers",x:0,z:NaN}
   ])assert.throws(()=>editPhotoReference(ref,{...settings,...mutation}),TypeError);
   assert.throws(()=>photoReferenceLabels({walls:[]}),TypeError);
-  assert.throws(()=>editPhotoReference(ref,{...settings,mode:"holes",x:1,z:1,width:0}),TypeError);
+  assert.throws(()=>editPhotoReference(ref,{...settings,mode:"holes",x:1,z:1,width:0,cx:30,cy:30}),TypeError);
+  assert.throws(()=>editPhotoReference(ref,{...settings,mode:"holes",x:1,z:1}),TypeError);
+  assert.throws(()=>editPhotoReference(ref,{...settings,mode:"holes",x:1,z:1,cx:80,cy:30}),TypeError);
 });
 test("independent labels must precede display of predictions, stay separate from import",()=>{
   const app=readFileSync(new URL("../src/app.mjs",import.meta.url),"utf8");
@@ -66,6 +68,6 @@ test("independent labels must precede display of predictions, stay separate from
   assert.match(app,/photoReferenceMode=true;/);
   assert.match(app,/if\(photoReferenceMode\)\{\s*\/\/ Ground-truth candidates/);
   assert.match(app,/if\(!photoReferenceMode\|\|!scanResult\|\|!el\("scanReviewComplete"\)\.checked\)return/);
-  assert.match(app,/reviewed:photoReferenceLabels\(photoReference\)/);
+  assert.match(app,/const reviewed=photoReferenceLabels\(photoReference\)/);
   assert.match(app,/if\(photoReferenceMode\)return;/);
 });

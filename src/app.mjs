@@ -19,10 +19,10 @@ import {snapshotFileName,sceneAsPng,canShareSnapshot,drawSnapshotPlayerBadge} fr
 import {MAX_BACKUP_BYTES,createLibraryBackup,parseLibraryBackup,mergeLibraryBackup,
   libraryBackupFileName,mazeFileName,canShareMaze} from "./maze-backup.mjs";
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
-import {compareScanReview,holeForPhotoReview} from "./maze-scan-evaluation.mjs";
+import {compareScanReview,compareHoleCenters,holeForPhotoReview} from "./maze-scan-evaluation.mjs";
 import {newPhotoReference,editPhotoReference,photoReferenceLabels} from "./maze-photo-reference.mjs";
 import {scanReviewWarning} from "./maze-scan-notice.mjs";
-import {reviewCellAt,centeredReviewScroll} from "./maze-scan-viewport.mjs";
+import {reviewCellAt,reviewPixelAt,centeredReviewScroll} from "./maze-scan-viewport.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
   addMaze,openMaze,duplicateMaze,deleteMaze,sortedMazes} from "./maze-library.mjs";
 import {saveMazeLocally,emergencyMazeExport} from "./maze-storage.mjs";
@@ -1762,11 +1762,14 @@ function initializePhoto() {
   el("measureScanButton").addEventListener("click",()=>{
     if(!photoReferenceMode||!scanResult||!el("scanReviewComplete").checked)return;
     const columns=Number(maze.data.scale[0]),rows=Number(maze.data.scale[2]);
+    const reviewed=photoReferenceLabels(photoReference);
     const metrics=compareScanReview({columns,rows,
       suggested:{walls:scanResult.suggestions,holes:scanResult.holes,
-        markers:scanResult.markers},
-      reviewed:photoReferenceLabels(photoReference)
+        markers:scanResult.markers},reviewed
     });
+    const holeCenters=compareHoleCenters({suggested:scanResult.holes,
+      reviewed:reviewed.holes,width:scanGuide.width,height:scanGuide.height,
+      columns,rows});
     // Predictions appear for the first time only AFTER the photograph has
     // been independently labeled. Import selections were never the reference.
     photoReferenceMode=false;
@@ -1780,21 +1783,25 @@ function initializePhoto() {
       metric.falseAlarms+" false alarms; "+metric.misses+" missed. Precision "+
       fmt(metric.precision)+", recall "+fmt(metric.recall)+".";
     el("scanMeasurementResult").textContent=[
-      display("Walls",metrics.walls),display("Holes",metrics.holes),
+      display("Walls (exact squares)",metrics.walls),
+      display("Hole centers (within "+holeCenters.tolerancePixels+
+        " rectified photo pixels)",holeCenters),
+      display("Holes (exact squares)",metrics.holes),
       display("Start",metrics.start),display("Finish",metrics.finish),
-      "These figures describe agreement with your checked corrections, not verified accuracy of the historical scanner."
+      "Image-space localization and cell assignment are separate tests. "+
+      "Neither establishes physical-grid calibration or original scanner accuracy."
     ].join("\n");
     const axis=entry=>entry?{cells:entry.cells,
       confidence:entry.confidence,phaseOffsetCells:entry.phaseOffsetCells}:null;
     scanMeasurementReport=JSON.stringify({
-      format:"maze-repropagation-scan-review-v1",
+      format:"maze-repropagation-scan-review-v2",
       reference:"independently labeled photograph before detector proposals were displayed",
       note:"One user-labeled photo with manual grid alignment. Prior familiarity and labeling errors remain possible; not verified original scanner accuracy.",
       dimensions:{columns,rows},sensitivity:Number(el("sensitivitySlider").value)/100,
       scanQuality:scanResult.quality,printedGrid:{
         columns:axis(scanResult.printedGrid?.columns),
         rows:axis(scanResult.printedGrid?.rows)},
-      metrics
+      metrics:{...metrics,holeCenters}
     },null,2);
     el("copyScanReportButton").hidden=false;
     renderScan();
@@ -1815,8 +1822,9 @@ function initializePhoto() {
       el("scanStatus").textContent="Independent photograph labeling: detector predictions and counts are hidden. "+
         photoReference.walls.size+" walls, "+photoReference.holes.size+
         " holes, "+photoReference.markers.size+" markers manually labeled. "+
-        "Mark every actual feature in the aligned grid, including missed holes, "+
-        "then check completion below to compare. This does not change the maze to import.";
+        "Tap the visible center of each physical hole (not the grid midpoint). "+
+        "Mark every actual feature, then check completion to compare. "+
+        "This does not change the maze to import.";
       el("applyScanButton").disabled=true;
       return;
     }
@@ -2186,9 +2194,13 @@ function initializePhoto() {
     invalidateScanMeasurement();
     const key=x+","+z;
     if(photoReferenceMode){
+      const point=reviewPixelAt(event.currentTarget.getBoundingClientRect(),
+        event.clientX,event.clientY,scanGuide.width,scanGuide.height);
+      if(!point)return;
       photoReference=editPhotoReference(photoReference,{
         mode:scanMode,x,z,markerBrush,width:scanGuide.width,height:scanGuide.height,
-        columns:Number(maze.data.scale[0]),rows:Number(maze.data.scale[2])
+        columns:Number(maze.data.scale[0]),rows:Number(maze.data.scale[2]),
+        ...point
       });
       renderScan();
       return;

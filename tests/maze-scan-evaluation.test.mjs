@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-import {compareScanReview} from "../src/maze-scan-evaluation.mjs";
+import {compareScanReview,holeForPhotoReview} from "../src/maze-scan-evaluation.mjs";
 
 const tile=(x,z)=>({x,z});
 test("a fully reviewed wall/hole photograph yields distinct false alarms and misses",()=>{
@@ -70,4 +70,42 @@ test("measurement is optional, review-gated, offline, and stripped of original p
   assert.match(app,/function invalidateScanMeasurement\(\)/);
   assert.match(app,/scanMeasurementReport=JSON\.stringify\(/);
   assert.match(serviceWorker,/\.\/src\/maze-scan-evaluation\.mjs/);
+});
+
+test("unverified photographed hole and sticker candidates are never preapproved",()=>{
+  const app=readFileSync(new URL("../src/app.mjs",import.meta.url),"utf8");
+  assert.match(app,/scanSelectedHoles=new Map\(\);\s*for\(const \[key,hole\] of scanAddedHoles\)/);
+  assert.match(app,/scanMarkers=new Map\(\);\s*for\(const \[type,position\] of scanMarkerEdits\)/);
+  assert.match(app,/for\(const hole of scanResult\?\.holes\?\?\[\]\)/);
+  assert.match(app,/for\(const marker of scanResult\?\.markers\?\?\[\]\)/);
+  assert.match(app,/holeForPhotoReview\(scanResult\?\.holes\?\?\[\],/);
+  assert.doesNotMatch(app,/if\(!scanRejectedHoles.has\(key\)\)scanSelectedHoles.set\(key,hole\)/);
+  assert.match(app,/Circle and sticker guesses are NOT selected automatically/);
+});
+
+test("explicit approval preserves actual hole center, radius and detector data",()=>{
+  const original={x:3,z:7,cx:105.2,cy:201.4,radius:8.4,confidence:.42,
+    source:"radial-edge"};
+  const candidates=[original,{x:1,z:1,cx:42,cy:42,radius:6}];
+  const result=holeForPhotoReview(candidates,{
+    x:3,z:7,width:504,height:504,columns:18,rows:18});
+  assert.deepEqual(result,original);
+  assert.notStrictEqual(result,original);
+  result.radius=999;
+  assert.equal(original.radius,8.4,"Approving cannot mutate detector results");
+});
+
+test("manual annotation works when no physical circle is recognized",()=>{
+  const result=holeForPhotoReview([],{x:2,z:4,width:504,height:504,
+    columns:18,rows:18});
+  assert.deepEqual(result,{x:2,z:4,cx:70,cy:126,radius:8.4,confidence:0});
+});
+
+test("rejects invalid cell coordinates and ignores corrupt candidate centers",()=>{
+  const r=holeForPhotoReview([{x:2,z:4,cx:NaN,cy:10,radius:8}],
+    {x:2,z:4,width:504,height:504,columns:18,rows:18});
+  assert.equal(r.cx,70);
+  for(const point of [{x:-1,z:4},{x:18,z:4},{x:0,z:NaN}])
+    assert.throws(()=>holeForPhotoReview([],{...point,
+      width:504,height:504,columns:18,rows:18}),TypeError);
 });

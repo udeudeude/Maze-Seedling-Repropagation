@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - research/original-native-scanner-geometry-20261127
+      - research/scanner-live-callgraph-20261127
     paths:
       - "scripts/native-scanner-evidence.py"
       - ".github/workflows/native-scanner-evidence.yml"

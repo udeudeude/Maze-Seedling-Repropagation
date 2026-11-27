@@ -116,3 +116,8 @@ In Capture review, expand **Fine-tune individual edges** and choose **Suggest ma
 ### Recovery when this phone cannot save
 
 The collection is saved as the authoritative document before updating the optional legacy recovery copy. If browser storage fills or is disabled, the header changes to **Not saved** and reveals **Save copy**. That action offers a whole-library JSON rescue file, including your latest in-memory changes and personal media. If that archive exceeds the 25-megabyte backup limit, it instead offers a native-format export of the active maze. Confirm the file reached Files or another external destination before closing the page. A browser warning also appears on supported platforms if you try to leave with unsaved changes. This rescue is strictly on-device and never uploads anything. The browser may not display unload warnings in every installed-web-app context.
+
+
+### Inspect and correct a photograph accurately
+
+In **Capture → Review**, use **+** to magnify the photograph up to 4×. Choose **Pan** to drag the enlarged board without changing walls, holes or Start/Finish markers. Switch Pan off to tap individual squares. **−** zooms out while keeping the currently inspected region centered. Magnification never changes the source photograph, the scanner's calibration, or your correction data; it only enlarges the review canvas. The controls are intended to make exhaustive checking practical before importing or measuring recognition. Actual iPhone touch ergonomics still require validation.

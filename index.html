@@ -127,8 +127,8 @@
           <small>The dashed guide is approximate. A turquoise outline, when found, is only a possible board edge. Confirm and adjust all four corners after capture.</small>
         </div>
         <div class="photo-stage" id="photoStage" hidden>
-          <canvas id="photoCanvas" aria-label="Photograph of physical maze with four adjustable corners"></canvas>
-          <span class="photo-hint">Choose Find board corners for an initial estimate, then drag the numbered handles to correct it.</span>
+          <canvas id="photoCanvas" aria-label="Photograph of the physical maze with four adjustable corners and an optional tracing-grid overlay"></canvas>
+          <span class="photo-hint">Use Find board corners as a starting estimate. Match the turquoise 18 × 18 guide to the printed paper squares, not merely the outer board. Drag and fine-adjust the handles.</span>
         </div>
         <div class="photo-corner-fine" id="photoCornerFine" hidden>
           <label for="photoCornerSelect">Fine-adjust board corner</label>
@@ -146,6 +146,31 @@
           </div>
           <small id="cornerNudgeStatus" role="status">Select a numbered handle, then adjust it one alignment pixel at a time. Check the paper-grid boundary before tracing.</small>
         </div>
+        <details id="photoGridCalibration" class="edge-calibration photo-grid-calibration" hidden open>
+          <summary>Align the playable paper grid</summary>
+          <label class="photo-grid-guide-toggle" for="showPhotoGridGuide">
+            <input type="checkbox" id="showPhotoGridGuide" checked>
+            Show 18 × 18 tracing guide on the original photograph
+          </label>
+          <p>Match the inner turquoise lines with the actual printed square boundaries. The numbered handles mark the outer alignment; use margins to remove any surrounding border. The guide is adjustable, not automatically calibrated.</p>
+          <div class="scan-slider">
+            <label for="gridInsetSlider">Set all grid edges equally <output id="gridInsetValue" for="gridInsetSlider">0%</output></label>
+            <input id="gridInsetSlider" type="range" min="0" max="20" step="0.5" value="0" aria-describedby="gridInsetHelp">
+            <span id="gridInsetHelp">Remove the border outside the playable squares. Changes reset previous corrections for a fresh review.</span>
+          </div>
+          <details id="gridEdgeDetails" class="edge-calibration">
+            <summary>Fine-tune individual edges</summary>
+            <button id="suggestGridEdgesButton" type="button">Suggest margins from photograph</button>
+            <p id="edgeSuggestionStatus" role="status">Optional: look for a distinct paper border. This does not calibrate the physical grid or bypass review.</p>
+            <div class="edge-calibration-grid">
+              <div><label for="gridInsetTopSlider">Top <output id="gridInsetTopValue" for="gridInsetTopSlider">0%</output></label><input id="gridInsetTopSlider" type="range" min="0" max="20" step="0.5" value="0"></div>
+              <div><label for="gridInsetRightSlider">Right <output id="gridInsetRightValue" for="gridInsetRightSlider">0%</output></label><input id="gridInsetRightSlider" type="range" min="0" max="20" step="0.5" value="0"></div>
+              <div><label for="gridInsetBottomSlider">Bottom <output id="gridInsetBottomValue" for="gridInsetBottomSlider">0%</output></label><input id="gridInsetBottomSlider" type="range" min="0" max="20" step="0.5" value="0"></div>
+              <div><label for="gridInsetLeftSlider">Left <output id="gridInsetLeftValue" for="gridInsetLeftSlider">0%</output></label><input id="gridInsetLeftSlider" type="range" min="0" max="20" step="0.5" value="0"></div>
+            </div>
+            <p>Use these only if the board border is uneven. Moving any edge recalculates the suggestions and clears hand corrections. The all-edges slider above restores equal margins.</p>
+          </details>
+        </details>
         <div class="photo-actions" id="photoActions" hidden>
           <button type="button" id="suggestCornersButton" disabled>Find board corners</button>
           <button type="button" class="primary" id="detectButton" disabled>Suggest wall positions</button>
@@ -194,30 +219,13 @@
             <p class="scan-evaluation-output" id="scanMeasurementResult" role="status">No measurement yet.</p>
           </details>
           <div class="scan-slider">
-            <label for="gridInsetSlider">Set all grid edges equally <output id="gridInsetValue" for="gridInsetSlider">0%</output></label>
-            <input id="gridInsetSlider" type="range" min="0" max="20" step="1" value="0" aria-describedby="gridInsetHelp">
-            <span id="gridInsetHelp">Remove the border outside the playable squares. Changes reset previous corrections for a fresh review.</span>
-          </div>
-          <details id="gridEdgeDetails" class="edge-calibration">
-            <summary>Fine-tune individual edges</summary>
-            <button id="suggestGridEdgesButton" type="button">Suggest margins from photograph</button>
-            <p id="edgeSuggestionStatus" role="status">Optional: look for a distinct paper border. This does not calibrate the physical grid or bypass review.</p>
-            <div class="edge-calibration-grid">
-              <div><label for="gridInsetTopSlider">Top <output id="gridInsetTopValue" for="gridInsetTopSlider">0%</output></label><input id="gridInsetTopSlider" type="range" min="0" max="20" step="1" value="0"></div>
-              <div><label for="gridInsetRightSlider">Right <output id="gridInsetRightValue" for="gridInsetRightSlider">0%</output></label><input id="gridInsetRightSlider" type="range" min="0" max="20" step="1" value="0"></div>
-              <div><label for="gridInsetBottomSlider">Bottom <output id="gridInsetBottomValue" for="gridInsetBottomSlider">0%</output></label><input id="gridInsetBottomSlider" type="range" min="0" max="20" step="1" value="0"></div>
-              <div><label for="gridInsetLeftSlider">Left <output id="gridInsetLeftValue" for="gridInsetLeftSlider">0%</output></label><input id="gridInsetLeftSlider" type="range" min="0" max="20" step="1" value="0"></div>
-            </div>
-            <p>Use these only if the board border is uneven. Moving any edge recalculates the suggestions and clears hand corrections. The all-edges slider above restores equal margins.</p>
-          </details>
-          <div class="scan-slider">
             <label for="sensitivitySlider">Detection sensitivity</label>
             <input id="sensitivitySlider" type="range" min="0" max="100" step="5" value="50">
             <span>Fewer walls <span aria-hidden="true">·</span> More walls</span>
           </div>
 
         </div>
-        <p class="capture-note">Wall suggestions are experimental, not the original scanner. Align corners carefully, inspect the suggestions, and correct mistakes before applying them. Detection of holes and colored start/finish markers is provisional. Grid margins can be adjusted uniformly or by individual edge; exact physical board calibration and recognition accuracy are not yet established.</p>
+        <p class="capture-note">Wall suggestions are experimental, not the original scanner. First align the projected tracing guide with the printed paper grid, including its playable boundaries, then inspect and correct every suggested feature before import. Seeing the grid overlay does not establish calibration accuracy or original scanner fidelity.</p>
       </section>
     </main>
     <nav class="tabbar" aria-label="Main navigation">

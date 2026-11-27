@@ -12,7 +12,8 @@ import {AUDIO_SETTINGS_KEY,audioPreferences,createMazeAudio} from "./maze-audio.
 import {MAX_PHOTO_DATA_URL_LENGTH,photoAt,photoEdit,photoDataUrl} from "./maze-media.mjs";
 import {avatarAt,avatarEdit,avatarCropRect} from "./maze-avatar.mjs";
 import {voiceAt,voiceEdit,createVoiceRecorder} from "./maze-voice.mjs";
-import {warpSquarePixels,initialCorners,nudgeBoardCorner,insetRectifiedBoard,suggestPlayableGridEdges} from "./maze-capture.mjs";
+import {warpSquarePixels,homographyForCorners,initialCorners,nudgeBoardCorner,insetRectifiedBoard,suggestPlayableGridEdges} from "./maze-capture.mjs";
+import {projectPhotoGrid} from "./maze-photo-grid.mjs";
 import {suggestBoardCorners} from "./maze-board-corners.mjs";
 import {assessCameraFrame,createCameraSession,projectBoardOutline} from "./maze-live.mjs";
 import {snapshotFileName,sceneAsPng,canShareSnapshot,drawSnapshotPlayerBadge} from "./maze-snapshot.mjs";
@@ -1386,6 +1387,33 @@ function renderPhoto() {
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(photoImage,0,0,canvas.width,canvas.height);
   if(!photoCorners)return;
+  if(el("showPhotoGridGuide").checked){
+    try{
+      const margins=Object.fromEntries(["top","right","bottom","left"].map(side=>[
+        side,Number(el("gridInset"+side[0].toUpperCase()+
+          side.slice(1)+"Slider").value)/100
+      ]));
+      const guide=projectPhotoGrid(photoCorners,margins,18,18);
+      ctx.save();
+      // Every third line is easier to track on a small phone. Neither this
+      // overlay nor its adjustable margins change the photographed pixels.
+      for(const lines of [guide.vertical,guide.horizontal]){
+        for(let i=0;i<lines.length;i++){
+          const {from,to}=lines[i];
+          const outer=i===0||i===lines.length-1;
+          ctx.beginPath();ctx.moveTo(from.x,from.y);ctx.lineTo(to.x,to.y);
+          ctx.lineWidth=outer?Math.max(2,canvas.width/360):i%3===0?1.6:1;
+          ctx.strokeStyle=outer?"rgba(24,127,148,.95)":
+            i%3===0?"rgba(22,137,160,.73)":"rgba(12,130,151,.37)";
+          ctx.stroke();
+        }
+      }
+      ctx.restore();
+    }catch{
+      // While a corner is being adjusted, invalid geometry must never be
+      // rendered as seemingly valid grid evidence. The scanner also rejects it.
+    }
+  }
   ctx.strokeStyle="#ffe8a2";ctx.lineWidth=Math.max(2,canvas.width/250);
   ctx.beginPath();photoCorners.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
   ctx.closePath();ctx.stroke();
@@ -1545,6 +1573,8 @@ function initializePhoto() {
     photoCorners=initialCorners(canvas.width,canvas.height);
     el("photoCornerSelect").value="0";
     el("photoCornerFine").hidden=false;
+    el("photoGridCalibration").hidden=false;
+    el("showPhotoGridGuide").checked=true;
     el("cornerNudgeStatus").textContent=
       "Select a numbered handle, then adjust it one alignment pixel at a time. Check the paper-grid boundary before tracing.";
     invalidateScanMeasurement();
@@ -1708,10 +1738,19 @@ function initializePhoto() {
   canvas.addEventListener("pointermove",event=>{
     if(activeCorner<0)return;
     const p=coord(event);
-    photoCorners[activeCorner]={
+    const moved=photoCorners.map(point=>({...point}));
+    moved[activeCorner]={
       x:Math.max(0,Math.min(canvas.width-1,p.x)),
       y:Math.max(0,Math.min(canvas.height-1,p.y))
     };
+    try{
+      homographyForCorners(moved);
+    }catch{
+      el("cornerNudgeStatus").textContent=
+        "Corner movement would fold the grid. Keep all four handles around the paper.";
+      return;
+    }
+    photoCorners=moved;
     abandonPhotoReference();
     scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
@@ -2106,9 +2145,11 @@ function initializePhoto() {
     analyzePhoto(true);
   });
   const gridEdges=["Top","Right","Bottom","Left"];
+  el("showPhotoGridGuide").addEventListener("change",renderPhoto);
   // Inset changes remap tile coordinates: previous hand corrections would
   // now refer to different squares and must never be silently reused.
   const restartAlignedScan=()=>{
+    renderPhoto();
     if(!scanBoardPixels)return;
     abandonPhotoReference();
     scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
@@ -2136,7 +2177,7 @@ function initializePhoto() {
         el("gridInset"+edge+"Slider").value=String(value);
         el("gridInset"+edge+"Value").textContent=value+"%";
       }
-      const suggested=gridEdges.map(edge=>proposal.edges[edge.toLowerCase()]);
+      const suggested=gridEdges.map(edge=>Number(el("gridInset"+edge+"Slider").value));
       if(suggested.every(value=>value===suggested[0])){
         el("gridInsetSlider").value=String(suggested[0]);
         el("gridInsetValue").textContent=suggested[0]+"%";
@@ -2146,6 +2187,7 @@ function initializePhoto() {
       el("edgeSuggestionStatus").textContent=
         "Possible border on "+proposal.detected.join(", ")+
         ". Other margins were kept. Review the refreshed tiles before importing.";
+      renderPhoto();
       restartAlignedScan();
     }catch(error){
       el("edgeSuggestionStatus").textContent=
@@ -2159,6 +2201,7 @@ function initializePhoto() {
       el("gridInset"+edge+"Slider").value=value;
       el("gridInset"+edge+"Value").textContent=value+"%";
     }
+    renderPhoto();
   });
   el("gridInsetSlider").addEventListener("change",restartAlignedScan);
   for(const edge of gridEdges){
@@ -2172,6 +2215,7 @@ function initializePhoto() {
       }else{
         el("gridInsetValue").textContent="Custom";
       }
+      renderPhoto();
     });
     slider.addEventListener("change",restartAlignedScan);
   }
@@ -2295,6 +2339,7 @@ function initializePhoto() {
     el("annotateBeforeDetectButton").disabled=true;
     photoImage=null;photoCorners=null;photoGuide=null;
     el("photoCornerFine").hidden=true;
+    el("photoGridCalibration").hidden=true;
     invalidateScanMeasurement();
     scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();

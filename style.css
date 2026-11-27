@@ -387,3 +387,10 @@ body.stereoscopic .tabbar,body.stereoscopic .topbar{display:none}
 .scan-evaluation-check{display:flex;align-items:flex-start;gap:.6rem;margin:.65rem 0}
 .scan-evaluation-check input{flex:none;margin-top:.2rem}
 .scan-evaluation-output{white-space:pre-line;overflow-wrap:anywhere}
+
+/* Keep photographic calibration beside the original image, before detection. */
+.photo-grid-calibration{max-width:550px;margin:13px auto 8px}
+.photo-grid-guide-toggle{display:flex;align-items:center;gap:8px;font-size:13px;line-height:1.4;margin:9px 0}
+.photo-grid-guide-toggle input{min-width:20px;min-height:20px;accent-color:var(--accent);flex:none}
+.photo-grid-calibration>.scan-slider{margin-top:12px}
+.photo-grid-calibration>.edge-calibration{margin:10px 0 2px}

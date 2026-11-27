@@ -188,7 +188,7 @@ def main(path):
         for address, thumb, size, _raw, display in records:
             if address in chosen or size > 65536:
                 continue
-             body = read_at(address, size)
+            body = read_at(address, size)
             if body is None:
                 continue
             engine = Cs(CS_ARCH_ARM, CS_MODE_THUMB if thumb else CS_MODE_ARM)

@@ -5,7 +5,7 @@
  * Usage: node scripts/probe-seedling-photo.mjs temporary-512x512.rgba sha256
  */
 import {readFileSync} from "node:fs";
-import {warpSquarePixels,insetRectifiedBoard} from "../src/maze-capture.mjs";
+import {warpSquarePixels,insetRectifiedBoard,homographyForCorners} from "../src/maze-capture.mjs";
 import {suggestWalls} from "../src/maze-recognize.mjs";
 
 const SIZE=512;
@@ -40,6 +40,69 @@ function wallOverlap(reference,other){
     intersectionOverUnion:unionWallTiles?sharedWallTiles/unionWallTiles:null};
 }
 
+/**
+ * Compare detector repeatability while keeping the physical photograph fixed.
+ * One-to-one nearest matching in the SOURCE photo prevents a cell shift from
+ * masquerading as a missed circle. No label or original physical measurement is
+ * implied. Only aggregate counts leave this function's callers.
+ */
+export function compareHoleRegistration(reference,observed,tolerancePixels=6) {
+  if(!Array.isArray(reference)||!Array.isArray(observed)||
+      !Number.isFinite(tolerancePixels)||tolerancePixels<=0||
+      [...reference,...observed].some(h=>!Number.isFinite(h?.sourceX)||
+        !Number.isFinite(h?.sourceY)||!Number.isInteger(h?.x)||
+        !Number.isInteger(h?.z)))
+    throw new TypeError("Expected hole centers in the source photograph");
+  const pairs=[];
+  for(let a=0;a<reference.length;a++)for(let b=0;b<observed.length;b++){
+    const distance=Math.hypot(reference[a].sourceX-observed[b].sourceX,
+      reference[a].sourceY-observed[b].sourceY);
+    if(distance<=tolerancePixels)pairs.push({a,b,distance});
+  }
+  pairs.sort((a,b)=>a.distance-b.distance||a.a-b.a||a.b-b.b);
+  const usedReference=new Set(),usedObserved=new Set();
+  let unchangedCells=0,changedCells=0,distanceSum=0;
+  for(const pair of pairs){
+    if(usedReference.has(pair.a)||usedObserved.has(pair.b))continue;
+    usedReference.add(pair.a);usedObserved.add(pair.b);
+    distanceSum+=pair.distance;
+    if(reference[pair.a].x===observed[pair.b].x&&
+        reference[pair.a].z===observed[pair.b].z)unchangedCells++;
+    else changedCells++;
+  }
+  const matched=usedReference.size;
+  return {
+    sourcePhotoTolerancePixels:tolerancePixels,
+    baselineCandidates:reference.length,
+    comparisonCandidates:observed.length,
+    matchedSourcePhotoCenters:matched,
+    missingBaselineCenters:reference.length-matched,
+    unmatchedComparisonCenters:observed.length-matched,
+    sameGridCell:unchangedCells,
+    reassignedGridCell:changedCells,
+    meanMatchedCenterDisplacementPixels:matched?
+      Number((distanceSum/matched).toFixed(2)):null
+  };
+}
+
+/**
+ * Invert both stages of our artificial square crop into the ORIGINAL research
+ * photograph's 512-pixel coordinate system. This prevents the same visible
+ * hole from being counted as a detector miss merely because the manually
+ * estimated crop moves it into another 18x18 square.
+ */
+function sourcePhotoHoles(holes,corners,margin=0) {
+  const project=homographyForCorners(corners);
+  const side=504;
+  const low=side*margin, high=side*(1-margin)-1;
+  return holes.map(h=>{
+    const u=(low+(high-low)*(h.cx+.5)/side+.5)/side;
+    const v=(low+(high-low)*(h.cy+.5)/side+.5)/side;
+    const center=project(u,v);
+    return {x:h.x,z:h.z,sourceX:center.x,sourceY:center.y};
+  });
+}
+
 export function measurePhotoProposals(pixels,config={}) {
   if(pixels?.length!==SIZE*SIZE*4)
     throw new RangeError("Expected a 512 x 512 RGBA reference image");
@@ -62,12 +125,15 @@ export function measurePhotoProposals(pixels,config={}) {
       // Shifted tracing-grid sensitivity is aggregate, never pixel labels.
       registrationSensitivity:result.registrationSensitivity,
       // Aggregate only; original-photo pixels and layout stay private.
-      wallCells:new Set(result.suggestions.map(cell=>cell.x+","+cell.z))
+      wallCells:new Set(result.suggestions.map(cell=>cell.x+","+cell.z)),
+      holeLocations:sourcePhotoHoles(result.holes,corners,entry.margin)
     });
   }
   const baseline=observations[0].wallCells;
+  const baselineHoles=observations[0].holeLocations;
   const stability=observations.slice(1).map(item=>({
-    versus:item.variant,...wallOverlap(baseline,item.wallCells)
+    versus:item.variant,...wallOverlap(baseline,item.wallCells),
+    holeRegistration:compareHoleRegistration(baselineHoles,item.holeLocations)
   }));
   // The latest real-photograph run showed serious dependence on grid margins.
   // Investigate corner-placement error separately. We publish only aggregate
@@ -89,7 +155,9 @@ export function measurePhotoProposals(pixels,config={}) {
       wallTileCount:other.size,quality:result.quality,
       printedGridStatus:result.printedGrid?.status??"unresolved",
       registrationSensitivity:result.registrationSensitivity,
-      ...wallOverlap(baseline,other)
+      ...wallOverlap(baseline,other),
+      holeRegistration:compareHoleRegistration(baselineHoles,
+        sourcePhotoHoles(result.holes,perturbed))
     };
   });
   return {
@@ -97,7 +165,7 @@ export function measurePhotoProposals(pixels,config={}) {
     labelStatus:"unlabeled historical product photograph; no accuracy claim",
     geometryStatus:"approximate manually estimated corners, not calibrated",
     sourceImageIsIncluded:false,
-    observed:observations.map(({wallCells,...rest})=>rest),
+    observed:observations.map(({wallCells,holeLocations,...rest})=>rest),
     sensitivityToGridCropping:stability,
     sensitivityToCornerPlacement:cornerStability
   };

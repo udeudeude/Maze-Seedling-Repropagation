@@ -42,8 +42,8 @@ export function suggestPrintedGridRefinement(image,corners,sourceWidth,sourceHei
   const dy=displacement(observed.rows,image.height,rows);
   if(dx===null||dy===null)return null;
   // Do not suggest a no-op based on mere repeated-grid periodicity.
-  // Even a zero residual cannot prove the correct integer-cell origin.
-  if(Math.hypot(dx/image.width*columns,dy/image.height*rows)<.035)
+  // Pixel quantization makes a well-aligned grid appear off by ~0.04 cell\n  // per axis. Refuse corrections smaller than 0.12 cell in aggregate.\n  // Even a zero residual cannot prove the correct integer-cell origin.
+  if(Math.hypot(dx/image.width*columns,dy/image.height*rows)<.12)
     return null;
   const sx=dx/image.width,sy=dy/image.height;
   const refined=[project(sx,sy),project(1+sx,sy),

@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import {estimatePrintedGrid} from "../src/maze-printed-grid.mjs";
 import {suggestWalls} from "../src/maze-recognize.mjs";
 
-function photo({cells=18,rows=cells,grid=true,blank=false,contrast=68}={}){
+function photo({cells=18,rows=cells,grid=true,gridLinesX=true,gridLinesY=true,
+  blank=false,contrast=68}={}){
   const size=504,data=new Uint8ClampedArray(size*size*4);
   for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-    const printed=grid&&(Math.abs(x%(size/cells))<1.2||
-      Math.abs(y%(size/rows))<1.2);
+    const printed=grid&&((gridLinesX&&Math.abs(x%(size/cells))<1.2)||
+      (gridLinesY&&Math.abs(y%(size/rows))<1.2));
     const wall=!blank&&(x>size*.26&&x<size*.29&&y>size*.14&&y<size*.44||
       y>size*.55&&y<size*.58&&x>size*.5&&x<size*.8);
     const light=231-25*x/size+12*y/size;
@@ -22,7 +23,7 @@ test("observes an 18-square printed grid despite wall blocks and uneven light",(
   assert.equal(measured.columns.cells,18);
   assert.equal(measured.rows.cells,18);
 });
-test("does not presume the physical paper has the digital presets' size",()=>{
+test("measures alternative periodicity without changing source document size",()=>{
   const measured=estimatePrintedGrid(photo({cells:12}));
   assert.equal(measured.status,"supported");
   assert.equal(measured.columns.cells,12);
@@ -75,5 +76,38 @@ test("matching rectangular document geometry is not rejected solely for unequal 
   const image=photo({cells:12,rows:18});
   const result=suggestWalls(image,{columns:12,rows:18});
   assert.equal(result.printedGrid.status,"inconsistent");
+  assert.notEqual(result.quality,"grid-mismatch");
+});
+
+test("a single strong width contradiction blocks proposals when rows are obscured",()=>{
+  const image=photo({cells:12,gridLinesY:false});
+  const measured=estimatePrintedGrid(image);
+  assert.equal(measured.columns.cells,12);
+  assert.equal(measured.rows,null);
+  const result=suggestWalls(image,{columns:18,rows:18});
+  assert.equal(result.quality,"grid-mismatch");
+  assert.match(result.message,/width: 12 observed vs 18 expected/);
+  assert.deepEqual(result.suggestions,[]);
+  assert.deepEqual(result.holes,[]);
+  assert.deepEqual(result.markers,[]);
+});
+test("a single strong height contradiction blocks proposals when columns are obscured",()=>{
+  const image=photo({rows:12,gridLinesX:false});
+  const measured=estimatePrintedGrid(image);
+  assert.equal(measured.columns,null);
+  assert.equal(measured.rows.cells,12);
+  const result=suggestWalls(image,{columns:18,rows:18});
+  assert.equal(result.quality,"grid-mismatch");
+  assert.match(result.message,/height: 12 observed vs 18 expected/);
+  assert.deepEqual(result.suggestions,[]);
+  assert.deepEqual(result.holes,[]);
+  assert.deepEqual(result.markers,[]);
+});
+test("a single matching visible axis remains available for reviewed import",()=>{
+  const image=photo({gridLinesY:false});
+  const measured=estimatePrintedGrid(image);
+  assert.equal(measured.columns.cells,18);
+  assert.equal(measured.rows,null);
+  const result=suggestWalls(image,{columns:18,rows:18});
   assert.notEqual(result.quality,"grid-mismatch");
 });

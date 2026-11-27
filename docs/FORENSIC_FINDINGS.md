@@ -31,7 +31,7 @@ The native cell type enumeration has: **empty, entrance, exit, floor, gate, info
 
 Each bundled preset's document keys are `source`, `uniqueIdentifier`, `version`, `options`, `data`, `name`. `data` contains `cells`, `duration`, `player_avatars`, `scale`, `theme`. A cell has a three-coordinate `position`, `type` and, optionally, `variant`. The coordinates, the three scale components, the duration (`"300.0"`), tile variants, and boolean-like options (`"true"`) are stored as **strings**, which must be preserved during round trips.
 
-**All eight built-in level documents specify scale `["18", "1", "18"]`, with horizontal tile coordinates in the range 0–17.** This verifies an 18 × 18 *digital* cell map. It does **not** by itself establish the photographic scanning grid's dimensions or the physical sizes of the wall pieces.
+**All eight built-in level documents specify scale `["18", "1", "18"]`, with horizontal tile coordinates in the range 0–17.** This verifies an 18 × 18 *digital* cell map. Independently, the contemporary [Vat19 retailer description](https://www.vat19.com/item/design-your-own-marble-maze-virtual-reality) says **each physical maze starts on an 18 × 18 grid**. This corroborates the physical paper's cell count but **not** grid pitch, printable-region offsets, wall placement geometry, physical wall lengths, or native image calibration. Direct validation against original boards remains outstanding.
 
 The original theme identifiers in JSON are `adventure`, `hedge`, `marble_maze`, `space`. The native Java enum calls the Marble theme `MARBLE`, but its **serialized identifier is `marble_maze`**. This distinction matters for compatibility.
 

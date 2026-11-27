@@ -1,8 +1,8 @@
 /**
  * Experimental observation of the printed paper grid in a rectified photograph.
- * The original digital presets are 18x18, but that does not establish the
- * physical kit's board dimensions. This returns evidence, never a new maze
- * size or an automatic import decision.
+ * Contemporary kit documentation also describes 18-by-18 physical squares.
+ * A photograph's observed line periodicity may still reflect misalignment,
+ * cropping or occlusion. Never infer a new maze size automatically.
  */
 const median=values=>{
   const sorted=values.sort((a,b)=>a-b);

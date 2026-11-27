@@ -4,7 +4,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 
 | Original function | Current status | Remaining work |
 | --- | --- | --- |
-| Photograph-to-maze automatic scanning | **Experimental:** printed-grid periodicity estimation now detects strong mismatch with the editor before allowing automated tile proposals; continuous dark-wall spans, editable suggestions and corners remain provisional | Establish physical grid dimensions with actual kit photographs, test detection precision and camera calibration |
+| Photograph-to-maze automatic scanning | **Experimental:** printed-grid periodicity estimation now detects strong mismatch with the editor before allowing automated tile proposals; continuous dark-wall spans, editable suggestions and corners remain provisional | Verify the independently documented 18-by-18 physical kit grid on actual photographs, then measure recognition accuracy and camera calibration |
 | Detect physical trap holes and start/finish | **Experimental:** circle and colored-sticker candidates, separate review/correction, marker import, namespaced hole annotations and provisional trap effect | Verify actual marker colors, capture calibration, original hole representation, classification precision on real photos |
 | Detect walls of three physical lengths | **Partial:** straight spans and image-space lengths measured | Segment touching blocks individually, recover exact short/medium/long dimensions, calibrate against the physical grid |
 | Live camera feedback and overlay | **Partial:** opt-in live camera, sampled exposure/contrast guidance, conservative live board-outline tracking, still-frame automatic corner suggestion and editable handles | Validate board outlining on actual kit photographs, lighting and perspective feedback, physical calibration and iPhone behavior |
@@ -32,7 +32,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 
 - Original native symbols: TileReader::getBoardCorners, computeBoard, drawGrid, getWalls, setBoardDimensions, removeBoardEdges; native board model can identify start and end.
 - The first-hand Toy Insider review explicitly confirms automatic wall, punched-hole, start and finish recognition.
-- [Original kit contents photograph](https://www.vat19.com/item/design-your-own-marble-maze-virtual-reality) shows charcoal-black walls, not tan wood. The original kit has 45 wall blocks in three lengths; the 18 × 18 size is VERIFIED FOR THE DIGITAL PRESETS only, not the physical camera scanning grid.
+- [The kit's contemporary retailer description](https://www.vat19.com/item/design-your-own-marble-maze-virtual-reality) specifically says that **each physical maze starts on an 18 × 18 grid** (under “Build a wall”), corroborating the recovered digital presets. This is documentary evidence, **not** measured camera pitch, placement offsets or demonstrated scanner accuracy. The set has 45 charcoal-black wall blocks in three lengths.
 - The experimental classifier uses histogram-based dark segmentation, elongated straight runs, connected-component circularity and radial-edge voting to suggest dark wall strips and hole positions. Hole marks are kept in the `repropagation.physicalHoles` field, **not** a fabricated original cell category. Changing sensitivity reuses cached geometry. Exact short/medium/long wall dimensions and real-photo accuracy are **not established**.
 
 ## High-priority order
@@ -69,7 +69,7 @@ The original application's proprietary assets and code are not included in this 
 
 ### Interpretation caveat
 
-Although the physical kit has three wall lengths and the bundled digital mazes have 18 × 18 coordinate maps, the exact physical grid pitch and mapping are still unknown. A continuous dark span might represent several touching factory pieces. The current code measures image-space straight spans and does **not** assert that each is exactly one factory part.
+A contemporary retailer documents the physical kit's 18 × 18 paper grid, consistent with the digital presets, but physical grid pitch, image edge offsets and wall-to-cell mapping remain unmeasured. A continuous dark span might represent several touching factory pieces. The current code measures image-space straight spans and does **not** assert that each is exactly one factory part.
 
 ## November 25, 2026: photo selection and multi-maze library
 
@@ -254,7 +254,7 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 
 ## November 26, 2026: conservative photograph-based border margin suggestions
 
-- After the photographer aligns the board's four corners, **Suggest margins from photograph** can propose individual top/right/bottom/left cropping percentages from the rectified image. It compares robust central color samples with sustained outer bands, accepts green or dark borders, and rejects weak boundaries, paper-grid lines and smooth lighting gradients. It does not presume that the original physical kit uses the digital presets' 18 × 18 pitch.
+- After the photographer aligns the board's four corners, **Suggest margins from photograph** can propose individual top/right/bottom/left cropping percentages from the rectified image. It compares robust central color samples with sustained outer bands, accepts green or dark borders, and rejects weak boundaries, paper-grid lines and smooth lighting gradients. It does not infer measured pixel pitch from the documented 18 × 18 paper count.
 - Suggestions are optional, never run automatically and cannot import a maze. An explicit click updates manual controls, recalculates the review image and deliberately clears stale wall, hole and marker corrections. No original photograph, native document data or proprietary assets are changed.
 - Synthetic tests cover asymmetric dark and green borders, partial borders, printed grid lines, wall clutter, low-evidence rejection, source immutability and control wiring. **Not validated against original Seedling photographs:** visual-border estimates do not establish physical grid pitch, factory-piece lengths, precise wall recognition or marker fidelity. They must be reviewed and corrected by the user.
 
@@ -290,9 +290,15 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 
 ## November 26, 2026: first evidence-driven printed-grid diagnostic
 
-- The eight recovered *digital* levels use 18 by 18 squares. That is **not** proof of the physical paper grid's size. Treating it as such risks mapping real wall blocks onto incorrect virtual cells.
-- Rectified photograph analysis now seeks recurring thin printed grid lines along both axes, rejects unsupported or contradictory evidence, and distinguishes them from isolated wall strips. Where both axes confidently indicate a different grid size, the importer withholds automatic walls, holes and start/finish proposals; the photograph remains available for explicit manual review. It does not resize or alter a saved maze.
+- The eight recovered digital levels use 18 by 18 squares. A contemporary [retailer description](https://www.vat19.com/item/design-your-own-marble-maze-virtual-reality) independently documents **18 by 18 physical paper squares**, correcting the earlier claim that only the digital grid was evidenced. It does **not** establish measurable grid pitch, grid bounds in photographs or native scanner cell mapping.
+- Rectified photograph analysis seeks recurring printed lines on either axis, withholding automatic walls, holes and start/finish proposals if **one or both strongly measured axes** conflict with the destination maze. Occluded lines on the other axis cannot be mistaken for agreement. A conflict can indicate misaligned corners, cropped paper or a non-Seedling photo, not necessarily different physical kit dimensions. The photograph and maze remain unchanged.
 - Six new automated tests exercise 18-square and 12-square synthetic grids, wall interference, uneven lighting, absent or inconsistent evidence, and withheld proposals. This is **not field calibration**: there are still no annotated photographs of actual Seedling boards with measured scan precision or recall.
 - Before declaring physical recognition complete, obtain non-public, consented photographs of multiple actual layouts, document the paper's cell count and wall-placement conventions, and measure corner, wall, hole and sticker classification against hand-annotated ground truth. Keep photos and original copyrighted materials out of the public repository.
 
 - Follow-up safeguard: equally convincing but **different horizontal and vertical printed-line counts** must also suspend automated placement when either count conflicts with the destination maze. Previously, an `inconsistent` estimate bypassed the safeguard entirely even when one axis clearly disagreed. Matching rectangular document dimensions remain permissible. Synthetic tests cover both cases. A real Seedling-board calibration is still required.
+
+## November 26, 2026: documented kit geometry and one-axis safety
+
+- The original kit's contemporary [Vat19 “Build a wall” description](https://www.vat19.com/item/design-your-own-marble-maze-virtual-reality) expressly reports an **18 × 18 physical grid**, consistent with the eight recovered 18 × 18 digital presets. This is independent historical documentary evidence of *cell count*, not camera-derived physical pitch, margin offsets, object-scale calibration or validation of the original scanner.
+- Corrected a scan-safety gap: with a strongly observed conflicting width count and obscured height lines (or the converse), the old guard silently allowed proposals on an incorrect grid. The guard now withholds proposals on **any** strongly contradictory axis. Its message identifies the conflicting axis while retaining the photo for manual correction. A single **matching** readable axis does not block reviewed imports.
+- New synthetic tests cover both one-axis occlusion cases and matching partial evidence. Their line-periodicity score is heuristic, not a calibrated probability. Ground-truthed photographs of original Seedling boards are still required before asserting physical scanning accuracy.

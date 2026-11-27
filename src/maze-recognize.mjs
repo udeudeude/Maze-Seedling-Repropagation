@@ -148,16 +148,17 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
   if(!computed||computed.columns!==columns||computed.rows!==rows){
     const {width,height,mask,darkFraction,threshold,contrast}=darkPixelMask(image);
     const printedGrid=estimatePrintedGrid(image);
-    // The recovered 18x18 digital levels do not establish physical paper
-    // geometry. A strong discrepancy invalidates automatic tile mapping.
-    // A convincingly measured discrepancy in either axis is unsafe, even
-    // when the two observed axis counts disagree with each other. An
-    // inconsistent rectangular pattern is not a free pass to place walls
-    // against an unrelated document grid.
-    const mismatch=printedGrid.columns&&printedGrid.rows&&
-      Math.min(printedGrid.columns.confidence,printedGrid.rows.confidence)>=.9&&
-      (printedGrid.columns.cells!==columns||printedGrid.rows.cells!==rows);
-    computed={columns,rows,width,height,darkFraction,threshold,contrast,printedGrid,mismatch,
+    // Contemporary documentation describes 18-by-18 squares on the kit.
+    // A partly hidden printed grid can still expose one contradictory axis.
+    // Never require both axes to be visible before rejecting unsafe mapping.
+    const conflicts=[
+      printedGrid.columns?.confidence>=.9&&printedGrid.columns.cells!==columns
+        ?"width: "+printedGrid.columns.cells+" observed vs "+columns+" expected":null,
+      printedGrid.rows?.confidence>=.9&&printedGrid.rows.cells!==rows
+        ?"height: "+printedGrid.rows.cells+" observed vs "+rows+" expected":null
+    ].filter(Boolean);
+    const mismatch=conflicts.length>0;
+    computed={columns,rows,width,height,darkFraction,threshold,contrast,printedGrid,mismatch,conflicts,
       holes:[],segments:[],markers:mismatch?[]:detectColoredMarkers(image,columns,rows),
       coverage:new Float32Array(columns*rows)};
     if(!mismatch&&darkFraction>=.0015&&darkFraction<=.72&&contrast>=25){
@@ -198,13 +199,13 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
     captureCache.set(image,computed);
   }
   const {threshold,darkFraction,contrast,holes,segments,markers,coverage,
-    printedGrid,mismatch}=computed;
+    printedGrid,mismatch,conflicts}=computed;
   if(mismatch){
     return {suggestions:[],holes:[],segments:[],markers:[],
       grid:[columns,rows],printedGrid,quality:"grid-mismatch",
-      message:"Printed paper lines suggest "+printedGrid.columns.cells+" by "+
-        printedGrid.rows.cells+" squares; this maze is "+columns+" by "+rows+
-        ". Automatic placement is suspended. Review the alignment and trace manually.",
+      message:"Printed-line spacing conflicts with the current "+
+        columns+" by "+rows+" maze ("+conflicts.join("; ")+
+        "). Automatic placement is suspended. Check board corners and grid margins before tracing manually.",
       threshold,darkFraction};
   }
   if(darkFraction<.0015||darkFraction>.72||contrast<25){

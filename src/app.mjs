@@ -1695,7 +1695,7 @@ function initializePhoto() {
       :scanMode==="markers"
         ?"Select Start or Finish below, then tap its position on the photograph."
         :"Tap a green tile to remove it, or tap an unmarked square to add a wall.";
-    const gridNotice=scanResult.quality==="grid-mismatch"
+    const gridNotice=["grid-mismatch","grid-offset"].includes(scanResult.quality)
       ?scanResult.message+" "
       :scanResult.printedGrid?.status==="supported"
         ?"Printed paper grid tentatively agrees with "+

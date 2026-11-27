@@ -73,11 +73,27 @@ function axisEstimate(image,axis,minCells,maxCells){
       const precision=explained.size/peaks.length;
       const score=2*precision*recall/(precision+recall||1);
       if(!best||score>best.score||score===best.score&&matches>best.matches)
-        best={count,score,precision,recall,matches,expected,peaks:peaks.length};
+        best={count,score,precision,recall,matches,expected,peaks:peaks.length,phase};
     }
   }
   if(!best||best.score<.78||best.recall<.78||best.precision<.72||best.matches<7)return null;
+  // Period count alone is not registration. Eighteen evenly spaced printed
+  // lines could sit midway between all eighteen digital cell boundaries.
+  // Refine the lattice phase from the observed ink peaks: the matching
+  // tolerance allows several equivalent trial phases with identical scores.
+  const spacing=length/best.count;
+  const tolerance=Math.max(2,Math.min(4.5,spacing*.15));
+  const residuals=peaks.map(({position})=>{
+    const distance=position-best.phase;
+    const residual=distance-Math.round(distance/spacing)*spacing;
+    return Math.abs(residual)<=tolerance?residual:null;
+  }).filter(value=>value!==null);
+  const observedPhase=((best.phase+median(residuals))%spacing+spacing)%spacing;
+  const phaseOffsetCells=Math.min(observedPhase,spacing-observedPhase)/spacing;
   return {cells:best.count,confidence:Number(best.score.toFixed(2)),
+    // Distance to the expected line-at-cell-boundary lattice, expressed as
+    // a fraction of one cell, NOT a probability of camera alignment.
+    phaseOffsetCells:Number(phaseOffsetCells.toFixed(2)),
     matchedLines:best.matches,observedLines:best.peaks};
 }
 

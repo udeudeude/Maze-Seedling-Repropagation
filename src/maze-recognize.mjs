@@ -158,10 +158,24 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
         ?"height: "+printedGrid.rows.cells+" observed vs "+rows+" expected":null
     ].filter(Boolean);
     const mismatch=conflicts.length>0;
+    // Matching printed-line counts do not prove that ink lines coincide with
+    // the actual cell boundaries. A half-cell offset shifts tile mapping.
+    // This is a conservative diagnostic; real-board alignment is untested.
+    const offsets=[
+      printedGrid.columns?.confidence>=.9&&printedGrid.columns.cells===columns&&
+        printedGrid.columns.phaseOffsetCells>.25
+        ?"horizontal: "+printedGrid.columns.phaseOffsetCells+" cell":null,
+      printedGrid.rows?.confidence>=.9&&printedGrid.rows.cells===rows&&
+        printedGrid.rows.phaseOffsetCells>.25
+        ?"vertical: "+printedGrid.rows.phaseOffsetCells+" cell":null
+    ].filter(Boolean);
+    const misaligned=!mismatch&&offsets.length>0;
+    const withheld=mismatch||misaligned;
     computed={columns,rows,width,height,darkFraction,threshold,contrast,printedGrid,mismatch,conflicts,
-      holes:[],segments:[],markers:mismatch?[]:detectColoredMarkers(image,columns,rows),
+      misaligned,offsets,
+      holes:[],segments:[],markers:withheld?[]:detectColoredMarkers(image,columns,rows),
       coverage:new Float32Array(columns*rows)};
-    if(!mismatch&&darkFraction>=.0015&&darkFraction<=.72&&contrast>=25){
+    if(!withheld&&darkFraction>=.0015&&darkFraction<=.72&&contrast>=25){
       const tw=width/columns,th=height/rows;
       const separated=separateRoundHoles(mask,width,height,columns,rows);
       const holes=[...separated.holes];
@@ -199,13 +213,17 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
     captureCache.set(image,computed);
   }
   const {threshold,darkFraction,contrast,holes,segments,markers,coverage,
-    printedGrid,mismatch,conflicts}=computed;
-  if(mismatch){
+    printedGrid,mismatch,conflicts,misaligned,offsets}=computed;
+  if(mismatch||misaligned){
     return {suggestions:[],holes:[],segments:[],markers:[],
-      grid:[columns,rows],printedGrid,quality:"grid-mismatch",
-      message:"Printed-line spacing conflicts with the current "+
-        columns+" by "+rows+" maze ("+conflicts.join("; ")+
-        "). Automatic placement is suspended. Check board corners and grid margins before tracing manually.",
+      grid:[columns,rows],printedGrid,
+      quality:mismatch?"grid-mismatch":"grid-offset",
+      message:mismatch
+        ?"Printed-line spacing conflicts with the current "+
+          columns+" by "+rows+" maze ("+conflicts.join("; ")+
+          "). Automatic placement is suspended. Check board corners and grid margins before tracing manually."
+        :"Printed grid lines are offset from the tracing-square boundaries ("+
+          offsets.join("; ")+"). Automatic placement is suspended. Adjust the four board corners and playable-grid margins before reviewing manually.",
       threshold,darkFraction};
   }
   if(darkFraction<.0015||darkFraction>.72||contrast<25){

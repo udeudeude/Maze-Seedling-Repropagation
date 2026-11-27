@@ -4,11 +4,12 @@ import {estimatePrintedGrid} from "../src/maze-printed-grid.mjs";
 import {suggestWalls} from "../src/maze-recognize.mjs";
 
 function photo({cells=18,rows=cells,grid=true,gridLinesX=true,gridLinesY=true,
-  blank=false,contrast=68}={}){
+  blank=false,contrast=68,shiftX=0,shiftY=0}={}){
   const size=504,data=new Uint8ClampedArray(size*size*4);
   for(let y=0;y<size;y++)for(let x=0;x<size;x++){
-    const printed=grid&&((gridLinesX&&Math.abs(x%(size/cells))<1.2)||
-      (gridLinesY&&Math.abs(y%(size/rows))<1.2));
+    const mod=(value,divisor)=>((value%divisor)+divisor)%divisor;
+    const printed=grid&&((gridLinesX&&mod(x-shiftX,size/cells)<1.2)||
+      (gridLinesY&&mod(y-shiftY,size/rows)<1.2));
     const wall=!blank&&(x>size*.26&&x<size*.29&&y>size*.14&&y<size*.44||
       y>size*.55&&y<size*.58&&x>size*.5&&x<size*.8);
     const light=231-25*x/size+12*y/size;
@@ -110,4 +111,42 @@ test("a single matching visible axis remains available for reviewed import",()=>
   assert.equal(measured.rows,null);
   const result=suggestWalls(image,{columns:18,rows:18});
   assert.notEqual(result.quality,"grid-mismatch");
+});
+
+test("matching line counts still reject a photographed grid shifted by half a square",()=>{
+  const image=photo({shiftX:14});
+  const measured=estimatePrintedGrid(image);
+  assert.equal(measured.columns.cells,18);
+  assert.equal(measured.rows.cells,18);
+  assert.ok(measured.columns.phaseOffsetCells>.3,
+    "Expected detectable horizontal registration error");
+  assert.ok(measured.rows.phaseOffsetCells<.2);
+  const result=suggestWalls(image,{columns:18,rows:18});
+  assert.equal(result.quality,"grid-offset");
+  assert.match(result.message,/horizontal/);
+  assert.deepEqual(result.suggestions,[]);
+  assert.deepEqual(result.holes,[]);
+  assert.deepEqual(result.markers,[]);
+});
+test("partly hidden lines can reveal vertical phase offset independently",()=>{
+  const image=photo({gridLinesX:false,shiftY:14});
+  const measured=estimatePrintedGrid(image);
+  assert.equal(measured.columns,null);
+  assert.equal(measured.rows.cells,18);
+  assert.ok(measured.rows.phaseOffsetCells>.3);
+  const result=suggestWalls(image,{columns:18,rows:18});
+  assert.equal(result.quality,"grid-offset");
+  assert.match(result.message,/vertical/);
+  assert.deepEqual(result.suggestions,[]);
+});
+test("proper registration and small sampling jitter do not trigger offset warning",()=>{
+  for(const shift of [0,1,2]){
+    const image=photo({shiftX:shift,shiftY:shift});
+    const measured=estimatePrintedGrid(image);
+    assert.equal(measured.columns.cells,18);
+    assert.equal(measured.rows.cells,18);
+    assert.ok(measured.columns.phaseOffsetCells<.25);
+    assert.ok(measured.rows.phaseOffsetCells<.25);
+    assert.notEqual(suggestWalls(image,{columns:18,rows:18}).quality,"grid-offset");
+  }
 });

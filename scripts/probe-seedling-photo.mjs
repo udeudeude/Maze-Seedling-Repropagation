@@ -7,6 +7,7 @@
 import {readFileSync} from "node:fs";
 import {warpSquarePixels,insetRectifiedBoard,homographyForCorners} from "../src/maze-capture.mjs";
 import {suggestWalls} from "../src/maze-recognize.mjs";
+import {suggestPrintedGridRefinement} from "../src/maze-grid-refine.mjs";
 
 const SIZE=512;
 // Approximate by inspection of the kit's photographed paper maze, not
@@ -109,6 +110,9 @@ export function measurePhotoProposals(pixels,config={}) {
   const corners=config.corners??CORNERS;
   const settings=config.variants??variants;
   const aligned=warpSquarePixels(pixels,SIZE,SIZE,corners,504);
+  // Pixel evidence from one unlabeled original-kit photograph: report only
+  // eligibility and fractional magnitude, never coordinates or image pixels.
+  const fineRefinement=suggestPrintedGridRefinement(aligned,corners,SIZE,SIZE);
   const observations=[];
   for(const entry of settings){
     const image=insetRectifiedBoard(aligned,entry.margin);
@@ -164,6 +168,11 @@ export function measurePhotoProposals(pixels,config={}) {
     imageSource:"Vat19 original Seedling kit product photograph (third-party)",
     labelStatus:"unlabeled historical product photograph; no accuracy claim",
     geometryStatus:"approximate manually estimated corners, not calibrated",
+    fineRefinement:{
+      eligible:!!fineRefinement,
+      shiftCells:fineRefinement?.shiftCells??null,
+      interpretation:"Unlabeled photograph only; a periodic sub-cell suggestion cannot verify original physical calibration or a whole-cell origin"
+    },
     sourceImageIsIncluded:false,
     observed:observations.map(({wallCells,holeLocations,...rest})=>rest),
     sensitivityToGridCropping:stability,

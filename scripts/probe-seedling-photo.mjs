@@ -21,8 +21,8 @@ const variants=[
   {name:"inset-12-percent",margin:.12}
 ];
 // A measured comparison, not a search for a crop that makes the output
-// cosmetically plausible. Six-pixel perturbations are around one fifth of a
-// nominal 18-square cell at this 512-pixel research resolution. Translating
+// cosmetically plausible. Six pixels of input uncertainty are around one third of a
+// nominal cell on the photographed board, which occupies only part of the image. Translating
 // the rectangle and changing individual handles probe distinct failure modes.
 const cornerVariants=[
   {name:"all-right-6px",offsets:CORNERS.map(()=>({x:6,y:0}))},

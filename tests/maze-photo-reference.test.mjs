@@ -64,7 +64,7 @@ test("independent labels must precede display of predictions, stay separate from
   assert.match(app,/let photoSuggestionsSeen=false,photoReferenceMode=false/);
   assert.match(app,/if\(photoSuggestionsSeen\)return;/);
   assert.match(app,/photoReferenceMode=true;/);
-  assert.match(app,/if\(photoReferenceMode\)\s*\{\s*const labels=photoReferenceLabels/);
+  assert.match(app,/if\(photoReferenceMode\)\{\s*\/\/ Ground-truth candidates/);
   assert.match(app,/if\(!photoReferenceMode\|\|!scanResult\|\|!el\("scanReviewComplete"\)\.checked\)return/);
   assert.match(app,/reviewed:photoReferenceLabels\(photoReference\)/);
   assert.match(app,/if\(photoReferenceMode\)return;/);

@@ -169,7 +169,7 @@ select{width:100%;min-height:36px;border:1px solid #3b4650;border-radius:9px;
   overscroll-behavior:contain;scrollbar-width:thin;border:1px solid #7a8a8f;
   border-radius:5px;background:#172128}
 .scan-surface{width:100%;aspect-ratio:1}
-#scanCanvas{display:block;width:100%;height:100%;touch-action:none;cursor:crosshair}
+#scanCanvas{display:block;width:100%;height:auto;aspect-ratio:1;touch-action:none;cursor:crosshair}
 #scanCanvas.pan-mode{cursor:grab}
 .scan-zoom-help{max-width:440px;margin:7px auto 14px!important}
 .scan-slider{display:grid;gap:5px;margin:7px 0 13px}

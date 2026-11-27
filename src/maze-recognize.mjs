@@ -281,7 +281,13 @@ export function applyCaptureFindings(document,wallSuggestions,holeSuggestions,ma
   maze.repropagation={...maze.repropagation,
     physicalHoles:[...byPosition.values()]};
   let movedMarkers=0;
+  // Two photographed stickers assigned to the same square cannot safely
+  // replace the existing distinct Start and Finish markers.
+  const coincident=markers?.entrance&&markers?.exit&&
+    Number.isInteger(markers.entrance.x)&&Number.isInteger(markers.entrance.z)&&
+    markers.entrance.x===markers.exit.x&&markers.entrance.z===markers.exit.z;
   for(const type of ["entrance","exit"]){
+    if(coincident)continue;
     const point=markers?.[type];
     if(!point||!Number.isInteger(point.x)||!Number.isInteger(point.z)||
       point.x<0||point.z<0||point.x>=width||point.z>=height)continue;
@@ -291,7 +297,7 @@ export function applyCaptureFindings(document,wallSuggestions,holeSuggestions,ma
     // an unrelated original cell to make a location appear available.
     if(maze.data.cells.some(cell=>
       Number(cell.position[0])===point.x&&Number(cell.position[2])===point.z&&
-      cell.type!=="entrance"&&cell.type!=="exit"))continue;
+      cell.type!==type))continue;
     const already=maze.data.cells.some(cell=>cell.type===type&&
       Number(cell.position[0])===point.x&&Number(cell.position[2])===point.z);
     if(already)continue;

@@ -45,6 +45,8 @@ export function findPlayableRoute(maze,{maxStates=50000,maxKeyTypes=24}={}) {
   });
   if(starts.length!==1||finishes.length!==1)
     return {status:"invalid",reason:"Exactly one Start and Finish are required"};
+  if(at(...starts[0])===at(...finishes[0]))
+    return {status:"invalid",reason:"Start and Finish must occupy different squares"};
   if(gateIds.size>maxKeyTypes)
     return {status:"indeterminate",reason:"Too many distinct gate keys to check safely"};
   const bits=new Map([...gateIds].map((id,index)=>[id,1n<<BigInt(index)]));

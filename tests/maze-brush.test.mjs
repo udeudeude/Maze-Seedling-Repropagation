@@ -52,7 +52,7 @@ test("editor transaction records one undo for the whole stroke, with separate ke
   const sw=readFileSync(new URL("../sw.js",import.meta.url),"utf8");
   assert.match(app,/if\(!stroke\|\|!boardStroke\?\.changed\)\{/);
   assert.match(app,/if\(stroke&&boardStroke\)boardStroke\.changed=true/);
-  assert.match(app,/commit\(paintTile\(target,x,z,selected\),\{stroke:Boolean\(boardStroke\)\}\)/);
+  assert.match(app,/commit\(updated,\{stroke:Boolean\(boardStroke\)\}\)/);
   assert.match(app,/strokeBetween\(boardStroke\.last,cell,/);
   assert.match(app,/boardStroke\.id!==event\.pointerId/);
   assert.match(app,/lostpointercapture/);

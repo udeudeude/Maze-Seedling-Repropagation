@@ -1,7 +1,8 @@
 import {parseMaze, serializeMaze, validateMaze} from "./maze-document.mjs";
 import {strokeBetween} from "./maze-brush.mjs";
+import {editBoardTile,hasPhysicalHole} from "./maze-editor-tiles.mjs";
 import {
-  SIZE,TILE_NAMES,newMaze,sampleMaze,paintTile,eraseAt,changeCellDetails,transferTile,
+  SIZE,TILE_NAMES,newMaze,sampleMaze,changeCellDetails,transferTile,
   cellCoordinates,primaryCell,locate
 } from "./maze-world.mjs";
 import {startPlay,movePlayer,rotatePlayer,tickPlayer,renderScene,THEMATIC,answerRiddle,keyPickupId,mapVisibleCells,advanceShadows,dismissPhoto,cardboardTriggerStep,isCardboardTriggerTap} from "./maze-play.mjs";
@@ -404,34 +405,15 @@ function paint(x,z) {
     return;
   }
   if(inspection){openTileDialog(x,z);return;}
-  // One entrance and one exit in newly edited mazes.
-  let target=maze;
-  if(selected==="entrance"||selected==="exit"){
-    target=parseMaze(target);
-    target.data.cells=target.data.cells.filter(c=>{
-      const [cx,cz]=cellCoordinates(c);
-      return c.type!==selected || (cx===x&&cz===z);
-    });
-  }
-  if(selected==="hole"||selected==="empty"){
-    const next=parseMaze(target);
-    const previous=next.repropagation?.physicalHoles??[];
-    const others=previous.filter(item=>
-      !(Number(item.position?.[0])===x&&Number(item.position?.[2])===z));
-    if(selected==="hole"&&others.length===previous.length)
-      others.push({position:[String(x),"0",String(z)],
-        kind:"physical_floor_hole",source:"manual_editor"});
-    next.repropagation={...next.repropagation,physicalHoles:others};
-    if(selected==="hole"){
-      commit(next,{stroke:Boolean(boardStroke)});currentTile=[x,z];renderBoard();
-      notice("Physical hole updated at "+(x+1)+", "+(z+1));return;
-    }
-    target=next;
-  }
-  commit(paintTile(target,x,z,selected),{stroke:Boolean(boardStroke)});
-  currentTile=[x,z];
-  renderBoard();
-  notice((selected==="empty"?"Erased":labels[selected])+" · "+(x+1)+", "+(z+1));
+  // A physical-hole annotation must never silently conceal an original tile.
+  const erasedHole=selected==="empty"&&hasPhysicalHole(maze,x,z);
+  try{
+    const updated=editBoardTile(maze,x,z,selected);
+    commit(updated,{stroke:Boolean(boardStroke)});
+    currentTile=[x,z];renderBoard();
+    notice(erasedHole?"Physical hole removed; underlying tile preserved":
+      (selected==="empty"?"Erased":labels[selected])+" · "+(x+1)+", "+(z+1));
+  }catch(error){notice(error.message);}
 }
 function initializeBoardInput() {
   const canvas=el("boardCanvas");
@@ -552,6 +534,9 @@ function compressAvatarPhoto(image) {
 }
 function openTileDialog(x,z) {
   const present=primaryCell(maze,x,z)?.cell;
+  if(hasPhysicalHole(maze,x,z)){
+    notice("Physical hole at "+(x+1)+", "+(z+1)+" · Choose Erase to remove it first");return;
+  }
   if(!present){notice("No tile at "+(x+1)+", "+(z+1));return;}
   currentTile=[x,z];
   el("tileDialogTitle").textContent="Tile "+(x+1)+", "+(z+1);
@@ -801,7 +786,7 @@ function initializeDialogs() {
   });
   el("deleteTileButton").addEventListener("click",()=>{
     if(!currentTile)return;
-    commit(eraseAt(maze,...currentTile));
+    commit(editBoardTile(maze,...currentTile,"empty"));
     el("tileDialog").close();notice("Tile erased");
   });
 }

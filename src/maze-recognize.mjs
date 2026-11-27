@@ -150,7 +150,11 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
     const printedGrid=estimatePrintedGrid(image);
     // The recovered 18x18 digital levels do not establish physical paper
     // geometry. A strong discrepancy invalidates automatic tile mapping.
-    const mismatch=printedGrid.status==="supported"&&
+    // A convincingly measured discrepancy in either axis is unsafe, even
+    // when the two observed axis counts disagree with each other. An
+    // inconsistent rectangular pattern is not a free pass to place walls
+    // against an unrelated document grid.
+    const mismatch=printedGrid.columns&&printedGrid.rows&&
       Math.min(printedGrid.columns.confidence,printedGrid.rows.confidence)>=.9&&
       (printedGrid.columns.cells!==columns||printedGrid.rows.cells!==rows);
     computed={columns,rows,width,height,darkFraction,threshold,contrast,printedGrid,mismatch,

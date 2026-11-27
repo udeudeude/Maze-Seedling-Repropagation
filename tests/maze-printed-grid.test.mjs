@@ -59,3 +59,21 @@ test("scanner withholds automated placement on a convincing grid mismatch",()=>{
   assert.equal(result.printedGrid.rows.cells,12);
   assert.equal(suggestWalls(image,{columns:12,rows:12}).quality!=="grid-mismatch",true);
 });
+
+test("confident disagreement between printed axes still blocks a wrongly sized import",()=>{
+  const image=photo({cells:12,rows:18});
+  const result=suggestWalls(image,{columns:18,rows:18});
+  assert.equal(result.printedGrid.status,"inconsistent");
+  assert.equal(result.quality,"grid-mismatch");
+  assert.deepEqual(result.suggestions,[]);
+  assert.deepEqual(result.holes,[]);
+  assert.deepEqual(result.markers,[]);
+  assert.equal(result.printedGrid.columns.cells,12);
+  assert.equal(result.printedGrid.rows.cells,18);
+});
+test("matching rectangular document geometry is not rejected solely for unequal axes",()=>{
+  const image=photo({cells:12,rows:18});
+  const result=suggestWalls(image,{columns:12,rows:18});
+  assert.equal(result.printedGrid.status,"inconsistent");
+  assert.notEqual(result.quality,"grid-mismatch");
+});

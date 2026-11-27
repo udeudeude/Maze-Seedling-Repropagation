@@ -66,7 +66,7 @@ test("measurement is optional, review-gated, offline, and stripped of original p
   assert.match(html,/id="measureScanButton"[^>]*disabled/);
   assert.match(html,/id="copyScanReportButton"[^>]*hidden/);
   assert.match(app,/compareScanReview\(/);
-  assert.match(app,/if\(!scanResult\|\|!el\("scanReviewComplete"\)\.checked\)return/);
+  assert.match(app,/if\(!photoReferenceMode\|\|!scanResult\|\|!el\("scanReviewComplete"\)\.checked\)return/);
   assert.match(app,/function invalidateScanMeasurement\(\)/);
   assert.match(app,/scanMeasurementReport=JSON\.stringify\(/);
   assert.match(serviceWorker,/\.\/src\/maze-scan-evaluation\.mjs/);

@@ -5,6 +5,7 @@ on:
     branches:
       - research/original-native-scanner-geometry-20261127
       - research/scanner-live-callgraph-20261127
+      - research/native-scanner-reachable-cfg-20261127
     paths:
       - "scripts/native-scanner-evidence.py"
       - ".github/workflows/native-scanner-evidence.yml"
@@ -26,6 +27,8 @@ jobs:
       - name: Install read-only ELF disassembly dependencies
         run: |
           python3 -m pip install --quiet --disable-pip-version-check 'pyelftools>=0.30,<1' 'capstone>=5,<6'
+      - name: Check synthetic Thumb control-flow cases
+        run: python3 scripts/native-scanner-evidence.py --self-test
       - name: Download checksum-pinned historical Android archive temporarily
         shell: bash
         run: |

@@ -10,10 +10,20 @@ test("private historical-photo probe reports aggregate scan stability only",()=>
   for(let i=0;i<data.length;i+=4)data.set([235,235,235,255],i);
   const result=measurePhotoProposals(data,{corners:[
     {x:16,y:16},{x:496,y:16},{x:496,y:496},{x:16,y:496}
-  ],variants:[{name:"first",margin:0},{name:"second",margin:.05}]});
+  ],variants:[{name:"first",margin:0},{name:"second",margin:.05}],
+  cornerVariants:[{name:"shift-right",offsets:[
+    {x:6,y:0},{x:6,y:0},{x:6,y:0},{x:6,y:0}
+  ]}]});
   assert.equal(result.observed.length,2);
   assert.equal(result.observed[0].wallTileCount,0);
   assert.equal(result.sensitivityToGridCropping[0].intersectionOverUnion,null);
+  assert.equal(result.sensitivityToCornerPlacement.length,1);
+  assert.equal(result.sensitivityToCornerPlacement[0].versus,"shift-right");
+  assert.equal(result.sensitivityToCornerPlacement[0].maximumHandleDisplacementPixels,6);
+  assert.equal(result.sensitivityToCornerPlacement[0].wallTileCount,0);
+  assert.equal(result.sensitivityToCornerPlacement[0].intersectionOverUnion,null);
+  assert.equal(JSON.stringify(result).includes('"offsets"'),false);
+  assert.equal(JSON.stringify(result).includes('"corners"'),false);
   assert.equal(result.labelStatus.includes("no accuracy claim"),true);
   assert.equal(JSON.stringify(result).includes("wallCells"),false);
   assert.equal(JSON.stringify(result).includes("Uint8"),false);

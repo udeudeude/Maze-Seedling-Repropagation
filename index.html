@@ -130,6 +130,22 @@
           <canvas id="photoCanvas" aria-label="Photograph of physical maze with four adjustable corners"></canvas>
           <span class="photo-hint">Choose Find board corners for an initial estimate, then drag the numbered handles to correct it.</span>
         </div>
+        <div class="photo-corner-fine" id="photoCornerFine" hidden>
+          <label for="photoCornerSelect">Fine-adjust board corner</label>
+          <select id="photoCornerSelect" aria-label="Corner to fine-adjust">
+            <option value="0">1 · Top left</option>
+            <option value="1">2 · Top right</option>
+            <option value="2">3 · Bottom right</option>
+            <option value="3">4 · Bottom left</option>
+          </select>
+          <div class="photo-corner-nudges" role="group" aria-label="Move chosen corner one alignment pixel">
+            <button type="button" id="cornerLeftButton" aria-label="Move corner left one pixel">←</button>
+            <button type="button" id="cornerUpButton" aria-label="Move corner up one pixel">↑</button>
+            <button type="button" id="cornerDownButton" aria-label="Move corner down one pixel">↓</button>
+            <button type="button" id="cornerRightButton" aria-label="Move corner right one pixel">→</button>
+          </div>
+          <small id="cornerNudgeStatus" role="status">Select a numbered handle, then adjust it one alignment pixel at a time. Check the paper-grid boundary before tracing.</small>
+        </div>
         <div class="photo-actions" id="photoActions" hidden>
           <button type="button" id="suggestCornersButton" disabled>Find board corners</button>
           <button type="button" class="primary" id="detectButton" disabled>Suggest wall positions</button>

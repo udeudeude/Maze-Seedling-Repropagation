@@ -73,6 +73,22 @@ The Android and iOS interfaces should be treated as **separate sources**, not as
 
 `src/maze-document.mjs` now imports, validates, edits, and exports the original JSON structure while preserving unknown cell keys and the original string-based numeric representation. Unit tests are green, and all eight actual source presets were parsed and reserialized without changing their JSON data (the original proprietary level layouts were not published).
 
+## Native scanner pipeline: direct call evidence (November 27, 2026)
+
+A [successful checksum-pinned static ARM inspection](https://github.com/udeudeude/Maze-Seedling-Repropagation/actions/runs/45996895162) examined `lib/armeabi-v7a/libtile_reader.so` from the verified original Android 1.4 archive. The library itself has SHA-256 `5e2795b7a9a3db2949464381100cedcafcd2bad0a8b8ee401828d1f987b525f0` (402,864 bytes).
+
+Direct function calls **verified from the original native binary**:
+
+- `TileReader::liveProcess` calls both `TileReader::getBoardCorners` and `TileReader::computeBoard`.
+- `TileReader::computeBoard` calls `stb::TileBoard::getWidth`, `getHeight`, `setTileAt`, and `reset_start_end`. This is direct evidence for grid-cell population in the live recognition path.
+- `TileReader::getWalls` calls `stb::TileBoard::getBoardWalls`; it is a tiny accessor/delegation, not independent evidence for photographic wall detection.
+- `TileReader::drawGrid` accesses board width and height; `TileReader::toJSON` calls the `TileBoard` serializer, which in turn accesses dimensions and tile cells.
+- `TileReader::setBoardDimensions` calls `TileBoard` construction and assignment, but the current direct-call probe did not identify where its arguments are set.
+
+**Not established:** numeric physical grid pitch, actual three wall-block lengths, camera perspective calibration, threshold values, marker detection rules, call order, or reconstruction fidelity. Small integer immediates appearing in disassembly are **not** evidence for dimensions. Indirect calls and external OpenCV calls are not fully resolved by the bounded direct-call method. No original code, executable, photographs, source tiles, or disassembly were committed or uploaded; only high-level derived relationships appear in workflow logs.
+
+This narrows subsequent static investigation to `liveProcess` and `getBoardCorners`/`computeBoard` and the unknown dimension-setting caller, rather than reverse-engineering `getWalls` as though it performed the detector's pixel segmentation.
+
 ## Next implementation constraints
 
 1. Derive precise board dimensions, snapping, markers, scan thresholds, and image-processing steps from the native `libtile_reader.so` and scanner UI. **Do not guess them.**

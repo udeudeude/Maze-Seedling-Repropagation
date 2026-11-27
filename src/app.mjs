@@ -1695,7 +1695,14 @@ function initializePhoto() {
       :scanMode==="markers"
         ?"Select Start or Finish below, then tap its position on the photograph."
         :"Tap a green tile to remove it, or tap an unmarked square to add a wall.";
-    el("scanStatus").textContent=scanSelected.size+" wall tiles, "+
+    const gridNotice=scanResult.quality==="grid-mismatch"
+      ?scanResult.message+" "
+      :scanResult.printedGrid?.status==="supported"
+        ?"Printed paper grid tentatively agrees with "+
+          scanResult.printedGrid.columns.cells+" by "+
+          scanResult.printedGrid.rows.cells+" squares. "
+        :"";
+    el("scanStatus").textContent=gridNotice+scanSelected.size+" wall tiles, "+
       scanSelectedHoles.size+" possible holes, "+spanCount+
       " straight image spans, "+scanMarkers.size+" colored markers. "+instruction+
       " Correct the proposals before importing.";

@@ -4,7 +4,7 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 
 | Original function | Current status | Remaining work |
 | --- | --- | --- |
-| Photograph-to-maze automatic scanning | **Experimental** continuous dark-wall spans, editable wall-tile suggestions, four-corner estimate and independently adjustable playable-grid edges plus optional, conservative photo-border suggestions | Verify corner recognition on physical boards, true physical pitch and actual-photo evaluation |
+| Photograph-to-maze automatic scanning | **Experimental:** printed-grid periodicity estimation now detects strong mismatch with the editor before allowing automated tile proposals; continuous dark-wall spans, editable suggestions and corners remain provisional | Establish physical grid dimensions with actual kit photographs, test detection precision and camera calibration |
 | Detect physical trap holes and start/finish | **Experimental:** circle and colored-sticker candidates, separate review/correction, marker import, namespaced hole annotations and provisional trap effect | Verify actual marker colors, capture calibration, original hole representation, classification precision on real photos |
 | Detect walls of three physical lengths | **Partial:** straight spans and image-space lengths measured | Segment touching blocks individually, recover exact short/medium/long dimensions, calibrate against the physical grid |
 | Live camera feedback and overlay | **Partial:** opt-in live camera, sampled exposure/contrast guidance, conservative live board-outline tracking, still-frame automatic corner suggestion and editable handles | Validate board outlining on actual kit photographs, lighting and perspective feedback, physical calibration and iPhone behavior |
@@ -36,6 +36,8 @@ Evidence: original Android 1.4 binary method and asset inventories; archived iOS
 - The experimental classifier uses histogram-based dark segmentation, elongated straight runs, connected-component circularity and radial-edge voting to suggest dark wall strips and hole positions. Hole marks are kept in the `repropagation.physicalHoles` field, **not** a fabricated original cell category. Changing sensitivity reuses cached geometry. Exact short/medium/long wall dimensions and real-photo accuracy are **not established**.
 
 ## High-priority order
+
+**Decision principle:** close evidence-backed parity gaps, not a numerical quota of features. A green automated test suite is not proof of original behavior, camera accuracy, aesthetic fidelity, or physical iPhone usability.
 
 1. Recover exact physical board calibration, recognize all physical markers, validate against diverse real-world photographs, then remove the provisional label only when justified.
 2. Finish original editor mechanics, media attachments, and correct game rules, especially keys/gates, active shadows, riddles, and secrets.
@@ -285,3 +287,10 @@ Although the physical kit has three wall lengths and the bundled digital mazes h
 - A manually painted physical hole is permitted only on empty or explicit floor squares, never on a native or authored wall, Start, Finish, Gate, Message, or other object. Painting another tile over a hole now requires explicit removal of the hole. **Erase removes the hole annotation first and leaves any underlying native tile and its unknown metadata intact**; another Erase may remove the tile. Repeated hole painting cannot create duplicates. This behavior is integrated with finger-stroke Undo, keyboard editing and local saving.
 - Start and Finish can no longer be manually placed onto each other. Photograph-import marker suggestions that coincide are ignored, and neither marker can overwrite the other existing endpoint. The playable-route checker rejects imported documents with overlapping endpoints rather than claiming an impossible zero-step victory. No original proprietary data or historical hole representation was assumed.
 - Pure-model and interface tests cover preservation, invalid overlaps, malformed annotations, marker collisions and offline caching. The original application's exact marker and hole semantics and actual iPhone touch behavior remain to be verified.
+
+## November 26, 2026: first evidence-driven printed-grid diagnostic
+
+- The eight recovered *digital* levels use 18 by 18 squares. That is **not** proof of the physical paper grid's size. Treating it as such risks mapping real wall blocks onto incorrect virtual cells.
+- Rectified photograph analysis now seeks recurring thin printed grid lines along both axes, rejects unsupported or contradictory evidence, and distinguishes them from isolated wall strips. Where both axes confidently indicate a different grid size, the importer withholds automatic walls, holes and start/finish proposals; the photograph remains available for explicit manual review. It does not resize or alter a saved maze.
+- Six new automated tests exercise 18-square and 12-square synthetic grids, wall interference, uneven lighting, absent or inconsistent evidence, and withheld proposals. This is **not field calibration**: there are still no annotated photographs of actual Seedling boards with measured scan precision or recall.
+- Before declaring physical recognition complete, obtain non-public, consented photographs of multiple actual layouts, document the paper's cell count and wall-placement conventions, and measure corner, wall, hole and sticker classification against hand-annotated ground truth. Keep photos and original copyrighted materials out of the public repository.

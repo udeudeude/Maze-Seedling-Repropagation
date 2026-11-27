@@ -1,5 +1,6 @@
 import {separateRoundHoles,findRoundHolesByEdges,findStraightWallSpans} from "./maze-shapes.mjs";
 import {detectColoredMarkers} from "./maze-markers.mjs";
+import {estimatePrintedGrid} from "./maze-printed-grid.mjs";
 
 /**
  * Experimental wall classifier for the original Seedling kit's DARK WALL STRIPS.
@@ -146,10 +147,16 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
   let computed=captureCache.get(image);
   if(!computed||computed.columns!==columns||computed.rows!==rows){
     const {width,height,mask,darkFraction,threshold,contrast}=darkPixelMask(image);
-    computed={columns,rows,width,height,darkFraction,threshold,contrast,
-      holes:[],segments:[],markers:detectColoredMarkers(image,columns,rows),
+    const printedGrid=estimatePrintedGrid(image);
+    // The recovered 18x18 digital levels do not establish physical paper
+    // geometry. A strong discrepancy invalidates automatic tile mapping.
+    const mismatch=printedGrid.status==="supported"&&
+      Math.min(printedGrid.columns.confidence,printedGrid.rows.confidence)>=.9&&
+      (printedGrid.columns.cells!==columns||printedGrid.rows.cells!==rows);
+    computed={columns,rows,width,height,darkFraction,threshold,contrast,printedGrid,mismatch,
+      holes:[],segments:[],markers:mismatch?[]:detectColoredMarkers(image,columns,rows),
       coverage:new Float32Array(columns*rows)};
-    if(darkFraction>=.0015&&darkFraction<=.72&&contrast>=25){
+    if(!mismatch&&darkFraction>=.0015&&darkFraction<=.72&&contrast>=25){
       const tw=width/columns,th=height/rows;
       const separated=separateRoundHoles(mask,width,height,columns,rows);
       const holes=[...separated.holes];
@@ -186,9 +193,18 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
     }
     captureCache.set(image,computed);
   }
-  const {threshold,darkFraction,contrast,holes,segments,markers,coverage}=computed;
+  const {threshold,darkFraction,contrast,holes,segments,markers,coverage,
+    printedGrid,mismatch}=computed;
+  if(mismatch){
+    return {suggestions:[],holes:[],segments:[],markers:[],
+      grid:[columns,rows],printedGrid,quality:"grid-mismatch",
+      message:"Printed paper lines suggest "+printedGrid.columns.cells+" by "+
+        printedGrid.rows.cells+" squares; this maze is "+columns+" by "+rows+
+        ". Automatic placement is suspended. Review the alignment and trace manually.",
+      threshold,darkFraction};
+  }
   if(darkFraction<.0015||darkFraction>.72||contrast<25){
-    return {suggestions:[],holes:[],segments:[],markers,grid:[columns,rows],
+    return {suggestions:[],holes:[],segments:[],markers,grid:[columns,rows],printedGrid,
       quality:"low-contrast",
       message:"Insufficient separation between dark walls and paper. Check lighting and corners.",
       threshold,darkFraction};
@@ -212,7 +228,7 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
     :quality==="very-few"
       ?"Few walls found. Check alignment and increase sensitivity if needed."
       :"Review candidate strips and circles before importing.";
-  return {suggestions,holes,segments,markers,grid:[columns,rows],
+  return {suggestions,holes,segments,markers,grid:[columns,rows],printedGrid,
     threshold,darkFraction,quality,message};
 }
 

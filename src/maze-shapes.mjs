@@ -92,7 +92,12 @@ export function findRoundHolesByEdges(image,columns=18,rows=18){
       const p=cy*w+cx;
       if(votes[p]!==65535)votes[p]++;
     }
-    const minimumVotes=Math.max(11,Math.round(r*1.15));
+    // An assembled physical paper maze showed that a genuine punched hole
+    // beside a dark wooden wall may have only part of its circular edge
+    // available for center voting. Keep the strong radial arc and contrast
+    // checks, but do not require as many redundant edge votes.
+    // This is a measured conservative adjustment, not an original threshold.
+    const minimumVotes=Math.max(11,Math.round(r*.9));
     for(let y=r+2;y<h-r-2;y++)for(let x=r+2;x<w-r-2;x++){
       const p=y*w+x,v=votes[p];
       if(v<minimumVotes||gray[p]>145)continue;

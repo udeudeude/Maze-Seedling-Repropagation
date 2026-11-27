@@ -1,0 +1,50 @@
+name: Inspect a public historical Seedling photograph (research only)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/probe-seedling-photo.mjs"
+      - ".github/workflows/scan-reference.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  probe-historical-photo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Decode external public reference temporarily (never upload pixels)
+        shell: bash
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check 'Pillow>=10,<13'
+          python3 - <<'PY'
+          import hashlib, io, os
+          from urllib.request import Request, urlopen
+          from PIL import Image
+          url = "https://images.vat19.com/covers/x-large/design-your-own-marble-maze.jpg"
+          req = Request(url, headers={"User-Agent": "Mozilla/5.0 (historical product research)"})
+          with urlopen(req, timeout=35) as response:
+              raw = response.read(8_000_001)
+          if len(raw)>8_000_000 or len(raw)<1000:
+              raise SystemExit("Reference photo missing or exceeds the 8 MB limit")
+          image = Image.open(io.BytesIO(raw))
+          image.load()
+          print("Reference dimensions:", image.size, "SHA256:", hashlib.sha256(raw).hexdigest())
+          if image.width/image.height < .95 or image.width/image.height > 1.05:
+              raise SystemExit("Source photograph aspect ratio changed; review manual corner estimates")
+          image = image.convert("RGBA").resize((512,512), Image.Resampling.LANCZOS)
+          base = os.environ["RUNNER_TEMP"]
+          with open(os.path.join(base, "photo.rgba"), "wb") as out:
+              out.write(image.tobytes())
+          with open(os.path.join(base, "photo.sha"), "w") as out:
+              out.write(hashlib.sha256(raw).hexdigest())
+          PY
+          node scripts/probe-seedling-photo.mjs "$RUNNER_TEMP/photo.rgba" "$(cat "$RUNNER_TEMP/photo.sha")"
+      - name: Do not persist third-party photo or layout
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/photo.rgba" "$RUNNER_TEMP/photo.sha"

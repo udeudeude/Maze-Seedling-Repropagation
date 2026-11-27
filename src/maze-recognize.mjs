@@ -2,6 +2,7 @@ import {separateRoundHoles,findRoundHolesByEdges,findStraightWallSpans} from "./
 import {detectColoredMarkers} from "./maze-markers.mjs";
 import {estimatePrintedGrid} from "./maze-printed-grid.mjs";
 import {removeThinPrintedGridInk} from "./maze-grid-ink.mjs";
+import {quarterCellWallCoverages,classifyWallRegistration} from "./maze-registration-stability.mjs";
 
 /**
  * Experimental wall classifier for the original Seedling kit's DARK WALL STRIPS.
@@ -227,6 +228,10 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
         computed.coverage[z*columns+x]=totals[z*columns+x]/
           Math.max(1,(x1-x0)*(z1-z0));
       }
+      // Empirically test small uncertainty in tracing-square registration.
+      // Keep expensive image/shape classification cached while sensitivity changes.
+      computed.registrationCoverages=quarterCellWallCoverages(extended,
+        width,height,columns,rows);
       computed.holes=holes;computed.segments=segments;
       }
     }
@@ -271,6 +276,12 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
       confidence:Number(clamp((filled-minimumCoverage)/
         (1-minimumCoverage),0,1).toFixed(2))});
   }
+  // Unstable positions are never preselected for import, but remain visible
+  // for explicit confirmation. This sacrifices automatic recall rather than
+  // silently turning uncertain geometry into apparent walls.
+  const registration=computed.registrationCoverages?
+    classifyWallRegistration(suggestions,computed.registrationCoverages,
+      minimumCoverage,columns,rows):null;
   const ratio=suggestions.length/(columns*rows);
   const quality=ratio>.55?"too-many":ratio<.008?"very-few":"review";
   const message=quality==="too-many"
@@ -278,7 +289,18 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
     :quality==="very-few"
       ?"Few walls found. Check alignment and increase sensitivity if needed."
       :"Review candidate strips and circles before importing.";
-  return {suggestions,holes,segments,markers,grid:[columns,rows],printedGrid,
+  return {suggestions,
+    stableSuggestions:registration?.stable??suggestions,
+    unstableSuggestions:registration?.uncertain??[],
+    registrationSensitivity:registration?{
+      offsetCells:registration.offsetCells,
+      stableWallTiles:registration.stable.length,
+      uncertainWallTiles:registration.uncertain.length,
+      shiftOnlyCount:registration.shiftOnlyCount,
+      minOverlap:registration.minOverlap,
+      interpretation:registration.interpretation
+    }:null,
+    holes,segments,markers,grid:[columns,rows],printedGrid,
     threshold,darkFraction,quality,message};
 }
 

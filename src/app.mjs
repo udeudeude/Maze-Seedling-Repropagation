@@ -1800,7 +1800,13 @@ function initializePhoto() {
           ?"Select Start or Finish below, then tap its position on the photograph."
           :"Tap a green tile to remove it, or tap an unmarked square to add a wall.";
     const gridNotice=scanReviewWarning(scanResult);
-    el("scanStatus").textContent=gridNotice+scanSelected.size+" wall tiles, "+
+    const unstable=scanResult.unstableSuggestions?.length??0;
+    const originNotice=unstable?
+      unstable+" additional wall squares change when the tracing grid moves "+
+      "one quarter of a cell. They are outlined in amber, NOT selected for "+
+      "import. Inspect and tap each one to include it. This is a sensitivity "+
+      "check, not verified calibration. ":"";
+    el("scanStatus").textContent=gridNotice+originNotice+scanSelected.size+" wall tiles, "+
       scanSelectedHoles.size+" possible holes, "+spanCount+
       " straight image spans, "+scanMarkers.size+" colored markers. "+instruction+
       " Correct the proposals before importing.";
@@ -1853,6 +1859,17 @@ function initializePhoto() {
     const cols=Number(maze.data.scale[0]),rows=Number(maze.data.scale[2]);
     const tw=width/cols,th=height/rows;
     context.save();
+    // Pale amber outlines are unresolved wall proposals; unlike the green
+    // squares they are NOT preselected or silently written into the maze.
+    for(const {x,z} of scanResult?.unstableSuggestions??[]){
+      const key=x+","+z;
+      if(scanSelected.has(key)||scanRemoved.has(key))continue;
+      context.strokeStyle="#ffd17a";
+      context.lineWidth=Math.max(1.5,width/330);
+      context.setLineDash([Math.max(2,width/120),Math.max(2,width/160)]);
+      context.strokeRect(x*tw+2,z*th+2,tw-4,th-4);
+    }
+    context.setLineDash([]);
     for(let z=0;z<rows;z++)for(let x=0;x<cols;x++){
       if(!scanSelected.has(x+","+z))continue;
       context.fillStyle="rgba(48,189,116,.09)";
@@ -1929,7 +1946,8 @@ function initializePhoto() {
         columns:Number(maze.data.scale[0]),rows:Number(maze.data.scale[2]),
         sensitivity:Number(el("sensitivitySlider").value)/100
       });
-      const detected=new Set(scanResult.suggestions.map(item=>item.x+","+item.z));
+      const detected=new Set((scanResult.stableSuggestions??scanResult.suggestions)
+        .map(item=>item.x+","+item.z));
       scanSelected=new Set([...detected].filter(key=>!scanRemoved.has(key)));
       for(const key of scanAdded)scanSelected.add(key);
       scanSelectedHoles=new Map();

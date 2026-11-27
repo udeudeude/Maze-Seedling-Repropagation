@@ -18,13 +18,14 @@ import sys
 from capstone import (Cs, CS_ARCH_ARM, CS_MODE_ARM, CS_MODE_THUMB,
                       CS_GRP_JUMP, CS_GRP_CALL, CS_GRP_RET)
 from capstone.arm import (ARM_OP_IMM, ARM_OP_MEM, ARM_OP_REG,
-                          ARM_REG_PC)
+                          ARM_REG_PC, ARM_REG_LR)
 from elftools.elf.elffile import ELFFile
 
 FOCUS = (
     "TileReader::liveProcess", "TileReader::drawKnownTiles",
     "TileReader::euclideanDist",
-    "TileReader::getBoardCorners", "TileReader::setBoardDimensions",
+    "TileReader::getBoardCorners", "TileReader::computeMatches",
+    "TileReader::setBoardDimensions",
     "TileReader::computeBoard", "TileReader::drawGrid",
     "TileReader::removeBoardEdges", "TileReader::getWalls",
     "TileReader::processFromJNI", "TileReader::json",
@@ -71,6 +72,7 @@ def reachable_decode(code, start_address, thumb):
     occupied = {}
     reachable_edges = set()
     unresolved = 0
+    returns = 0
     rejected = 0
     budget = min(len(code) // 2 + 4, 40000)
     while pending and len(visited) < budget:
@@ -99,6 +101,25 @@ def reachable_decode(code, start_address, thumb):
             is_jump = ins.group(CS_GRP_JUMP) or mnemonic in (
                 "cbz", "cbnz", "tbb", "tbh", "bx")
             if ins.group(CS_GRP_RET):
+                returns += 1
+                break
+            if mnemonic == "bx" and ins.operands and \
+               ins.operands[0].type == ARM_OP_REG and \
+               ins.operands[0].reg == ARM_REG_LR:
+                returns += 1
+                break
+            if mnemonic == "pop" and any(
+                op.type == ARM_OP_REG and op.reg == ARM_REG_PC
+                for op in ins.operands
+            ):
+                returns += 1
+                break
+            if mnemonic == "mov" and len(ins.operands) >= 2 and \
+               ins.operands[0].type == ARM_OP_REG and \
+               ins.operands[0].reg == ARM_REG_PC and \
+               ins.operands[1].type == ARM_OP_REG and \
+               ins.operands[1].reg == ARM_REG_LR:
+                returns += 1
                 break
             # Register-indirect branches, including switch tables, cannot
             # be followed without data-flow recovery. Never guess targets.
@@ -137,6 +158,7 @@ def reachable_decode(code, start_address, thumb):
         "instructions": [visited[offset] for offset in sorted(visited)],
         "reachableBranchEdges": len(reachable_edges),
         "unresolvedTransfers": unresolved,
+        "returns": returns,
         "rejectedDecodes": rejected,
         "budgetExhausted": bool(pending and len(visited) >= budget),
     }
@@ -291,6 +313,7 @@ def main(path):
                 "reachableNamedScannerCalls": dict(sorted(flow_named.items())),
                 "reachableBranchEdges": flow["reachableBranchEdges"],
                 "reachableUnresolvedTransfers": flow["unresolvedTransfers"],
+                "reachableReturns": flow["returns"],
                 "reachableRejectedDecodes": flow["rejectedDecodes"],
                 "reachableBudgetExhausted": flow["budgetExhausted"],
                 "function": normalize(display),
@@ -343,7 +366,7 @@ def main(path):
             "availableImportedImageApisNotProvenCalled": image_api_imports,
             "functionFacts": answers,
             "selectedDirectCallers": callers,
-            "selectedReachableDirectCallers": reachable_callers,
+            "selectedReachableDirectCallersAmongSelectedMethods": reachable_callers,
             "interpretation": ("Reachability follows direct branch targets from "
                                "exported function entrypoints; indirect branches, "
                                "jump tables, condition-dependent paths and exception "

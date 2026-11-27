@@ -154,7 +154,7 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
   let computed=captureCache.get(image);
   if(!computed||computed.columns!==columns||computed.rows!==rows){
     const {width,height,mask,darkFraction,threshold,contrast}=darkPixelMask(image);
-    const printedGrid=estimatePrintedGrid(image);
+    const printedGrid=estimatePrintedGrid(image,{expectedColumns:columns,expectedRows:rows});
     // Contemporary documentation describes 18-by-18 squares on the kit.
     // A partly hidden printed grid can still expose one contradictory axis.
     // Never require both axes to be visible before rejecting unsafe mapping.
@@ -177,9 +177,17 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
         ?"vertical: "+printedGrid.rows.phaseOffsetCells+" cell":null
     ].filter(Boolean);
     const misaligned=!mismatch&&offsets.length>0;
-    const withheld=mismatch||misaligned;
+    // The printed paper may still be skewed after a seemingly successful
+    // four-corner alignment. Withhold proposals only when two spatially
+    // separated bands independently show a large phase disagreement.
+    const shearAxes=[
+      printedGrid.alignment?.columns?.driftCells>.30?"vertical printed lines":null,
+      printedGrid.alignment?.rows?.driftCells>.30?"horizontal printed lines":null
+    ].filter(Boolean);
+    const gridSkew=!mismatch&&!misaligned&&shearAxes.length>0;
+    const withheld=mismatch||misaligned||gridSkew;
     computed={columns,rows,width,height,darkFraction,threshold,contrast,printedGrid,mismatch,conflicts,
-      misaligned,offsets,
+      misaligned,offsets,gridSkew,shearAxes,
       holes:[],segments:[],markers:withheld?[]:detectColoredMarkers(image,columns,rows),
       coverage:new Float32Array(columns*rows)};
     if(!withheld&&darkFraction>=.0015&&darkFraction<=.72&&contrast>=25){
@@ -238,17 +246,19 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
     captureCache.set(image,computed);
   }
   const {threshold,darkFraction,contrast,holes,segments,markers,coverage,
-    printedGrid,mismatch,conflicts,misaligned,offsets,densePerforations}=computed;
-  if(mismatch||misaligned){
+    printedGrid,mismatch,conflicts,misaligned,offsets,gridSkew,shearAxes,densePerforations}=computed;
+  if(mismatch||misaligned||gridSkew){
     return {suggestions:[],holes:[],segments:[],markers:[],
       grid:[columns,rows],printedGrid,
-      quality:mismatch?"grid-mismatch":"grid-offset",
+      quality:mismatch?"grid-mismatch":misaligned?"grid-offset":"grid-skew",
       message:mismatch
         ?"Printed-line spacing conflicts with the current "+
           columns+" by "+rows+" maze ("+conflicts.join("; ")+
           "). Automatic placement is suspended. Check board corners and grid margins before tracing manually."
-        :"Printed grid lines are offset from the tracing-square boundaries ("+
-          offsets.join("; ")+"). Automatic placement is suspended. Adjust the four board corners and playable-grid margins before reviewing manually.",
+        :misaligned?"Printed grid lines are offset from the tracing-square boundaries ("+
+          offsets.join("; ")+"). Automatic placement is suspended. Adjust the four board corners and playable-grid margins before reviewing manually."
+        :"Printed grid lines diverge between separated regions ("+
+          shearAxes.join(" and ")+"). Automatic placement is suspended. Recheck all four printed-grid corners before reviewing manually.",
       threshold,darkFraction};
   }
   if(densePerforations){

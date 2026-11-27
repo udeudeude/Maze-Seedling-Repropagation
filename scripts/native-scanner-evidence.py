@@ -151,12 +151,34 @@ def main(path):
                 "floatCandidatesNotDimensions": dict(sorted(
                     float_candidates.items(), key=lambda row: (-row[1], row[0]))[:15]),
             })
-        # The caller list exposes relationships in both directions, but
-        # does not imply that all indirect or library calls were identified.
+        # An outgoing-only graph misses who initiates calibration. Inspect
+        # all *named scanner/JNI* methods for immediate branches to the
+        # selected methods, without dumping their proprietary instructions.
+        # Indirect and virtual calls are deliberately not claimed.
+        chosen = {entry[0]: normalize(entry[4]) for entry in focus}
+        incoming = collections.defaultdict(set)
+        for address, thumb, size, _raw, display in records:
+            if address in chosen or size > 65536:
+                continue
+            if "TileReader::" not in display and \
+               "Java_" not in display and "JNI" not in display:
+                continue
+            body = read_at(address, size)
+            if body is None:
+                continue
+            engine = Cs(CS_ARCH_ARM, CS_MODE_THUMB if thumb else CS_MODE_ARM)
+            engine.detail = True
+            for ins in engine.disasm(body, address):
+                if ins.mnemonic.startswith("bl") and ins.operands and \
+                   ins.operands[0].type == ARM_OP_IMM:
+                    target = int(ins.operands[0].imm) & ~1
+                    if target in chosen:
+                        incoming[chosen[target]].add(normalize(display))
         names_of_interest = {entry["function"] for entry in answers}
-        callers = {target: sorted(caller for caller, targets in all_calls.items()
-                                  if target in targets)
-                   for target in sorted(names_of_interest)}
+        callers = {target: sorted(
+            {caller for caller, targets in all_calls.items()
+             if target in targets} | incoming[target])
+            for target in sorted(names_of_interest)}
         print(json.dumps({
             "method": "Static ELF symbol and direct-call inspection, not execution",
             "binarySha256": digest,

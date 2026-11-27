@@ -40,7 +40,7 @@ test("visible 18 by 18 ink gives a small correction to a misregistered photograp
     {x:48,y:48},{x:552,y:48},{x:552,y:552},{x:48,y:552}
   ],"Never mutate current calibration before explicit approval");
 });
-test("a sub-cell offset can change a real object's digital cell assignment",()=>{
+test("an observed sub-cell offset corrects a synthetic object's grid square",()=>{
   // This is an artificial coordinate control, not an annotated Seedling board.
   // A physical center is 2px to the right of the old fifth grid boundary,
   // but 2px to the LEFT of the observed printed-ink boundary.

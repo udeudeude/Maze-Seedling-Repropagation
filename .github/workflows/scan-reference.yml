@@ -34,9 +34,15 @@ jobs:
           image = Image.open(io.BytesIO(raw))
           image.load()
           print("Reference dimensions:", image.size, "SHA256:", hashlib.sha256(raw).hexdigest())
-          if image.width/image.height < .95 or image.width/image.height > 1.05:
-              raise SystemExit("Source photograph aspect ratio changed; review manual corner estimates")
-          image = image.convert("RGBA").resize((512,512), Image.Resampling.LANCZOS)
+          # Historical source verified at this exact checksum, 1200 x 1440.
+          # The browser's square reference preview is a center crop, not a
+          # stretched 5:6 portrait. Do not silently recalibrate another image.
+          expected = "8f9a0709f252f812f0a646112565fe0d4c4060ed71713d85e02a78f75757172e"
+          if hashlib.sha256(raw).hexdigest()!=expected or image.size!=(1200,1440):
+              raise SystemExit("Historical source changed; inspect it before recalibrating")
+          image = image.crop((0,120,1200,1320)).convert("RGBA").resize(
+              (512,512), Image.Resampling.LANCZOS)
+          print("Research crop: centered square 1200 x 1200 of 1200 x 1440 source")
           base = os.environ["RUNNER_TEMP"]
           with open(os.path.join(base, "photo.rgba"), "wb") as out:
               out.write(image.tobytes())

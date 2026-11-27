@@ -13,7 +13,7 @@ import {MAX_PHOTO_DATA_URL_LENGTH,photoAt,photoEdit,photoDataUrl} from "./maze-m
 import {avatarAt,avatarEdit,avatarCropRect} from "./maze-avatar.mjs";
 import {voiceAt,voiceEdit,createVoiceRecorder} from "./maze-voice.mjs";
 import {warpSquarePixels,homographyForCorners,initialCorners,nudgeBoardCorner,insetRectifiedBoard,suggestPlayableGridEdges} from "./maze-capture.mjs";
-import {projectPhotoGrid} from "./maze-photo-grid.mjs";
+import {projectPhotoGrid,confirmPrintedGridCorners} from "./maze-photo-grid.mjs";
 import {suggestBoardCorners} from "./maze-board-corners.mjs";
 import {assessCameraFrame,createCameraSession,projectBoardOutline} from "./maze-live.mjs";
 import {snapshotFileName,sceneAsPng,canShareSnapshot,drawSnapshotPlayerBadge} from "./maze-snapshot.mjs";
@@ -63,6 +63,7 @@ try{
 }
 let undo=[],redo=[],selected="wall",inspection=false,route=null,view="build";
 let currentTile=null,photoImage=null,photoCorners=null,photoGuide=null;
+let photoGridCornerDraft=null;
 let stopLiveCamera=()=>{};
 let pendingTilePhoto=null,tilePhotoChanged=false,photoImportGeneration=0;
 let pendingTileVoice=null,tileVoiceChanged=false;
@@ -1386,6 +1387,30 @@ function renderPhoto() {
   // Canvas image dimensions are source-space, limited during import.
   ctx.clearRect(0,0,canvas.width,canvas.height);
   ctx.drawImage(photoImage,0,0,canvas.width,canvas.height);
+  // Four blind manual taps make an independent playable-grid quadrilateral.
+  // Do not show the previous outline or predicted placements during capture.
+  if(photoGridCornerDraft!==null){
+    ctx.save();
+    ctx.lineWidth=Math.max(2,canvas.width/350);
+    ctx.strokeStyle="#ffe8a2";
+    if(photoGridCornerDraft.length){
+      ctx.beginPath();
+      photoGridCornerDraft.forEach((point,i)=>
+        i?ctx.lineTo(point.x,point.y):ctx.moveTo(point.x,point.y));
+      ctx.stroke();
+    }
+    photoGridCornerDraft.forEach((point,i)=>{
+      const radius=Math.max(12,canvas.width/33);
+      ctx.beginPath();ctx.arc(point.x,point.y,radius,0,2*Math.PI);
+      ctx.fillStyle="#171f29";ctx.fill();
+      ctx.strokeStyle="#fff0bd";ctx.lineWidth=3;ctx.stroke();
+      ctx.font="bold "+Math.round(radius)+"px sans-serif";
+      ctx.fillStyle="#ffeabd";ctx.textAlign="center";ctx.textBaseline="middle";
+      ctx.fillText(String(i+1),point.x,point.y);
+    });
+    ctx.restore();
+    return;
+  }
   if(!photoCorners)return;
   if(el("showPhotoGridGuide").checked){
     try{
@@ -1571,6 +1596,8 @@ function initializePhoto() {
     canvas.height=Math.max(1,Math.round(height*scale));
     canvas.style.aspectRatio=canvas.width+" / "+canvas.height;
     photoCorners=initialCorners(canvas.width,canvas.height);
+    photoGridCornerDraft=null;
+    el("markPrintedCornersButton").textContent="Mark four printed-grid corners";
     el("photoCornerSelect").value="0";
     el("photoCornerFine").hidden=false;
     el("photoGridCalibration").hidden=false;
@@ -1700,7 +1727,7 @@ function initializePhoto() {
     ["cornerDownButton",0,1],["cornerRightButton",1,0]
   ]){
     el(id).addEventListener("click",()=>{
-      if(!photoCorners||!photoImage)return;
+      if(!photoCorners||!photoImage||photoGridCornerDraft!==null)return;
       const selected=Number(el("photoCornerSelect").value);
       try{
         const next=nudgeBoardCorner(photoCorners,selected,dx,dy,
@@ -1722,9 +1749,72 @@ function initializePhoto() {
       }
     });
   }
+  el("markPrintedCornersButton").addEventListener("click",()=>{
+    if(!photoImage)return;
+    const starting=photoGridCornerDraft===null;
+    photoGridCornerDraft=starting?[]:null;
+    activeCorner=-1;
+    el("markPrintedCornersButton").textContent=starting?
+      "Cancel four-point alignment":"Mark four printed-grid corners";
+    el("detectButton").disabled=starting;
+    el("annotateBeforeDetectButton").disabled=starting||photoSuggestionsSeen;
+    el("suggestCornersButton").disabled=starting;
+    el("traceButton").disabled=starting;
+    el("scanStage").hidden=starting||!scanResult;
+    el("cornerNudgeStatus").textContent=starting?
+      "Tap the four OUTER intersections of the 18 × 18 printed paper grid, in order: top left, top right, bottom right, bottom left. Do not tap the wooden board corners.":
+      "Four-point alignment canceled; the previous photograph mapping is unchanged.";
+    renderPhoto();
+  });
   canvas.addEventListener("pointerdown",event=>{
     if(!photoCorners)return;
     const p=coord(event);
+    if(photoGridCornerDraft!==null){
+      const draft=[...photoGridCornerDraft,p];
+      if(draft.length<4){
+        photoGridCornerDraft=draft;
+        el("cornerNudgeStatus").textContent=draft.length+
+          " of 4 printed-grid corners marked. Continue clockwise: top left, top right, bottom right, bottom left.";
+      }else{
+        try{
+          const chosen=confirmPrintedGridCorners(draft,canvas.width,canvas.height);
+          // Only now replace the old alignment. Never mix a new direct
+          // quadrilateral with stale insets, import corrections or references.
+          photoCorners=chosen;
+          photoGridCornerDraft=null;
+          el("markPrintedCornersButton").textContent="Mark four printed-grid corners";
+          el("detectButton").disabled=false;
+          el("annotateBeforeDetectButton").disabled=photoSuggestionsSeen;
+          el("suggestCornersButton").disabled=false;
+          el("traceButton").disabled=false;
+          el("photoCornerSelect").value="0";
+          el("gridInsetSlider").value="0";
+          el("gridInsetValue").textContent="0%";
+          for(const edge of ["Top","Right","Bottom","Left"]){
+            el("gridInset"+edge+"Slider").value="0";
+            el("gridInset"+edge+"Value").textContent="0%";
+          }
+          el("gridEdgeDetails").open=false;
+          abandonPhotoReference();
+          invalidateScanMeasurement();
+          scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;
+          scanSelected.clear();scanAdded.clear();scanRemoved.clear();
+          scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
+          scanMarkers.clear();scanMarkerEdits.clear();
+          el("scanStage").hidden=true;
+          el("cornerNudgeStatus").textContent=
+            "Four actual printed-grid corners aligned. Insets reset to zero. Fine-adjust the handles if needed, then scan or label independently.";
+        }catch(error){
+          // Atomic failure: the original alignment and annotations survive.
+          photoGridCornerDraft=[];
+          el("cornerNudgeStatus").textContent=
+            "Invalid printed-grid quadrilateral: "+error.message+
+            ". No alignment changed. Retry all four points clockwise, or cancel.";
+        }
+      }
+      renderPhoto();
+      return;
+    }
     let closest=Infinity;
     photoCorners.forEach((point,i)=>{
       const dist=Math.hypot(point.x-p.x,point.y-p.y);

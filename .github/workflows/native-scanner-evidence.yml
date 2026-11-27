@@ -1,0 +1,76 @@
+name: Recover native scanner geometry evidence (research only)
+
+on:
+  push:
+    branches:
+      - research/original-native-scanner-geometry-20261127
+    paths:
+      - "scripts/native-scanner-evidence.py"
+      - ".github/workflows/native-scanner-evidence.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  static-native-scanner:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check scanner analysis script and the existing reconstruction
+        run: |
+          python3 -m py_compile scripts/native-scanner-evidence.py
+          node --test tests/*.test.mjs
+      - name: Install read-only ELF disassembly dependencies
+        run: |
+          python3 -m pip install --quiet --disable-pip-version-check 'pyelftools>=0.30,<1' 'capstone>=5,<6'
+      - name: Download checksum-pinned historical Android archive temporarily
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import hashlib
+          import io
+          import os
+          from pathlib import Path
+          from urllib.request import urlopen, Request
+          import zipfile
+
+          url = "https://d.apkpure.com/b/XAPK/com.seedling.maze?version=latest"
+          sha = "564117f42b2f6e297ed75ea42b6206a84dce1ca704afed6a0ff751b2e47b6676"
+          limit = 250_000_000
+          buffer = io.BytesIO()
+          checksum = hashlib.sha256()
+          with urlopen(Request(url, headers={
+              "User-Agent": "Mozilla/5.0 Maze-archival-analysis/1.0"
+          }), timeout=90) as response:
+              while chunk := response.read(1024 * 1024):
+                  if buffer.tell() + len(chunk) > limit:
+                      raise ValueError("Archive exceeds pinned-source inspection limit")
+                  checksum.update(chunk)
+                  buffer.write(chunk)
+          if checksum.hexdigest() != sha:
+              raise ValueError("Historical XAPK checksum changed; refuse to inspect a different build")
+          buffer.seek(0)
+          with zipfile.ZipFile(buffer) as xapk:
+              apks = [n for n in xapk.namelist() if n.endswith(".apk")]
+              if len(apks) != 1:
+                  raise ValueError("Expected exactly one historical APK")
+              with zipfile.ZipFile(io.BytesIO(xapk.read(apks[0]))) as apk:
+                  binary = "lib/armeabi-v7a/libtile_reader.so"
+                  if binary not in apk.namelist():
+                      raise ValueError("Original scanner library not found")
+                  body = apk.read(binary)
+          destination = Path(os.environ["RUNNER_TEMP"]) / "original-libtile_reader.so"
+          destination.write_bytes(body)
+          print(f"Pinned historical archive verified; ARM scanner library size {len(body):,} bytes")
+          PY
+      - name: Report high-level facts only, without disassembly or original files
+        shell: bash
+        run: |
+          python3 scripts/native-scanner-evidence.py "$RUNNER_TEMP/original-libtile_reader.so"
+      - name: Remove original binary even on failure
+        if: always()
+        shell: bash
+        run: |
+          rm -f "$RUNNER_TEMP/original-libtile_reader.so"

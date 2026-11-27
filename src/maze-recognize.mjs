@@ -84,6 +84,11 @@ export function darkPixelMask(image){
   }
   const p8=percentileHistogram(histogram,total,.08);
   const p85=percentileHistogram(histogram,total,.85);
+  // Most pixels can be light paper in a nearly empty physical maze.
+  // The eighth percentile then misses every real dark wall or hole. Use a
+  // small but nonzero dark population to measure scene contrast without
+  // letting a single defective/salt-and-pepper pixel dominate the estimate.
+  const darkTail=percentileHistogram(histogram,total,.002);
   const otsuThreshold=otsu(histogram,total);
   const threshold=Math.min(150,otsuThreshold+17,p8+.30*(p85-p8));
   const mask=new Uint8Array(total);
@@ -97,7 +102,7 @@ export function darkPixelMask(image){
     }
   }
   return {mask,width,height,darkFraction:count/total,
-    threshold,contrast:p85-p8};
+    threshold,contrast:Math.max(p85-p8,p85-darkTail)};
 }
 
 /**
@@ -183,7 +188,16 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
       const wallMask=removeThinPrintedGridInk(mask,width,height,
         printedGrid,columns,rows).mask;
       const separated=separateRoundHoles(wallMask,width,height,columns,rows);
-      const holes=[...separated.holes];
+      // The original kit has a densely perforated wooden base *beneath* its
+      // removable paper grid (Vat19 kit-contents photograph). Without paper,
+      // the entire regular field of exposed holes can resemble traps. Such a
+      // photograph is ambiguous, not evidence for hundreds of lethal squares.
+      // Quarantine dense circular fields before costly radial-edge voting.
+      const circularCells=new Set(separated.holes.map(h=>h.x+","+h.z));
+      if(circularCells.size>=Math.max(48,Math.ceil(columns*rows*.22))){
+        computed.densePerforations=circularCells.size;
+      }else{
+        const holes=[...separated.holes];
       // Circle-edge voting finds holes that are merged with nearby wall pixels.
       for(const proposed of findRoundHolesByEdges(image,columns,rows)){
         if(holes.some(previous=>Math.hypot(previous.cx-proposed.cx,
@@ -214,11 +228,12 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
           Math.max(1,(x1-x0)*(z1-z0));
       }
       computed.holes=holes;computed.segments=segments;
+      }
     }
     captureCache.set(image,computed);
   }
   const {threshold,darkFraction,contrast,holes,segments,markers,coverage,
-    printedGrid,mismatch,conflicts,misaligned,offsets}=computed;
+    printedGrid,mismatch,conflicts,misaligned,offsets,densePerforations}=computed;
   if(mismatch||misaligned){
     return {suggestions:[],holes:[],segments:[],markers:[],
       grid:[columns,rows],printedGrid,
@@ -229,6 +244,13 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
           "). Automatic placement is suspended. Check board corners and grid margins before tracing manually."
         :"Printed grid lines are offset from the tracing-square boundaries ("+
           offsets.join("; ")+"). Automatic placement is suspended. Adjust the four board corners and playable-grid margins before reviewing manually.",
+      threshold,darkFraction};
+  }
+  if(densePerforations){
+    return {suggestions:[],holes:[],segments:[],markers:[],
+      grid:[columns,rows],printedGrid,quality:"dense-perforations",
+      message:"A dense field of dark circular perforations was detected ("+
+        densePerforations+" squares). The exposed wooden base may have been photographed without its paper grid. Automatic tracing is suspended; align and review a photograph of the assembled paper maze instead.",
       threshold,darkFraction};
   }
   if(darkFraction<.0015||darkFraction>.72||contrast<25){

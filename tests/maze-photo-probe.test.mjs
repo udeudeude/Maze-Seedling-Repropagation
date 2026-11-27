@@ -14,6 +14,9 @@ test("private historical-photo probe reports aggregate scan stability only",()=>
   cornerVariants:[{name:"shift-right",offsets:[
     {x:6,y:0},{x:6,y:0},{x:6,y:0},{x:6,y:0}
   ]}]});
+  assert.equal(result.fineRefinement.eligible,false,
+    "Uniform paper must never yield a phantom image registration");
+  assert.equal(result.fineRefinement.shiftCells,null);
   assert.equal(result.observed.length,2);
   assert.ok(result.sensitivityToGridCropping[0].holeRegistration);
   assert.equal(result.sensitivityToGridCropping[0].holeRegistration.matchedSourcePhotoCenters,0);

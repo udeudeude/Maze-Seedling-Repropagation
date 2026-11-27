@@ -102,6 +102,18 @@ A [second checksum-pinned static native study](https://github.com/udeudeude/Maze
 
 Next: reconstruct the guarded corner/board processing and find the origin of board dimensions, then validate against independently annotated real physical-board images before changing the experimental web classifier.
 
+
+## Reachable scanner stages from original control-flow traversal (November 27, 2026)
+
+The [successful native control-flow experiment](https://github.com/udeudeude/Maze-Seedling-Repropagation/actions/runs/46016709408) inspected the same checksum-pinned 402,864-byte Android **libtile_reader.so**. A bounded ARM/Thumb entrypoint traversal followed direct branches and avoided the literal-pool false stops that limited the previous linear pass. Its synthetic branch/fallthrough tests and existing game-model tests passed.
+
+- **TileReader::getBoardCorners:** **2,398 / 2,612 bytes** decoded from branch-reachable paths, versus **924** in the earlier linear method. It contains **two direct calls to TileReader::euclideanDist**, missed by the linear pass, alongside point/vector handling. The fact that it calculates distances does not establish perspective-calibration coordinates or corner-selection rules.
+- **TileReader::computeBoard:** **2,482 / 2,744 bytes** decoded, versus **1,900** linearly. Newly uncovered calls include **TileReader::computeMatches** and **stb::TileBoard::hasStart** and **hasEnd**; **reset_start_end** and **setTileAt** also occur in the same original function. This directly connects board population to an additional matching stage and start/end board checks, but **does not prove marker color rules, thresholds, or pixel-to-tile mapping**.
+- **TileReader::computeMatches:** 688-byte function symbol, **620 bytes traversed**. Its direct named call sites in this analysis are largely OpenCV data-structure constructors/destructors. Neither its symbol name nor this result proves which pixels, shapes or rules it compares.
+- Static traversal also follows both sides of a conditional branch, irrespective of actual input conditions. Decoded bytes are not guaranteed executed, while computed jumps, jump tables, callback dispatch and data-flow values remain outside scope. Bounded traversal and zero reported unresolved transfers **do not establish complete or correct behavioral recovery**.
+
+The next original-parity research target is the arguments/data dependencies of **computeMatches** and the origin of board dimensions, tested against actual annotated kit photographs. This run changed only repeatable forensic tooling and its evidence audit, not recognition behavior or public assets. No original executable bytes were published.
+
 ## Next implementation constraints
 
 1. Derive precise board dimensions, snapping, markers, scan thresholds, and image-processing steps from the native `libtile_reader.so` and scanner UI. **Do not guess them.**

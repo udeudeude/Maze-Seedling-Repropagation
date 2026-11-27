@@ -153,6 +153,8 @@
             Show 18 × 18 tracing guide on the original photograph
           </label>
           <p>Match the inner turquoise lines with the actual printed square boundaries. The numbered handles mark the outer alignment; use margins to remove any surrounding border. The guide is adjustable, not automatically calibrated.</p>
+          <button type="button" id="markPrintedCornersButton">Mark four printed-grid corners</button>
+          <p>For paper that is tilted, shifted or unevenly placed within the outer board: tap the four corners of the <strong>printed 18 × 18 grid itself</strong>, clockwise from top left. This replaces the board-outline estimate, resets margins to zero and lets you fine-adjust each grid corner separately. It does not change a saved maze.</p>
           <div class="scan-slider">
             <label for="gridInsetSlider">Set all grid edges equally <output id="gridInsetValue" for="gridInsetSlider">0%</output></label>
             <input id="gridInsetSlider" type="range" min="0" max="20" step="0.5" value="0" aria-describedby="gridInsetHelp">

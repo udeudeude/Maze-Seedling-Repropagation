@@ -8,7 +8,11 @@ export function detectColoredMarkers(image,columns=18,rows=18){
     throw new TypeError("Expected RGBA image");
   const pitch=Math.min(w/columns,h/rows);
   const rules=[
-    {type:"entrance",color:"red",test:(r,g,b)=>r>90&&r>g*1.24&&r>b*1.32},
+    // A genuine kit photograph exposed a failure in the former r>90 and
+    // moderate-redness rule: warm-lit charcoal wall faces were selected over
+    // a darker, more strongly red end sticker. Demand chromatic separation
+    // rather than brightness. Marker-to-role mapping is still provisional.
+    {type:"entrance",color:"red",test:(r,g,b)=>r>55&&r>g*1.5&&r>b*1.5},
     {type:"exit",color:"blue-green",test:(r,g,b)=>b>90&&
       b>r*1.15&&g>r*1.06&&b>g*.86}
   ];

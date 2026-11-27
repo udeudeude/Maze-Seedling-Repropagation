@@ -149,11 +149,12 @@
         <div class="photo-actions" id="photoActions" hidden>
           <button type="button" id="suggestCornersButton" disabled>Find board corners</button>
           <button type="button" class="primary" id="detectButton" disabled>Suggest wall positions</button>
+          <button type="button" id="annotateBeforeDetectButton" disabled>Label photo before seeing suggestions</button>
           <button type="button" id="traceButton" disabled>Trace manually</button>
           <button type="button" id="clearPhotoButton" disabled>Discard photo</button>
         </div>
         <div class="scan-stage" id="scanStage" hidden>
-          <h2>Review detected walls</h2>
+          <h2 id="scanReviewTitle">Review detected walls</h2>
           <p id="scanStatus" role="status">Suggestions will appear here.</p>
           <div class="scan-actions">
             <button type="button" id="applyScanButton" class="primary">Add reviewed walls</button>
@@ -183,11 +184,11 @@
           </div>
           <p class="scan-zoom-help">Magnify to inspect each square. Pan to move the enlarged image, then turn Pan off to correct tiles. Zooming never changes the scan or your corrections.</p>
           <details class="edge-calibration scan-evaluation" id="scanEvaluationDetails">
-            <summary>Measure scanner against your corrections (optional)</summary>
-            <p>This is for testing with physical Seedling photographs, not necessary for importing a maze. Correct all the walls, holes, Start and Finish first. The comparison uses exact squares and never sends or saves your photograph.</p>
-            <label class="scan-evaluation-check"><input id="scanReviewComplete" type="checkbox"> I have checked every square and both marker positions, including missing features.</label>
+            <summary>Measure scanner against independently labeled photograph (optional)</summary>
+            <p>For a meaningful comparison, begin with <strong>Label photo before seeing suggestions</strong> above, immediately after aligning a fresh photograph. The scanner's suggestions stay hidden while you mark every real wall, hole, Start and Finish on the paper grid. The normal import corrections are deliberately not accepted as reference labels. This is only a manually aligned, single-photograph measurement, not verified original-device accuracy. Your photograph and labels stay on this device and are not saved.</p>
+            <label class="scan-evaluation-check"><input id="scanReviewComplete" type="checkbox" disabled> I have independently checked every square for both present and missing features, including Start and Finish.</label>
             <div class="scan-actions">
-              <button id="measureScanButton" type="button" disabled>Measure suggestions</button>
+              <button id="measureScanButton" type="button" disabled>Compare labels and reveal suggestions</button>
               <button id="copyScanReportButton" type="button" hidden>Copy numbers only</button>
             </div>
             <p class="scan-evaluation-output" id="scanMeasurementResult" role="status">No measurement yet.</p>

@@ -1,8 +1,8 @@
 /* Maze Repropagation: offline shell; photographs remain on the user's device. */
-const VERSION="maze-shell-2026-11-27-13";
+const VERSION="maze-shell-2026-11-27-14";
 const ASSETS=[
   "./","./index.html","./style.css","./manifest.webmanifest",
-  "./src/app.mjs","./src/maze-scan-viewport.mjs","./src/maze-scan-notice.mjs","./src/maze-scan-evaluation.mjs","./src/maze-brush.mjs","./src/maze-editor-tiles.mjs","./src/maze-printed-grid.mjs","./src/maze-document.mjs","./src/maze-world.mjs",
+  "./src/app.mjs","./src/maze-photo-reference.mjs","./src/maze-scan-viewport.mjs","./src/maze-scan-notice.mjs","./src/maze-scan-evaluation.mjs","./src/maze-brush.mjs","./src/maze-editor-tiles.mjs","./src/maze-printed-grid.mjs","./src/maze-document.mjs","./src/maze-world.mjs",
   "./src/maze-play.mjs","./src/maze-environments.mjs","./src/maze-route.mjs","./src/maze-capture.mjs","./src/maze-board-corners.mjs","./src/maze-live.mjs","./src/maze-recognize.mjs",
   "./src/maze-shapes.mjs",
   "./src/maze-grid-ink.mjs","./src/maze-registration-stability.mjs",

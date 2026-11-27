@@ -20,6 +20,7 @@ import {MAX_BACKUP_BYTES,createLibraryBackup,parseLibraryBackup,mergeLibraryBack
   libraryBackupFileName,mazeFileName,canShareMaze} from "./maze-backup.mjs";
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
 import {compareScanReview,holeForPhotoReview} from "./maze-scan-evaluation.mjs";
+import {newPhotoReference,editPhotoReference,photoReferenceLabels} from "./maze-photo-reference.mjs";
 import {scanReviewWarning} from "./maze-scan-notice.mjs";
 import {reviewCellAt,centeredReviewScroll} from "./maze-scan-viewport.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
@@ -78,6 +79,8 @@ let scanAdded=new Set(),scanRemoved=new Set();
 let scanSelectedHoles=new Map(),scanAddedHoles=new Map(),scanRejectedHoles=new Set();
 let scanMode="walls",markerBrush="entrance";
 let scanMarkers=new Map(),scanMarkerEdits=new Map();
+let photoSuggestionsSeen=false,photoReferenceMode=false;
+let photoReference=newPhotoReference();
 let play=startPlay(maze),stereo=false,showMap=false,holding=new Set(),runEnabled=false;
 // Scene photographs are never fetched from a server. A bounded cache of
 // decoded, locally embedded JPEGs is scoped to the current maze document.
@@ -1573,6 +1576,9 @@ function initializePhoto() {
     el("scanStage").hidden=true;
     el("photoStage").hidden=false;
     el("photoActions").hidden=false;
+    photoSuggestionsSeen=false;
+    abandonPhotoReference();
+    el("annotateBeforeDetectButton").disabled=false;
     el("detectButton").disabled=false;
     el("suggestCornersButton").disabled=false;
     el("traceButton").disabled=false;el("clearPhotoButton").disabled=false;
@@ -1638,6 +1644,7 @@ function initializePhoto() {
       // Only alignment handles change; user must still inspect and approve
       // every proposed wall, marker and hole before modifying the document.
       photoCorners=estimate.corners;
+      abandonPhotoReference();
       scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
       scanAdded.clear();scanRemoved.clear();
       scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
@@ -1669,6 +1676,7 @@ function initializePhoto() {
         const next=nudgeBoardCorner(photoCorners,selected,dx,dy,
           canvas.width,canvas.height);
         photoCorners=next;
+        abandonPhotoReference();
         scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;
         scanSelected.clear();scanAdded.clear();scanRemoved.clear();
         scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
@@ -1704,6 +1712,7 @@ function initializePhoto() {
       x:Math.max(0,Math.min(canvas.width-1,p.x)),
       y:Math.max(0,Math.min(canvas.height-1,p.y))
     };
+    abandonPhotoReference();
     scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
     scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
@@ -1731,6 +1740,12 @@ function initializePhoto() {
   // An accuracy claim requires an explicit, exhaustive user review of
   // the photograph. Geometry, sensitivity, or tile edits revoke that check.
   let scanMeasurementReport="";
+  function abandonPhotoReference(){
+    photoReferenceMode=false;
+    photoReference=newPhotoReference();
+    el("scanReviewComplete").disabled=true;
+    el("scanReviewTitle").textContent="Review detected walls";
+  }
   function invalidateScanMeasurement() {
     scanMeasurementReport="";
     el("scanReviewComplete").checked=false;
@@ -1740,22 +1755,26 @@ function initializePhoto() {
   }
   el("scanReviewComplete").addEventListener("change",()=>{
     scanMeasurementReport="";
-    el("measureScanButton").disabled=!el("scanReviewComplete").checked||!scanResult;
+    el("measureScanButton").disabled=!photoReferenceMode||!el("scanReviewComplete").checked||!scanResult;
     el("copyScanReportButton").hidden=true;
     el("scanMeasurementResult").textContent="No measurement yet.";
   });
   el("measureScanButton").addEventListener("click",()=>{
-    if(!scanResult||!el("scanReviewComplete").checked)return;
+    if(!photoReferenceMode||!scanResult||!el("scanReviewComplete").checked)return;
     const columns=Number(maze.data.scale[0]),rows=Number(maze.data.scale[2]);
-    const selectedWalls=[...scanSelected].map(key=>{
-      const [x,z]=key.split(",").map(Number);return {x,z};
-    });
     const metrics=compareScanReview({columns,rows,
       suggested:{walls:scanResult.suggestions,holes:scanResult.holes,
         markers:scanResult.markers},
-      reviewed:{walls:selectedWalls,holes:[...scanSelectedHoles.values()],
-        markers:[...scanMarkers.values()]}
+      reviewed:photoReferenceLabels(photoReference)
     });
+    // Predictions appear for the first time only AFTER the photograph has
+    // been independently labeled. Import selections were never the reference.
+    photoReferenceMode=false;
+    photoSuggestionsSeen=true;
+    el("annotateBeforeDetectButton").disabled=true;
+    el("scanReviewComplete").disabled=true;
+    el("measureScanButton").disabled=true;
+    el("scanReviewTitle").textContent="Review detected walls";
     const fmt=n=>n===null?"not defined":(100*n).toFixed(1)+"%";
     const display=(label,metric)=>label+": "+metric.matches+" matched; "+
       metric.falseAlarms+" false alarms; "+metric.misses+" missed. Precision "+
@@ -1769,8 +1788,8 @@ function initializePhoto() {
       confidence:entry.confidence,phaseOffsetCells:entry.phaseOffsetCells}:null;
     scanMeasurementReport=JSON.stringify({
       format:"maze-repropagation-scan-review-v1",
-      reference:"user-checked correction of every square and marker position",
-      note:"Exact-cell agreement on one photo; not a validated Seedling accuracy study.",
+      reference:"independently labeled photograph before detector proposals were displayed",
+      note:"One user-labeled photo with manual grid alignment. Prior familiarity and labeling errors remain possible; not verified original scanner accuracy.",
       dimensions:{columns,rows},sensitivity:Number(el("sensitivitySlider").value)/100,
       scanQuality:scanResult.quality,printedGrid:{
         columns:axis(scanResult.printedGrid?.columns),
@@ -1778,6 +1797,7 @@ function initializePhoto() {
       metrics
     },null,2);
     el("copyScanReportButton").hidden=false;
+    renderScan();
   });
   el("copyScanReportButton").addEventListener("click",async()=>{
     if(!scanMeasurementReport)return;
@@ -1791,6 +1811,15 @@ function initializePhoto() {
   });
   function updateScanStatus() {
     if(!scanResult)return;
+    if(photoReferenceMode){
+      el("scanStatus").textContent="Independent photograph labeling: detector predictions and counts are hidden. "+
+        photoReference.walls.size+" walls, "+photoReference.holes.size+
+        " holes, "+photoReference.markers.size+" markers manually labeled. "+
+        "Mark every actual feature in the aligned grid, including missed holes, "+
+        "then check completion below to compare. This does not change the maze to import.";
+      el("applyScanButton").disabled=true;
+      return;
+    }
     const spanCount=scanResult.segments?.length??0;
     const instruction=scanPan
       ?"Drag the magnified photograph to inspect another area. Turn Pan off to correct squares."
@@ -1864,79 +1893,106 @@ function initializePhoto() {
     const cols=Number(maze.data.scale[0]),rows=Number(maze.data.scale[2]);
     const tw=width/cols,th=height/rows;
     context.save();
-    // Pale amber outlines are unresolved wall proposals; unlike the green
-    // squares they are NOT preselected or silently written into the maze.
-    for(const {x,z} of scanResult?.unstableSuggestions??[]){
-      const key=x+","+z;
-      if(scanSelected.has(key)||scanRemoved.has(key))continue;
-      context.strokeStyle="#ffd17a";
-      context.lineWidth=Math.max(1.5,width/330);
-      context.setLineDash([Math.max(2,width/120),Math.max(2,width/160)]);
-      context.strokeRect(x*tw+2,z*th+2,tw-4,th-4);
-    }
-    context.setLineDash([]);
-    for(let z=0;z<rows;z++)for(let x=0;x<cols;x++){
-      if(!scanSelected.has(x+","+z))continue;
-      context.fillStyle="rgba(48,189,116,.09)";
-      context.fillRect(x*tw,z*th,tw,th);
-      context.strokeStyle="#45e59f";
-      context.lineWidth=Math.max(1.5,width/350);
-      context.strokeRect(x*tw+2,z*th+2,tw-4,th-4);
-    }
-    // Real wall traces: these show continuous straight spans and measured
-    // image geometry, not arbitrarily named factory block sizes.
-    for(const segment of scanResult?.segments??[]){
-      context.beginPath();
-      context.moveTo(segment.x0,segment.y0);
-      context.lineTo(segment.x1,segment.y1);
-      context.strokeStyle="rgba(40,235,158,.82)";
-      context.lineWidth=Math.max(2,Math.min(5,segment.widthPixels*.18));
-      context.lineCap="round";
-      context.stroke();
-    }
-    // Show tentative circle centers, but do not implicitly approve their
-    // potentially wrong digital squares as lethal physical-floor holes.
-    for(const hole of scanResult?.holes??[]){
-      const key=hole.x+","+hole.z;
-      if(scanSelectedHoles.has(key)||scanRejectedHoles.has(key))continue;
-      context.beginPath();context.arc(hole.cx,hole.cy,Math.max(5,hole.radius+2),0,Math.PI*2);
-      context.strokeStyle="#d7ae62";context.lineWidth=Math.max(2,width/260);
-      context.setLineDash([Math.max(3,width/140),Math.max(3,width/220)]);
-      context.stroke();context.setLineDash([]);
-    }
-    // Only explicitly selected holes receive solid approval rings.
-    for(const hole of scanSelectedHoles.values()){
-      const r=Math.max(5,hole.radius+2);
-      context.beginPath();
-      context.arc(hole.cx,hole.cy,r,0,Math.PI*2);
-      context.strokeStyle=scanMode==="holes"?"#ffdc80":"#e9bd67";
-      context.lineWidth=Math.max(2,width/220);
-      context.stroke();
-      context.beginPath();
-      context.arc(hole.cx,hole.cy,2,0,Math.PI*2);
-      context.fillStyle="#ffd178";
-      context.fill();
-    }
-    for(const marker of scanResult?.markers??[]){
-      if(scanMarkers.has(marker.type)||scanMarkerEdits.has(marker.type))continue;
-      const cx=(marker.x+.5)*tw,cy=(marker.z+.5)*th;
-      context.beginPath();context.arc(cx,cy,Math.max(9,tw*.39),0,Math.PI*2);
-      context.setLineDash([Math.max(3,width/140),Math.max(3,width/220)]);
-      context.strokeStyle="#d7ae62";context.lineWidth=Math.max(2,width/250);
-      context.stroke();context.setLineDash([]);
-      context.font="bold "+Math.round(tw*.5)+"px sans-serif";
-      context.fillStyle="#fffdf1";context.textAlign="center";
-      context.textBaseline="middle";context.fillText("?",cx,cy);
-    }
-    for(const marker of scanMarkers.values()){
-      const cx=(marker.x+.5)*tw,cy=(marker.z+.5)*th;
-      context.beginPath();context.arc(cx,cy,Math.max(9,tw*.39),0,Math.PI*2);
-      context.strokeStyle=marker.type==="entrance"?"#fd7066":"#70d6ff";
-      context.lineWidth=Math.max(3,width/160);context.stroke();
-      context.font="bold "+Math.round(tw*.5)+"px sans-serif";
-      context.fillStyle="#fffdf1";context.textAlign="center";
-      context.textBaseline="middle";
-      context.fillText(marker.type==="entrance"?"S":"F",cx,cy);
+    if(photoReferenceMode){
+      // Ground-truth candidates must be authored without any predicted
+      // outlines, segments, marker colors or source detector coordinates.
+      for(const key of photoReference.walls){
+        const [x,z]=key.split(",").map(Number);
+        context.fillStyle="rgba(48,189,116,.10)";
+        context.fillRect(x*tw,z*th,tw,th);
+        context.strokeStyle="#45e59f";context.lineWidth=Math.max(1.5,width/350);
+        context.strokeRect(x*tw+2,z*th+2,tw-4,th-4);
+      }
+      for(const hole of photoReference.holes.values()){
+        context.beginPath();context.arc(hole.cx,hole.cy,Math.max(5,hole.radius+2),0,Math.PI*2);
+        context.strokeStyle="#ffdc80";context.lineWidth=Math.max(2,width/220);
+        context.stroke();
+      }
+      for(const marker of photoReference.markers.values()){
+        const cx=(marker.x+.5)*tw,cy=(marker.z+.5)*th;
+        context.beginPath();context.arc(cx,cy,Math.max(9,tw*.39),0,Math.PI*2);
+        context.strokeStyle=marker.type==="entrance"?"#fd7066":"#70d6ff";
+        context.lineWidth=Math.max(3,width/160);context.stroke();
+        context.font="bold "+Math.round(tw*.5)+"px sans-serif";
+        context.fillStyle="#fffdf1";context.textAlign="center";
+        context.textBaseline="middle";
+        context.fillText(marker.type==="entrance"?"S":"F",cx,cy);
+      }
+    }else{
+      // Pale amber outlines are unresolved wall proposals; unlike the green
+      // squares they are NOT preselected or silently written into the maze.
+      for(const {x,z} of scanResult?.unstableSuggestions??[]){
+        const key=x+","+z;
+        if(scanSelected.has(key)||scanRemoved.has(key))continue;
+        context.strokeStyle="#ffd17a";
+        context.lineWidth=Math.max(1.5,width/330);
+        context.setLineDash([Math.max(2,width/120),Math.max(2,width/160)]);
+        context.strokeRect(x*tw+2,z*th+2,tw-4,th-4);
+      }
+      context.setLineDash([]);
+      for(let z=0;z<rows;z++)for(let x=0;x<cols;x++){
+        if(!scanSelected.has(x+","+z))continue;
+        context.fillStyle="rgba(48,189,116,.09)";
+        context.fillRect(x*tw,z*th,tw,th);
+        context.strokeStyle="#45e59f";
+        context.lineWidth=Math.max(1.5,width/350);
+        context.strokeRect(x*tw+2,z*th+2,tw-4,th-4);
+      }
+      // Real wall traces: these show continuous straight spans and measured
+      // image geometry, not arbitrarily named factory block sizes.
+      for(const segment of scanResult?.segments??[]){
+        context.beginPath();
+        context.moveTo(segment.x0,segment.y0);
+        context.lineTo(segment.x1,segment.y1);
+        context.strokeStyle="rgba(40,235,158,.82)";
+        context.lineWidth=Math.max(2,Math.min(5,segment.widthPixels*.18));
+        context.lineCap="round";
+        context.stroke();
+      }
+      // Show tentative circle centers, but do not implicitly approve their
+      // potentially wrong digital squares as lethal physical-floor holes.
+      for(const hole of scanResult?.holes??[]){
+        const key=hole.x+","+hole.z;
+        if(scanSelectedHoles.has(key)||scanRejectedHoles.has(key))continue;
+        context.beginPath();context.arc(hole.cx,hole.cy,Math.max(5,hole.radius+2),0,Math.PI*2);
+        context.strokeStyle="#d7ae62";context.lineWidth=Math.max(2,width/260);
+        context.setLineDash([Math.max(3,width/140),Math.max(3,width/220)]);
+        context.stroke();context.setLineDash([]);
+      }
+      // Only explicitly selected holes receive solid approval rings.
+      for(const hole of scanSelectedHoles.values()){
+        const r=Math.max(5,hole.radius+2);
+        context.beginPath();
+        context.arc(hole.cx,hole.cy,r,0,Math.PI*2);
+        context.strokeStyle=scanMode==="holes"?"#ffdc80":"#e9bd67";
+        context.lineWidth=Math.max(2,width/220);
+        context.stroke();
+        context.beginPath();
+        context.arc(hole.cx,hole.cy,2,0,Math.PI*2);
+        context.fillStyle="#ffd178";
+        context.fill();
+      }
+      for(const marker of scanResult?.markers??[]){
+        if(scanMarkers.has(marker.type)||scanMarkerEdits.has(marker.type))continue;
+        const cx=(marker.x+.5)*tw,cy=(marker.z+.5)*th;
+        context.beginPath();context.arc(cx,cy,Math.max(9,tw*.39),0,Math.PI*2);
+        context.setLineDash([Math.max(3,width/140),Math.max(3,width/220)]);
+        context.strokeStyle="#d7ae62";context.lineWidth=Math.max(2,width/250);
+        context.stroke();context.setLineDash([]);
+        context.font="bold "+Math.round(tw*.5)+"px sans-serif";
+        context.fillStyle="#fffdf1";context.textAlign="center";
+        context.textBaseline="middle";context.fillText("?",cx,cy);
+      }
+      for(const marker of scanMarkers.values()){
+        const cx=(marker.x+.5)*tw,cy=(marker.z+.5)*th;
+        context.beginPath();context.arc(cx,cy,Math.max(9,tw*.39),0,Math.PI*2);
+        context.strokeStyle=marker.type==="entrance"?"#fd7066":"#70d6ff";
+        context.lineWidth=Math.max(3,width/160);context.stroke();
+        context.font="bold "+Math.round(tw*.5)+"px sans-serif";
+        context.fillStyle="#fffdf1";context.textAlign="center";
+        context.textBaseline="middle";
+        context.fillText(marker.type==="entrance"?"S":"F",cx,cy);
+      }
     }
     context.beginPath();context.lineWidth=Math.max(.6,width/900);
     context.strokeStyle="rgba(255,250,232,.60)";
@@ -1985,6 +2041,10 @@ function initializePhoto() {
         if(position)scanMarkers.set(type,position);
         else scanMarkers.delete(type);
       }
+      if(!photoReferenceMode){
+        photoSuggestionsSeen=true;
+        el("annotateBeforeDetectButton").disabled=true;
+      }
       el("scanStage").hidden=false;
       renderScan();
       if(reveal)el("scanStage").scrollIntoView({behavior:"smooth",block:"nearest"});
@@ -2014,16 +2074,35 @@ function initializePhoto() {
   }
   el("clearMarkersButton").addEventListener("click",()=>{
     invalidateScanMeasurement();
+    if(photoReferenceMode){
+      photoReference={...photoReference,markers:new Map()};
+      renderScan();
+      return;
+    }
     scanMarkers.clear();
     scanMarkerEdits.set("entrance",null);scanMarkerEdits.set("exit",null);
     renderScan();
   });
-  el("detectButton").addEventListener("click",()=>analyzePhoto(true));
+  el("detectButton").addEventListener("click",()=>{
+    abandonPhotoReference();
+    analyzePhoto(true);
+  });
+  el("annotateBeforeDetectButton").addEventListener("click",()=>{
+    // Avoid presenting an already-exposed prediction-assisted review as blind.
+    if(photoSuggestionsSeen)return;
+    photoReference=newPhotoReference();
+    photoReferenceMode=true;
+    el("scanReviewTitle").textContent="Label the photograph before seeing suggestions";
+    el("scanReviewComplete").disabled=false;
+    setScanMode("walls");
+    analyzePhoto(true);
+  });
   const gridEdges=["Top","Right","Bottom","Left"];
   // Inset changes remap tile coordinates: previous hand corrections would
   // now refer to different squares and must never be silently reused.
   const restartAlignedScan=()=>{
     if(!scanBoardPixels)return;
+    abandonPhotoReference();
     scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
     scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
@@ -2106,6 +2185,14 @@ function initializePhoto() {
     const {x,z}=cell;
     invalidateScanMeasurement();
     const key=x+","+z;
+    if(photoReferenceMode){
+      photoReference=editPhotoReference(photoReference,{
+        mode:scanMode,x,z,markerBrush,width:scanGuide.width,height:scanGuide.height,
+        columns:Number(maze.data.scale[0]),rows:Number(maze.data.scale[2])
+      });
+      renderScan();
+      return;
+    }
     if(scanMode==="markers"){
       const position={type:markerBrush,x,z,
         cx:(x+.5)*scanGuide.width/Number(maze.data.scale[0]),
@@ -2154,6 +2241,7 @@ function initializePhoto() {
   scanCanvas.addEventListener("lostpointercapture",()=>{scanDrag=null;});
   el("cancelScanButton").addEventListener("click",()=>{
     invalidateScanMeasurement();
+    abandonPhotoReference();
     el("scanStage").hidden=true;
     scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
@@ -2162,6 +2250,7 @@ function initializePhoto() {
     scanResult=null;
   });
   el("applyScanButton").addEventListener("click",()=>{
+    if(photoReferenceMode)return;
     if(!scanGuide||(!scanSelected.size&&!scanSelectedHoles.size&&!scanMarkers.size))return;
     const suggestions=[...scanSelected].map(key=>{
       const [x,z]=key.split(",").map(Number);
@@ -2189,6 +2278,9 @@ function initializePhoto() {
   });
   el("clearPhotoButton").addEventListener("click",()=>{
     photoLoadToken++;stopCamera();
+    abandonPhotoReference();
+    photoSuggestionsSeen=false;
+    el("annotateBeforeDetectButton").disabled=true;
     photoImage=null;photoCorners=null;photoGuide=null;
     el("photoCornerFine").hidden=true;
     invalidateScanMeasurement();

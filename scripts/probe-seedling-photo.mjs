@@ -20,6 +20,25 @@ const variants=[
   {name:"inset-8-percent",margin:.08},
   {name:"inset-12-percent",margin:.12}
 ];
+// A measured comparison, not a search for a crop that makes the output
+// cosmetically plausible. Six-pixel perturbations are around one fifth of a
+// nominal 18-square cell at this 512-pixel research resolution. Translating
+// the rectangle and changing individual handles probe distinct failure modes.
+const cornerVariants=[
+  {name:"all-right-6px",offsets:CORNERS.map(()=>({x:6,y:0}))},
+  {name:"all-left-6px",offsets:CORNERS.map(()=>({x:-6,y:0}))},
+  {name:"all-down-6px",offsets:CORNERS.map(()=>({x:0,y:6}))},
+  {name:"all-up-6px",offsets:CORNERS.map(()=>({x:0,y:-6}))},
+  {name:"top-left-in-6px",offsets:[{x:6,y:6},{x:0,y:0},{x:0,y:0},{x:0,y:0}]},
+  {name:"top-left-out-6px",offsets:[{x:-6,y:-6},{x:0,y:0},{x:0,y:0},{x:0,y:0}]}
+];
+function wallOverlap(reference,other){
+  let sharedWallTiles=0;
+  for(const key of other)if(reference.has(key))sharedWallTiles++;
+  const unionWallTiles=reference.size+other.size-sharedWallTiles;
+  return {sharedWallTiles,unionWallTiles,
+    intersectionOverUnion:unionWallTiles?sharedWallTiles/unionWallTiles:null};
+}
 
 export function measurePhotoProposals(pixels,config={}) {
   if(pixels?.length!==SIZE*SIZE*4)
@@ -45,12 +64,30 @@ export function measurePhotoProposals(pixels,config={}) {
     });
   }
   const baseline=observations[0].wallCells;
-  const stability=observations.slice(1).map(item=>{
-    let agreement=0;
-    for(const key of item.wallCells)if(baseline.has(key))agreement++;
-    const union=baseline.size+item.wallCells.size-agreement;
-    return {versus:item.variant,sharedWallTiles:agreement,
-      unionWallTiles:union,intersectionOverUnion:union?agreement/union:null};
+  const stability=observations.slice(1).map(item=>({
+    versus:item.variant,...wallOverlap(baseline,item.wallCells)
+  }));
+  // The latest real-photograph run showed serious dependence on grid margins.
+  // Investigate corner-placement error separately. We publish only aggregate
+  // counts/overlap, not the original photograph or its inferred tile positions.
+  const cornerStability=(config.cornerVariants??cornerVariants).map(variant=>{
+    if(!Array.isArray(variant.offsets)||variant.offsets.length!==4||
+      variant.offsets.some(v=>!Number.isFinite(v?.x)||!Number.isFinite(v?.y)))
+      throw new TypeError("Each corner variant requires four finite offsets");
+    const perturbed=corners.map((point,i)=>({
+      x:point.x+variant.offsets[i].x,y:point.y+variant.offsets[i].y
+    }));
+    const sample=warpSquarePixels(pixels,SIZE,SIZE,perturbed,504);
+    const result=suggestWalls(sample);
+    const other=new Set(result.suggestions.map(cell=>cell.x+","+cell.z));
+    return {
+      versus:variant.name,
+      maximumHandleDisplacementPixels:Number(Math.max(...variant.offsets
+        .map(v=>Math.hypot(v.x,v.y))).toFixed(2)),
+      wallTileCount:other.size,quality:result.quality,
+      printedGridStatus:result.printedGrid?.status??"unresolved",
+      ...wallOverlap(baseline,other)
+    };
   });
   return {
     imageSource:"Vat19 original Seedling kit product photograph (third-party)",
@@ -58,7 +95,8 @@ export function measurePhotoProposals(pixels,config={}) {
     geometryStatus:"approximate manually estimated corners, not calibrated",
     sourceImageIsIncluded:false,
     observed:observations.map(({wallCells,...rest})=>rest),
-    sensitivityToGridCropping:stability
+    sensitivityToGridCropping:stability,
+    sensitivityToCornerPlacement:cornerStability
   };
 }
 

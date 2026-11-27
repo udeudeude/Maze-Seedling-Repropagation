@@ -12,7 +12,7 @@ import {AUDIO_SETTINGS_KEY,audioPreferences,createMazeAudio} from "./maze-audio.
 import {MAX_PHOTO_DATA_URL_LENGTH,photoAt,photoEdit,photoDataUrl} from "./maze-media.mjs";
 import {avatarAt,avatarEdit,avatarCropRect} from "./maze-avatar.mjs";
 import {voiceAt,voiceEdit,createVoiceRecorder} from "./maze-voice.mjs";
-import {warpSquarePixels,initialCorners,insetRectifiedBoard,suggestPlayableGridEdges} from "./maze-capture.mjs";
+import {warpSquarePixels,initialCorners,nudgeBoardCorner,insetRectifiedBoard,suggestPlayableGridEdges} from "./maze-capture.mjs";
 import {suggestBoardCorners} from "./maze-board-corners.mjs";
 import {assessCameraFrame,createCameraSession,projectBoardOutline} from "./maze-live.mjs";
 import {snapshotFileName,sceneAsPng,canShareSnapshot,drawSnapshotPlayerBadge} from "./maze-snapshot.mjs";
@@ -1386,10 +1386,13 @@ function renderPhoto() {
   ctx.strokeStyle="#ffe8a2";ctx.lineWidth=Math.max(2,canvas.width/250);
   ctx.beginPath();photoCorners.forEach((p,i)=>i?ctx.lineTo(p.x,p.y):ctx.moveTo(p.x,p.y));
   ctx.closePath();ctx.stroke();
+  const selectedCorner=Number(el("photoCornerSelect").value);
   photoCorners.forEach((p,i)=>{
     const radius=Math.max(12,canvas.width/33);
     ctx.beginPath();ctx.arc(p.x,p.y,radius,0,2*Math.PI);
-    ctx.fillStyle="#171f29";ctx.fill();ctx.strokeStyle="#fff0bd";ctx.lineWidth=3;ctx.stroke();
+    ctx.fillStyle=i===selectedCorner?"#7d5721":"#171f29";
+    ctx.fill();ctx.strokeStyle=i===selectedCorner?"#ffffff":"#fff0bd";
+    ctx.lineWidth=i===selectedCorner?5:3;ctx.stroke();
     ctx.font="bold "+Math.round(radius)+"px sans-serif";
     ctx.fillStyle="#ffeabd";ctx.textAlign="center";ctx.textBaseline="middle";
     ctx.fillText(String(i+1),p.x,p.y);
@@ -1537,6 +1540,11 @@ function initializePhoto() {
     canvas.height=Math.max(1,Math.round(height*scale));
     canvas.style.aspectRatio=canvas.width+" / "+canvas.height;
     photoCorners=initialCorners(canvas.width,canvas.height);
+    el("photoCornerSelect").value="0";
+    el("photoCornerFine").hidden=false;
+    el("cornerNudgeStatus").textContent=
+      "Select a numbered handle, then adjust it one alignment pixel at a time. Check the paper-grid boundary before tracing.";
+    invalidateScanMeasurement();
     let foundAlignment=false;
     if(proposeAlignment){
       // The still image, not an old live-video estimate, supplies the
@@ -1649,6 +1657,33 @@ function initializePhoto() {
     return {x:(event.clientX-r.left)/r.width*canvas.width,
       y:(event.clientY-r.top)/r.height*canvas.height};
   };
+  el("photoCornerSelect").addEventListener("change",()=>renderPhoto());
+  for(const [id,dx,dy] of [
+    ["cornerLeftButton",-1,0],["cornerUpButton",0,-1],
+    ["cornerDownButton",0,1],["cornerRightButton",1,0]
+  ]){
+    el(id).addEventListener("click",()=>{
+      if(!photoCorners||!photoImage)return;
+      const selected=Number(el("photoCornerSelect").value);
+      try{
+        const next=nudgeBoardCorner(photoCorners,selected,dx,dy,
+          canvas.width,canvas.height);
+        photoCorners=next;
+        scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;
+        scanSelected.clear();scanAdded.clear();scanRemoved.clear();
+        scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
+        scanMarkers.clear();scanMarkerEdits.clear();
+        el("scanStage").hidden=true;
+        invalidateScanMeasurement();
+        el("cornerNudgeStatus").textContent=
+          "Corner "+(selected+1)+" moved one alignment pixel. Recheck the paper boundary before tracing.";
+        renderPhoto();
+      }catch(error){
+        el("cornerNudgeStatus").textContent=error.message+
+          ". Choose another direction or adjust the other handles.";
+      }
+    });
+  }
   canvas.addEventListener("pointerdown",event=>{
     if(!photoCorners)return;
     const p=coord(event);
@@ -1658,6 +1693,8 @@ function initializePhoto() {
       if(dist<closest){closest=dist;activeCorner=i;}
     });
     if(closest>canvas.width*.13){activeCorner=-1;return;}
+    el("photoCornerSelect").value=String(activeCorner);
+    renderPhoto();
     canvas.setPointerCapture(event.pointerId);
   });
   canvas.addEventListener("pointermove",event=>{
@@ -1672,6 +1709,7 @@ function initializePhoto() {
     scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
     scanMarkers.clear();scanMarkerEdits.clear();
     el("scanStage").hidden=true;
+    invalidateScanMeasurement();
     renderPhoto();
   });
   const release=()=>activeCorner=-1;
@@ -2112,6 +2150,8 @@ function initializePhoto() {
   el("clearPhotoButton").addEventListener("click",()=>{
     photoLoadToken++;stopCamera();
     photoImage=null;photoCorners=null;photoGuide=null;
+    el("photoCornerFine").hidden=true;
+    invalidateScanMeasurement();
     scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
     scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();

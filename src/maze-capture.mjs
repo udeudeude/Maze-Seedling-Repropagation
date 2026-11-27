@@ -93,6 +93,31 @@ export function warpSquarePixels(input,width,height,corners,size=504) {
   return {width:size,height:size,data:out};
 }
 
+/**
+ * Move exactly one alignment-space pixel, independently of the physical
+ * drawing gesture. This is NOT a calibrated original Seedling unit.
+ * The returned array is new; unsafe corner geometry is rejected before the
+ * scanner can attribute physical tiles to incorrect digital cells.
+ */
+export function nudgeBoardCorner(corners,index,dx,dy,width,height) {
+  if(!Array.isArray(corners)||corners.length!==4||
+      !Number.isInteger(index)||index<0||index>3||
+      !Number.isInteger(dx)||!Number.isInteger(dy)||
+      Math.abs(dx)+Math.abs(dy)!==1||
+      !Number.isInteger(width)||!Number.isInteger(height)||
+      width<2||height<2)
+    throw new TypeError("Invalid alignment nudge");
+  const moved=corners.map(point=>({...point}));
+  const point=moved[index];
+  if(!Number.isFinite(point.x)||!Number.isFinite(point.y))
+    throw new TypeError("Invalid corner coordinates");
+  point.x+=dx;point.y+=dy;
+  if(point.x<0||point.y<0||point.x>width-1||point.y>height-1)
+    throw new RangeError("This corner cannot move outside the photograph");
+  homographyForCorners(moved);
+  return moved;
+}
+
 /** Four inset control points, scaled in actual image pixels. */
 export function initialCorners(width,height) {
   const left=width*.08,right=width*.92,top=height*.08,bottom=height*.92;

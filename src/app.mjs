@@ -1562,7 +1562,6 @@ function initializePhoto() {
         if(estimate){photoCorners=estimate.corners;foundAlignment=true;}
       }catch{}
     }
-        abandonPhotoReference();
     scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
     scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
@@ -1645,8 +1644,8 @@ function initializePhoto() {
       // Only alignment handles change; user must still inspect and approve
       // every proposed wall, marker and hole before modifying the document.
       photoCorners=estimate.corners;
-          abandonPhotoReference();
-    scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
+      abandonPhotoReference();
+      scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
       scanAdded.clear();scanRemoved.clear();
       scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
       scanMarkers.clear();scanMarkerEdits.clear();
@@ -1677,6 +1676,7 @@ function initializePhoto() {
         const next=nudgeBoardCorner(photoCorners,selected,dx,dy,
           canvas.width,canvas.height);
         photoCorners=next;
+        abandonPhotoReference();
         scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;
         scanSelected.clear();scanAdded.clear();scanRemoved.clear();
         scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
@@ -1712,7 +1712,7 @@ function initializePhoto() {
       x:Math.max(0,Math.min(canvas.width-1,p.x)),
       y:Math.max(0,Math.min(canvas.height-1,p.y))
     };
-        abandonPhotoReference();
+    abandonPhotoReference();
     scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
     scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();
@@ -1815,7 +1815,7 @@ function initializePhoto() {
       el("scanStatus").textContent="Independent photograph labeling: detector predictions and counts are hidden. "+
         photoReference.walls.size+" walls, "+photoReference.holes.size+
         " holes, "+photoReference.markers.size+" markers manually labeled. "+
-        "Mark every actual feature in all 18 by 18 squares, including missing holes, "+
+        "Mark every actual feature in the aligned grid, including missed holes, "+
         "then check completion below to compare. This does not change the maze to import.";
       el("applyScanButton").disabled=true;
       return;
@@ -1919,80 +1919,80 @@ function initializePhoto() {
         context.fillText(marker.type==="entrance"?"S":"F",cx,cy);
       }
     }else{
-    // Pale amber outlines are unresolved wall proposals; unlike the green
-    // squares they are NOT preselected or silently written into the maze.
-    for(const {x,z} of scanResult?.unstableSuggestions??[]){
-      const key=x+","+z;
-      if(scanSelected.has(key)||scanRemoved.has(key))continue;
-      context.strokeStyle="#ffd17a";
-      context.lineWidth=Math.max(1.5,width/330);
-      context.setLineDash([Math.max(2,width/120),Math.max(2,width/160)]);
-      context.strokeRect(x*tw+2,z*th+2,tw-4,th-4);
-    }
-    context.setLineDash([]);
-    for(let z=0;z<rows;z++)for(let x=0;x<cols;x++){
-      if(!scanSelected.has(x+","+z))continue;
-      context.fillStyle="rgba(48,189,116,.09)";
-      context.fillRect(x*tw,z*th,tw,th);
-      context.strokeStyle="#45e59f";
-      context.lineWidth=Math.max(1.5,width/350);
-      context.strokeRect(x*tw+2,z*th+2,tw-4,th-4);
-    }
-    // Real wall traces: these show continuous straight spans and measured
-    // image geometry, not arbitrarily named factory block sizes.
-    for(const segment of scanResult?.segments??[]){
-      context.beginPath();
-      context.moveTo(segment.x0,segment.y0);
-      context.lineTo(segment.x1,segment.y1);
-      context.strokeStyle="rgba(40,235,158,.82)";
-      context.lineWidth=Math.max(2,Math.min(5,segment.widthPixels*.18));
-      context.lineCap="round";
-      context.stroke();
-    }
-    // Show tentative circle centers, but do not implicitly approve their
-    // potentially wrong digital squares as lethal physical-floor holes.
-    for(const hole of scanResult?.holes??[]){
-      const key=hole.x+","+hole.z;
-      if(scanSelectedHoles.has(key)||scanRejectedHoles.has(key))continue;
-      context.beginPath();context.arc(hole.cx,hole.cy,Math.max(5,hole.radius+2),0,Math.PI*2);
-      context.strokeStyle="#d7ae62";context.lineWidth=Math.max(2,width/260);
-      context.setLineDash([Math.max(3,width/140),Math.max(3,width/220)]);
-      context.stroke();context.setLineDash([]);
-    }
-    // Only explicitly selected holes receive solid approval rings.
-    for(const hole of scanSelectedHoles.values()){
-      const r=Math.max(5,hole.radius+2);
-      context.beginPath();
-      context.arc(hole.cx,hole.cy,r,0,Math.PI*2);
-      context.strokeStyle=scanMode==="holes"?"#ffdc80":"#e9bd67";
-      context.lineWidth=Math.max(2,width/220);
-      context.stroke();
-      context.beginPath();
-      context.arc(hole.cx,hole.cy,2,0,Math.PI*2);
-      context.fillStyle="#ffd178";
-      context.fill();
-    }
-    for(const marker of scanResult?.markers??[]){
-      if(scanMarkers.has(marker.type)||scanMarkerEdits.has(marker.type))continue;
-      const cx=(marker.x+.5)*tw,cy=(marker.z+.5)*th;
-      context.beginPath();context.arc(cx,cy,Math.max(9,tw*.39),0,Math.PI*2);
-      context.setLineDash([Math.max(3,width/140),Math.max(3,width/220)]);
-      context.strokeStyle="#d7ae62";context.lineWidth=Math.max(2,width/250);
-      context.stroke();context.setLineDash([]);
-      context.font="bold "+Math.round(tw*.5)+"px sans-serif";
-      context.fillStyle="#fffdf1";context.textAlign="center";
-      context.textBaseline="middle";context.fillText("?",cx,cy);
-    }
-    for(const marker of scanMarkers.values()){
-      const cx=(marker.x+.5)*tw,cy=(marker.z+.5)*th;
-      context.beginPath();context.arc(cx,cy,Math.max(9,tw*.39),0,Math.PI*2);
-      context.strokeStyle=marker.type==="entrance"?"#fd7066":"#70d6ff";
-      context.lineWidth=Math.max(3,width/160);context.stroke();
-      context.font="bold "+Math.round(tw*.5)+"px sans-serif";
-      context.fillStyle="#fffdf1";context.textAlign="center";
-      context.textBaseline="middle";
-      context.fillText(marker.type==="entrance"?"S":"F",cx,cy);
-    }
+      // Pale amber outlines are unresolved wall proposals; unlike the green
+      // squares they are NOT preselected or silently written into the maze.
+      for(const {x,z} of scanResult?.unstableSuggestions??[]){
+        const key=x+","+z;
+        if(scanSelected.has(key)||scanRemoved.has(key))continue;
+        context.strokeStyle="#ffd17a";
+        context.lineWidth=Math.max(1.5,width/330);
+        context.setLineDash([Math.max(2,width/120),Math.max(2,width/160)]);
+        context.strokeRect(x*tw+2,z*th+2,tw-4,th-4);
+      }
+      context.setLineDash([]);
+      for(let z=0;z<rows;z++)for(let x=0;x<cols;x++){
+        if(!scanSelected.has(x+","+z))continue;
+        context.fillStyle="rgba(48,189,116,.09)";
+        context.fillRect(x*tw,z*th,tw,th);
+        context.strokeStyle="#45e59f";
+        context.lineWidth=Math.max(1.5,width/350);
+        context.strokeRect(x*tw+2,z*th+2,tw-4,th-4);
+      }
+      // Real wall traces: these show continuous straight spans and measured
+      // image geometry, not arbitrarily named factory block sizes.
+      for(const segment of scanResult?.segments??[]){
+        context.beginPath();
+        context.moveTo(segment.x0,segment.y0);
+        context.lineTo(segment.x1,segment.y1);
+        context.strokeStyle="rgba(40,235,158,.82)";
+        context.lineWidth=Math.max(2,Math.min(5,segment.widthPixels*.18));
+        context.lineCap="round";
+        context.stroke();
+      }
+      // Show tentative circle centers, but do not implicitly approve their
+      // potentially wrong digital squares as lethal physical-floor holes.
+      for(const hole of scanResult?.holes??[]){
+        const key=hole.x+","+hole.z;
+        if(scanSelectedHoles.has(key)||scanRejectedHoles.has(key))continue;
+        context.beginPath();context.arc(hole.cx,hole.cy,Math.max(5,hole.radius+2),0,Math.PI*2);
+        context.strokeStyle="#d7ae62";context.lineWidth=Math.max(2,width/260);
+        context.setLineDash([Math.max(3,width/140),Math.max(3,width/220)]);
+        context.stroke();context.setLineDash([]);
+      }
+      // Only explicitly selected holes receive solid approval rings.
+      for(const hole of scanSelectedHoles.values()){
+        const r=Math.max(5,hole.radius+2);
+        context.beginPath();
+        context.arc(hole.cx,hole.cy,r,0,Math.PI*2);
+        context.strokeStyle=scanMode==="holes"?"#ffdc80":"#e9bd67";
+        context.lineWidth=Math.max(2,width/220);
+        context.stroke();
+        context.beginPath();
+        context.arc(hole.cx,hole.cy,2,0,Math.PI*2);
+        context.fillStyle="#ffd178";
+        context.fill();
+      }
+      for(const marker of scanResult?.markers??[]){
+        if(scanMarkers.has(marker.type)||scanMarkerEdits.has(marker.type))continue;
+        const cx=(marker.x+.5)*tw,cy=(marker.z+.5)*th;
+        context.beginPath();context.arc(cx,cy,Math.max(9,tw*.39),0,Math.PI*2);
+        context.setLineDash([Math.max(3,width/140),Math.max(3,width/220)]);
+        context.strokeStyle="#d7ae62";context.lineWidth=Math.max(2,width/250);
+        context.stroke();context.setLineDash([]);
+        context.font="bold "+Math.round(tw*.5)+"px sans-serif";
+        context.fillStyle="#fffdf1";context.textAlign="center";
+        context.textBaseline="middle";context.fillText("?",cx,cy);
+      }
+      for(const marker of scanMarkers.values()){
+        const cx=(marker.x+.5)*tw,cy=(marker.z+.5)*th;
+        context.beginPath();context.arc(cx,cy,Math.max(9,tw*.39),0,Math.PI*2);
+        context.strokeStyle=marker.type==="entrance"?"#fd7066":"#70d6ff";
+        context.lineWidth=Math.max(3,width/160);context.stroke();
+        context.font="bold "+Math.round(tw*.5)+"px sans-serif";
+        context.fillStyle="#fffdf1";context.textAlign="center";
+        context.textBaseline="middle";
+        context.fillText(marker.type==="entrance"?"S":"F",cx,cy);
+      }
     }
     context.beginPath();context.lineWidth=Math.max(.6,width/900);
     context.strokeStyle="rgba(255,250,232,.60)";
@@ -2284,7 +2284,6 @@ function initializePhoto() {
     photoImage=null;photoCorners=null;photoGuide=null;
     el("photoCornerFine").hidden=true;
     invalidateScanMeasurement();
-        abandonPhotoReference();
     scanBoardPixels=null;scanPixels=null;scanGuide=null;scanResult=null;scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();
     scanSelectedHoles.clear();scanAddedHoles.clear();scanRejectedHoles.clear();

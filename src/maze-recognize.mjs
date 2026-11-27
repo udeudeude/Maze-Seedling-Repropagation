@@ -84,6 +84,11 @@ export function darkPixelMask(image){
   }
   const p8=percentileHistogram(histogram,total,.08);
   const p85=percentileHistogram(histogram,total,.85);
+  // Most pixels can be light paper in a nearly empty physical maze.
+  // The eighth percentile then misses every real dark wall or hole. Use a
+  // small but nonzero dark population to measure scene contrast without
+  // letting a single defective/salt-and-pepper pixel dominate the estimate.
+  const darkTail=percentileHistogram(histogram,total,.002);
   const otsuThreshold=otsu(histogram,total);
   const threshold=Math.min(150,otsuThreshold+17,p8+.30*(p85-p8));
   const mask=new Uint8Array(total);
@@ -97,7 +102,7 @@ export function darkPixelMask(image){
     }
   }
   return {mask,width,height,darkFraction:count/total,
-    threshold,contrast:p85-p8};
+    threshold,contrast:Math.max(p85-p8,p85-darkTail)};
 }
 
 /**
@@ -192,7 +197,7 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
       if(circularCells.size>=Math.max(48,Math.ceil(columns*rows*.22))){
         computed.densePerforations=circularCells.size;
       }else{
-      const holes=[...separated.holes];
+        const holes=[...separated.holes];
       // Circle-edge voting finds holes that are merged with nearby wall pixels.
       for(const proposed of findRoundHolesByEdges(image,columns,rows)){
         if(holes.some(previous=>Math.hypot(previous.cx-proposed.cx,

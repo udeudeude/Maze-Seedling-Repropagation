@@ -46,3 +46,11 @@ test("a few intentionally punched holes do not trigger bare-base warning",()=>{
   assert.notEqual(result.quality,"dense-perforations");
   assert.ok(result.holes.length>=1,"Real isolated holes remain candidates");
 });
+
+test("three sparse holes on otherwise bright paper still have detectable contrast",()=>{
+  const result=suggestWalls(sample({perforations:3}));
+  assert.notEqual(result.quality,"low-contrast");
+  assert.notEqual(result.quality,"dense-perforations");
+  assert.ok(result.holes.length>=1,
+    "Sparse black paper cutouts must not be rejected by an eighth-percentile contrast floor");
+});

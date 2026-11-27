@@ -26,6 +26,28 @@ test("skewed trapezoid aligns endpoints correctly",()=>{
   });
 });
 
+test("folded, reversed, and nearly collapsed corner handles cannot distort a maze import",()=>{
+  const crossing=[{x:0,y:0},{x:29,y:29},{x:29,y:0},{x:0,y:29}];
+  const reversed=[{x:0,y:0},{x:0,y:29},{x:29,y:29},{x:29,y:0}];
+  const nearlyCollapsed=[{x:0,y:0},{x:100,y:0},
+    {x:100,y:.00001},{x:0,y:100}];
+  const concave=[{x:0,y:0},{x:40,y:0},{x:10,y:10},{x:0,y:40}];
+  for(const handles of [crossing,reversed,nearlyCollapsed,concave])
+    assert.throws(()=>homographyForCorners(handles),RangeError);
+  // No detector should be allowed to invent alignment from these shapes.
+  const pixels=new Uint8ClampedArray(30*30*4);
+  assert.throws(()=>warpSquarePixels(pixels,30,30,crossing,18),RangeError);
+});
+
+test("rectification rejects off-image corners before generating incomplete squares",()=>{
+  const pixels=new Uint8ClampedArray(30*30*4);
+  for(const handles of [
+    [{x:-1,y:0},{x:29,y:0},{x:29,y:29},{x:0,y:29}],
+    [{x:0,y:0},{x:30,y:0},{x:29,y:29},{x:0,y:29}]
+  ])assert.throws(()=>warpSquarePixels(pixels,30,30,handles,18),
+    /inside the photograph/);
+});
+
 test("perspective warp retains a constant source value",()=>{
   const width=30,height=30;
   const bytes=new Uint8ClampedArray(width*height*4);

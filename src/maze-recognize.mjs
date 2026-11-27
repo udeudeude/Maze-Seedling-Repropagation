@@ -255,7 +255,7 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
         ?"Printed-line spacing conflicts with the current "+
           columns+" by "+rows+" maze ("+conflicts.join("; ")+
           "). Automatic placement is suspended. Check board corners and grid margins before tracing manually."
-        :"Printed grid lines are offset from the tracing-square boundaries ("+
+        :misaligned?"Printed grid lines are offset from the tracing-square boundaries ("+
           offsets.join("; ")+"). Automatic placement is suspended. Adjust the four board corners and playable-grid margins before reviewing manually."
         :"Printed grid lines diverge between separated regions ("+
           shearAxes.join(" and ")+"). Automatic placement is suspended. Recheck all four printed-grid corners before reviewing manually.",

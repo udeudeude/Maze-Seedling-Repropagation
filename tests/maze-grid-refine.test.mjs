@@ -40,6 +40,19 @@ test("visible 18 by 18 ink gives a small correction to a misregistered photograp
     {x:48,y:48},{x:552,y:48},{x:552,y:552},{x:48,y:552}
   ],"Never mutate current calibration before explicit approval");
 });
+test("a sub-cell offset can change a real object's digital cell assignment",()=>{
+  // This is an artificial coordinate control, not an annotated Seedling board.
+  // A physical center is 2px to the right of the old fifth grid boundary,
+  // but 2px to the LEFT of the observed printed-ink boundary.
+  const centerX=48+5*pitch+2;
+  const oldCell=Math.floor((centerX-corners[0].x)/pitch);
+  const change=refine(printedPaper({shiftX:4}));
+  assert.ok(change);
+  const newCell=Math.floor((centerX-change.corners[0].x)/pitch);
+  assert.equal(oldCell,5);
+  assert.equal(newCell,4);
+  assert.equal(change.corners.length,4);
+});
 test("clean grid, unsupported ink and non-grid walls produce no invented correction",()=>{
   for(const config of [{},{missing:true},{missing:true,wall:true}]){
     assert.equal(refine(printedPaper(config)),null,JSON.stringify(config));

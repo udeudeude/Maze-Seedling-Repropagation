@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {solveLinear,homographyForCorners,initialCorners,warpSquarePixels,insetRectifiedBoard,suggestPlayableGridEdges} from "../src/maze-capture.mjs";
+import {solveLinear,homographyForCorners,initialCorners,nudgeBoardCorner,warpSquarePixels,insetRectifiedBoard,suggestPlayableGridEdges} from "../src/maze-capture.mjs";
 import {readFileSync} from "node:fs";
 
 const close=(actual,expected,tol=1e-7)=>assert.ok(Math.abs(actual-expected)<tol,actual+" ≠ "+expected);
@@ -205,4 +205,41 @@ test("border proposal is explicitly user-invoked and rechecks all manual correct
   assert.match(app,/restartAlignedScan\(\)/);
   assert.match(app,/proposal\.detected\.includes\(side\)\?proposal\.edges\[side\]/);
   assert.match(app,/Number\(el\("gridInset"\+edge\+"Slider"\)\.value\)/);
+});
+
+test("one-pixel alignment nudges preserve original corners and precision",()=>{
+  const corners=[{x:10,y:10},{x:90,y:12},{x:89,y:90},{x:11,y:88}];
+  const before=JSON.stringify(corners);
+  const moved=nudgeBoardCorner(corners,0,1,0,100,100);
+  assert.equal(moved[0].x,11);
+  assert.equal(moved[0].y,10);
+  assert.deepEqual(moved.slice(1),corners.slice(1));
+  assert.equal(JSON.stringify(corners),before,"Photo alignment inputs must not mutate");
+  const original=homographyForCorners(corners)(0,0);
+  const changed=homographyForCorners(moved)(0,0);
+  close(original.x,10);close(changed.x,11);
+  const up=nudgeBoardCorner(moved,0,0,-1,100,100);
+  assert.equal(up[0].y,9);
+});
+test("nudge controls reject missing, folded, and out-of-image alignments",()=>{
+  const corners=[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}];
+  assert.throws(()=>nudgeBoardCorner(corners,0,-1,0,100,100),RangeError);
+  assert.throws(()=>nudgeBoardCorner(corners,0,1,0,100,100),RangeError);
+  assert.throws(()=>nudgeBoardCorner(corners,0,0,1,100,100),RangeError);
+  assert.throws(()=>nudgeBoardCorner(corners,4,1,0,100,100),TypeError);
+  assert.throws(()=>nudgeBoardCorner(corners,0,1,1,100,100),TypeError);
+  assert.throws(()=>nudgeBoardCorner(corners,0,0,0,100,100),TypeError);
+  assert.deepEqual(corners,[{x:0,y:0},{x:1,y:0},{x:1,y:1},{x:0,y:1}]);
+});
+test("calibration controls can be operated without touching the source photo",()=>{
+  const html=readFileSync(new URL("../index.html",import.meta.url),"utf8");
+  const app=readFileSync(new URL("../src/app.mjs",import.meta.url),"utf8");
+  const css=readFileSync(new URL("../style.css",import.meta.url),"utf8");
+  for(const id of ["photoCornerFine","photoCornerSelect","cornerLeftButton",
+    "cornerRightButton","cornerUpButton","cornerDownButton","cornerNudgeStatus"])
+    assert.match(html,new RegExp('id="'+id+'"'));
+  assert.match(html,/id="photoCornerFine" hidden/);
+  assert.match(app,/nudgeBoardCorner\(photoCorners,selected,dx,dy,/);
+  assert.match(app,/el\("scanStage"\)\.hidden=true;\s*invalidateScanMeasurement\(\);\s*el\("cornerNudgeStatus"\)/);
+  assert.match(css,/\.photo-corner-nudges button\{min-width:44px;min-height:44px/);
 });

@@ -59,6 +59,8 @@ export function measurePhotoProposals(pixels,config={}) {
       markerCandidateCount:result.markers.length,
       detectedWallSpans:result.segments.length,
       printedGrid:result.printedGrid,
+      // Shifted tracing-grid sensitivity is aggregate, never pixel labels.
+      registrationSensitivity:result.registrationSensitivity,
       // Aggregate only; original-photo pixels and layout stay private.
       wallCells:new Set(result.suggestions.map(cell=>cell.x+","+cell.z))
     });
@@ -86,6 +88,7 @@ export function measurePhotoProposals(pixels,config={}) {
         .map(v=>Math.hypot(v.x,v.y))).toFixed(2)),
       wallTileCount:other.size,quality:result.quality,
       printedGridStatus:result.printedGrid?.status??"unresolved",
+      registrationSensitivity:result.registrationSensitivity,
       ...wallOverlap(baseline,other)
     };
   });

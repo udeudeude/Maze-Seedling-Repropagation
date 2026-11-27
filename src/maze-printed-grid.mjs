@@ -9,7 +9,7 @@ const median=values=>{
   return sorted[Math.floor(sorted.length/2)];
 };
 
-function axisEstimate(image,axis,minCells,maxCells){
+function axisEstimate(image,axis,minCells,maxCells,crossRange=[.12,.88]){
   const {width:w,height:h,data}=image;
   const length=axis==="columns"?w:h;
   const cross=axis==="columns"?h:w;
@@ -17,7 +17,7 @@ function axisEstimate(image,axis,minCells,maxCells){
   for(let position=0;position<length;position++){
     const values=[];
     for(let s=0;s<65;s++){
-      const perpendicular=Math.min(cross-1,Math.floor(cross*(.12+.76*(s+.5)/65)));
+      const perpendicular=Math.min(cross-1,Math.floor(cross*(crossRange[0]+(crossRange[1]-crossRange[0])*(s+.5)/65)));
       const x=axis==="columns"?position:perpendicular;
       const y=axis==="columns"?perpendicular:position;
       const i=(y*w+x)*4;
@@ -100,13 +100,47 @@ function axisEstimate(image,axis,minCells,maxCells){
     matchedLines:best.matches,observedLines:best.peaks};
 }
 
-export function estimatePrintedGrid(image){
+
+/**
+ * Independent near/far observations of the paper's printed line locations.
+ * A wrong corner quadrilateral may straighten the middle of the grid while
+ * leaving the top and bottom at different lattice phases. Global line counts
+ * and phase checks can miss this. Small separated sampling bands avoid
+ * averaging away that perspective residual. No automatic corner correction
+ * or original-camera calibration is inferred from the result.
+ *
+ * A result is supplied ONLY when both bands independently support the
+ * specified count at 0.90 or higher. Absent/occluded ink is not a negative.
+ */
+function bandPhaseDrift(image,axis,count){
+  if(!Number.isInteger(count)||count<2||count>60)return null;
+  const near=axisEstimate(image,axis,count,count,[.20,.30]);
+  const far=axisEstimate(image,axis,count,count,[.70,.80]);
+  if(!near||!far||near.confidence<.90||far.confidence<.90)
+    return null;
+  const extent=axis==="columns"?image.width:image.height;
+  const pitch=extent/count;
+  const delta=Math.abs(near.phasePixels-far.phasePixels);
+  const wrapped=Math.min(delta,pitch-delta);
+  return {
+    driftCells:Number((wrapped/pitch).toFixed(2)),
+    nearMatchedLines:near.matchedLines,farMatchedLines:far.matchedLines
+  };
+}
+
+export function estimatePrintedGrid(image,{expectedColumns,expectedRows}={}){
   const {width,height,data}=image??{};
   if(!Number.isInteger(width)||!Number.isInteger(height)||
     width<160||height<160||data?.length!==width*height*4)
     throw new TypeError("Expected a rectified RGBA photograph at least 160 pixels across");
   const columns=axisEstimate(image,"columns",8,40);
   const rows=axisEstimate(image,"rows",8,40);
-  if(!columns||!rows)return {status:"unresolved",columns,rows};
-  return {status:columns.cells===rows.cells?"supported":"inconsistent",columns,rows};
+  // Requested document dimensions are checked separately; never silently
+  // replace a saved maze's geometry with a detected period count.
+  const alignment={
+    columns:bandPhaseDrift(image,"columns",expectedColumns),
+    rows:bandPhaseDrift(image,"rows",expectedRows)
+  };
+  if(!columns||!rows)return {status:"unresolved",columns,rows,alignment};
+  return {status:columns.cells===rows.cells?"supported":"inconsistent",columns,rows,alignment};
 }

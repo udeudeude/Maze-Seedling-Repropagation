@@ -89,6 +89,19 @@ Direct function calls **verified from the original native binary**:
 
 This narrows subsequent static investigation to `liveProcess` and `getBoardCorners`/`computeBoard` and the unknown dimension-setting caller, rather than reverse-engineering `getWalls` as though it performed the detector's pixel segmentation.
 
+
+## Live JNI-to-scanner processing trace (November 27, 2026)
+
+A [second checksum-pinned static native study](https://github.com/udeudeude/Maze-Seedling-Repropagation/actions/runs/46004646781) traced the same original `libtile_reader.so` (SHA-256 `5e2795b7a9a3db2949464381100cedcafcd2bad0a8b8ee401828d1f987b525f0`) and broadened the search for direct callers.
+
+- The actual Android JNI entrypoint **`Java_com_seedling_maze_TileReader_processFromJNI` directly calls `TileReader::liveProcess`**.
+- `liveProcess` has direct named call sites for **`getBoardCorners`, `drawCorners`, `isSquareIsh`, `computeBoard`, `padImage`, `drawKnownTiles` and `stb::TileBoard::clear`**. Their lexical sequence puts corner recognition/drawing and a square-shape check before board computation, then image padding and known-tile drawing. **This is instruction-site order, not execution order**: conditional branches and loops were not recovered, and the circumstances of `clear` cannot be inferred.
+- `drawKnownTiles` consults width, height and `TileBoard::getTileAt`; `computeBoard` consults dimensions and calls `setTileAt`. This establishes a shared native board representation for recognition and the visual overlay, not equivalence to current web rendering.
+- The library imports OpenCV `Canny`, `GaussianBlur`, `blur`, `boundingRect`, `cvtColor`, `findContours`, `getPerspectiveTransform` and `warpPerspective`. **An imported function is not proof of use by any specific scanner stage**, nor evidence of specific thresholds.
+- **Coverage limitation:** the linear pass decoded 924/2,612 bytes in `getBoardCorners` and 1,900/2,744 bytes in `computeBoard`. Data islands and control flow can terminate or bypass the remaining code, so negative call results are inconclusive. Original executable bytes and disassembly were neither executed nor redistributed.
+
+Next: reconstruct the guarded corner/board processing and find the origin of board dimensions, then validate against independently annotated real physical-board images before changing the experimental web classifier.
+
 ## Next implementation constraints
 
 1. Derive precise board dimensions, snapping, markers, scan thresholds, and image-processing steps from the native `libtile_reader.so` and scanner UI. **Do not guess them.**

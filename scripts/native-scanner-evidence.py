@@ -20,6 +20,8 @@ from capstone.arm import ARM_OP_IMM, ARM_OP_MEM, ARM_REG_PC
 from elftools.elf.elffile import ELFFile
 
 FOCUS = (
+    "TileReader::liveProcess", "TileReader::drawKnownTiles",
+    "TileReader::euclideanDist",
     "TileReader::getBoardCorners", "TileReader::setBoardDimensions",
     "TileReader::computeBoard", "TileReader::drawGrid",
     "TileReader::removeBoardEdges", "TileReader::getWalls",
@@ -27,8 +29,13 @@ FOCUS = (
     "stb::TileBoard::getBoardWalls", "stb::TileBoard::getTileAt",
     "stb::TileBoard::setTileAt", "stb::TileBoard::toJSON",
 )
-SCANNER_WORDS = ("tilereader::", "tileboard::", "getboard",
-                 "removeboard", "findcontour", "hough", "opencv")
+SCANNER_WORDS = ("tilereader::", "tileboard::", "cv::",
+                 "getboard", "removeboard", "findcontour", "hough", "opencv")
+# These imported symbols establish an available API, not that a particular
+# scanner stage invokes it. No callsite attribution is made from imports.
+IMAGE_API_WORDS = ("findcontour", "threshold", "cvtcolor", "morphology",
+                   "approxpoly", "warp", "perspective", "hough", "blur",
+                   "canny", "erode", "dilate", "boundingrect", "contourarea")
 
 
 def demangle_many(names):
@@ -67,6 +74,16 @@ def main(path):
                 size = int(symbol["st_size"])
                 if name and address and size > 0:
                     symbols.append((address & ~1, address & 1, size, name))
+        imported = [symbol.name for symbol in
+                    elf.get_section_by_name(".dynsym").iter_symbols()
+                    if symbol.name and symbol["st_shndx"] == "SHN_UNDEF" and
+                    symbol["st_info"]["type"] == "STT_FUNC"]
+        decoded_imports = demangle_many(imported) if imported else []
+        image_api_imports = sorted({
+            normalize(symbol) for symbol in decoded_imports
+            if ("cv::" in symbol.lower() or "opencv" in symbol.lower())
+            and any(word in symbol.lower() for word in IMAGE_API_WORDS)
+        })
         # Prefer the largest known function at a given entry point.
         unique = {}
         for address, thumb, size, name in symbols:
@@ -113,8 +130,11 @@ def main(path):
             integer_candidates = collections.Counter()
             float_candidates = collections.Counter()
             decoded = 0
+            decoded_bytes = 0
+            lexical_calls = []
             for ins in parser.disasm(code, address):
                 decoded += 1
+                decoded_bytes += ins.size
                 if ins.mnemonic.startswith("bl") and ins.operands and \
                    ins.operands[0].type == ARM_OP_IMM:
                     target = int(ins.operands[0].imm) & ~1
@@ -122,6 +142,10 @@ def main(path):
                     if callee and any(k in callee.lower() for k in SCANNER_WORDS):
                         nearby[normalize(callee)] += 1
                         all_calls[normalize(display)].add(normalize(callee))
+                        # Linear instruction order is not execution order:
+                        # branch conditions/loops can reorder or skip calls.
+                        if len(lexical_calls) < 100:
+                            lexical_calls.append(normalize(callee))
                 # Immediate values are *candidates*, never established
                 # measurements. Restrict to small unsigned integers.
                 if ins.mnemonic.split(".")[0] in ("mov", "movs", "movw", "cmp"):
@@ -145,23 +169,24 @@ def main(path):
                 "function": normalize(display),
                 "bytes": size, "thumb": bool(thumb),
                 "decodedInstructionCount": decoded,
+                "linearDecodedBytes": decoded_bytes,
+                "functionBytesInspected": len(code),
                 "namedScannerCalls": dict(sorted(nearby.items())),
+                "lexicalCallsiteSequenceNotRuntimeOrder": lexical_calls,
                 "immediateCandidatesNotDimensions": dict(sorted(
                     integer_candidates.items(), key=lambda row: (-row[1], row[0]))[:15]),
                 "floatCandidatesNotDimensions": dict(sorted(
                     float_candidates.items(), key=lambda row: (-row[1], row[0]))[:15]),
             })
         # An outgoing-only graph misses who initiates calibration. Inspect
-        # all *named scanner/JNI* methods for immediate branches to the
-        # selected methods, without dumping their proprietary instructions.
-        # Indirect and virtual calls are deliberately not claimed.
+        # all size-bounded, named functions for immediate direct branches to
+        # the selected methods; JNI entrypoints may not contain TileReader
+        # or Java_ in their names. Indirect calls and virtual dispatch remain
+        # outside this static inspection, and a non-call is not proof of absence.
         chosen = {entry[0]: normalize(entry[4]) for entry in focus}
         incoming = collections.defaultdict(set)
         for address, thumb, size, _raw, display in records:
             if address in chosen or size > 65536:
-                continue
-            if "TileReader::" not in display and \
-               "Java_" not in display and "JNI" not in display:
                 continue
             body = read_at(address, size)
             if body is None:
@@ -184,11 +209,14 @@ def main(path):
             "binarySha256": digest,
             "architecture": "ARM 32-bit",
             "selectedFunctionCount": len(answers),
+            "availableImportedImageApisNotProvenCalled": image_api_imports,
             "functionFacts": answers,
             "selectedDirectCallers": callers,
-            "interpretation": ("Literal values are unclassified. Their presence "
-                               "does not establish physical grid pitch, wall "
-                               "lengths, thresholds or camera calibration."),
+            "interpretation": ("Linear disassembly can stop at embedded data and "
+                               "miss calls. Lexical callsite order is not execution "
+                               "order; imported APIs are not proven called. Literal "
+                               "values are unclassified and do not establish grid "
+                               "pitch, wall lengths, thresholds or calibration."),
             "redistributedOriginalBytes": False,
         }, indent=2))
 

@@ -154,6 +154,16 @@
             <button id="clearMarkersButton" type="button">Clear markers</button>
           </div>
           <canvas id="scanCanvas" tabindex="0" aria-label="Corrected photograph with green wall traces and amber possible holes. Tap to correct the selected feature type."></canvas>
+          <details class="edge-calibration scan-evaluation" id="scanEvaluationDetails">
+            <summary>Measure scanner against your corrections (optional)</summary>
+            <p>This is for testing with physical Seedling photographs, not necessary for importing a maze. Correct all the walls, holes, Start and Finish first. The comparison uses exact squares and never sends or saves your photograph.</p>
+            <label class="scan-evaluation-check"><input id="scanReviewComplete" type="checkbox"> I have checked every square and both marker positions, including missing features.</label>
+            <div class="scan-actions">
+              <button id="measureScanButton" type="button" disabled>Measure suggestions</button>
+              <button id="copyScanReportButton" type="button" hidden>Copy numbers only</button>
+            </div>
+            <p class="scan-evaluation-output" id="scanMeasurementResult" role="status">No measurement yet.</p>
+          </details>
           <div class="scan-slider">
             <label for="gridInsetSlider">Set all grid edges equally <output id="gridInsetValue" for="gridInsetSlider">0%</output></label>
             <input id="gridInsetSlider" type="range" min="0" max="20" step="1" value="0" aria-describedby="gridInsetHelp">

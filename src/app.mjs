@@ -19,6 +19,7 @@ import {snapshotFileName,sceneAsPng,canShareSnapshot,drawSnapshotPlayerBadge} fr
 import {MAX_BACKUP_BYTES,createLibraryBackup,parseLibraryBackup,mergeLibraryBackup,
   libraryBackupFileName,mazeFileName,canShareMaze} from "./maze-backup.mjs";
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
+import {compareScanReview} from "./maze-scan-evaluation.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
   addMaze,openMaze,duplicateMaze,deleteMaze,sortedMazes} from "./maze-library.mjs";
 import {saveMazeLocally,emergencyMazeExport} from "./maze-storage.mjs";
@@ -1687,6 +1688,67 @@ function initializePhoto() {
     target.getContext("2d").putImageData(new ImageData(warped.data,warped.width,warped.height),0,0);
     return {warped,target};
   }
+  // An accuracy claim requires an explicit, exhaustive user review of
+  // the photograph. Geometry, sensitivity, or tile edits revoke that check.
+  let scanMeasurementReport="";
+  function invalidateScanMeasurement() {
+    scanMeasurementReport="";
+    el("scanReviewComplete").checked=false;
+    el("measureScanButton").disabled=true;
+    el("copyScanReportButton").hidden=true;
+    el("scanMeasurementResult").textContent="No measurement yet.";
+  }
+  el("scanReviewComplete").addEventListener("change",()=>{
+    scanMeasurementReport="";
+    el("measureScanButton").disabled=!el("scanReviewComplete").checked||!scanResult;
+    el("copyScanReportButton").hidden=true;
+    el("scanMeasurementResult").textContent="No measurement yet.";
+  });
+  el("measureScanButton").addEventListener("click",()=>{
+    if(!scanResult||!el("scanReviewComplete").checked)return;
+    const columns=Number(maze.data.scale[0]),rows=Number(maze.data.scale[2]);
+    const selectedWalls=[...scanSelected].map(key=>{
+      const [x,z]=key.split(",").map(Number);return {x,z};
+    });
+    const metrics=compareScanReview({columns,rows,
+      suggested:{walls:scanResult.suggestions,holes:scanResult.holes,
+        markers:scanResult.markers},
+      reviewed:{walls:selectedWalls,holes:[...scanSelectedHoles.values()],
+        markers:[...scanMarkers.values()]}
+    });
+    const fmt=n=>n===null?"not defined":(100*n).toFixed(1)+"%";
+    const display=(label,metric)=>label+": "+metric.matches+" matched; "+
+      metric.falseAlarms+" false alarms; "+metric.misses+" missed. Precision "+
+      fmt(metric.precision)+", recall "+fmt(metric.recall)+".";
+    el("scanMeasurementResult").textContent=[
+      display("Walls",metrics.walls),display("Holes",metrics.holes),
+      display("Start",metrics.start),display("Finish",metrics.finish),
+      "These figures describe agreement with your checked corrections, not verified accuracy of the historical scanner."
+    ].join("\n");
+    const axis=entry=>entry?{cells:entry.cells,
+      confidence:entry.confidence,phaseOffsetCells:entry.phaseOffsetCells}:null;
+    scanMeasurementReport=JSON.stringify({
+      format:"maze-repropagation-scan-review-v1",
+      reference:"user-checked correction of every square and marker position",
+      note:"Exact-cell agreement on one photo; not a validated Seedling accuracy study.",
+      dimensions:{columns,rows},sensitivity:Number(el("sensitivitySlider").value)/100,
+      scanQuality:scanResult.quality,printedGrid:{
+        columns:axis(scanResult.printedGrid?.columns),
+        rows:axis(scanResult.printedGrid?.rows)},
+      metrics
+    },null,2);
+    el("copyScanReportButton").hidden=false;
+  });
+  el("copyScanReportButton").addEventListener("click",async()=>{
+    if(!scanMeasurementReport)return;
+    try{
+      if(!navigator.clipboard?.writeText)throw new Error("unavailable");
+      await navigator.clipboard.writeText(scanMeasurementReport);
+      el("scanMeasurementResult").textContent+="\nReport copied. No photograph was included.";
+    }catch{
+      el("scanMeasurementResult").textContent+="\nCopy unavailable. Read the figures above.";
+    }
+  });
   function updateScanStatus() {
     if(!scanResult)return;
     const spanCount=scanResult.segments?.length??0;
@@ -1775,6 +1837,7 @@ function initializePhoto() {
     updateScanStatus();
   }
   function analyzePhoto(reveal=false) {
+    invalidateScanMeasurement();
     try {
       // Re-evaluate the same aligned image when sensitivity changes.
       if(!scanPixels){
@@ -1838,6 +1901,7 @@ function initializePhoto() {
     });
   }
   el("clearMarkersButton").addEventListener("click",()=>{
+    invalidateScanMeasurement();
     scanMarkers.clear();
     scanMarkerEdits.set("entrance",null);scanMarkerEdits.set("exit",null);
     renderScan();
@@ -1921,6 +1985,7 @@ function initializePhoto() {
     const x=Math.floor((event.clientX-r.left)/r.width*Number(maze.data.scale[0]));
     const z=Math.floor((event.clientY-r.top)/r.height*Number(maze.data.scale[2]));
     if(x<0||z<0||x>=Number(maze.data.scale[0])||z>=Number(maze.data.scale[2]))return;
+    invalidateScanMeasurement();
     const key=x+","+z;
     if(scanMode==="markers"){
       const position={type:markerBrush,x,z,
@@ -1956,6 +2021,7 @@ function initializePhoto() {
     renderScan();
   });
   el("cancelScanButton").addEventListener("click",()=>{
+    invalidateScanMeasurement();
     el("scanStage").hidden=true;
     scanSelected.clear();
     scanAdded.clear();scanRemoved.clear();

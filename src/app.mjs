@@ -20,6 +20,7 @@ import {MAX_BACKUP_BYTES,createLibraryBackup,parseLibraryBackup,mergeLibraryBack
   libraryBackupFileName,mazeFileName,canShareMaze} from "./maze-backup.mjs";
 import {suggestWalls,applyCaptureFindings} from "./maze-recognize.mjs";
 import {compareScanReview} from "./maze-scan-evaluation.mjs";
+import {scanReviewWarning} from "./maze-scan-notice.mjs";
 import {LIBRARY_STORAGE_KEY,newLibrary,readLibrary,activeDocument,saveActiveDocument,
   addMaze,openMaze,duplicateMaze,deleteMaze,sortedMazes} from "./maze-library.mjs";
 import {saveMazeLocally,emergencyMazeExport} from "./maze-storage.mjs";
@@ -1757,13 +1758,7 @@ function initializePhoto() {
       :scanMode==="markers"
         ?"Select Start or Finish below, then tap its position on the photograph."
         :"Tap a green tile to remove it, or tap an unmarked square to add a wall.";
-    const gridNotice=["grid-mismatch","grid-offset"].includes(scanResult.quality)
-      ?scanResult.message+" "
-      :scanResult.printedGrid?.status==="supported"
-        ?"Printed paper grid tentatively agrees with "+
-          scanResult.printedGrid.columns.cells+" by "+
-          scanResult.printedGrid.rows.cells+" squares. "
-        :"";
+    const gridNotice=scanReviewWarning(scanResult);
     el("scanStatus").textContent=gridNotice+scanSelected.size+" wall tiles, "+
       scanSelectedHoles.size+" possible holes, "+spanCount+
       " straight image spans, "+scanMarkers.size+" colored markers. "+instruction+

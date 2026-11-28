@@ -8,6 +8,7 @@ on:
       - research/native-scanner-reachable-cfg-20261127
       - research/native-cv-stage-attribution-20261128
       - research/dex-capture-calibration-20261128
+      - research/capture-json-fixer-handoff-20261128
     paths:
       - "scripts/native-scanner-evidence.py"
       - "scripts/scanner-dex-geometry.py"

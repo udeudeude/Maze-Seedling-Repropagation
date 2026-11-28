@@ -52,7 +52,7 @@ test("both photographed markers can swap squares without losing native marker me
   const entrance=original.data.cells.find(cell=>cell.type==="entrance");
   const exit=original.data.cells.find(cell=>cell.type==="exit");
   entrance.variant="7";entrance.unknownNative={flag:"retain",array:[1,2,3]};
-  exit.customField="original-finish";exit.position[1]="3";
+  exit.customField="original-finish";exit.position[1]="3";exit.position.push("opaque");
   const snapshot=JSON.stringify(original);
   const result=applyCaptureFindings(original,[],[],{
     entrance:{x:16,z:16},exit:{x:1,z:1}
@@ -65,7 +65,7 @@ test("both photographed markers can swap squares without losing native marker me
   assert.equal(movedStart.variant,"7");
   assert.deepEqual(movedStart.unknownNative,{flag:"retain",array:[1,2,3]});
   assert.equal(movedFinish.customField,"original-finish");
-  assert.deepEqual(movedFinish.position,["1","3","1"]);
+  assert.deepEqual(movedFinish.position,["1","3","1","opaque"]);
   assert.equal(JSON.stringify(original),snapshot,"Import cannot mutate source");
 });
 

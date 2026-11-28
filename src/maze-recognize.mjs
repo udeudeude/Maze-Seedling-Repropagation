@@ -365,15 +365,13 @@ export function applyCaptureFindings(document,wallSuggestions,holeSuggestions,ma
   const valid=point=>Number.isInteger(point?.x)&&Number.isInteger(point?.z)&&
     point.x>=0&&point.z>=0&&point.x<width&&point.z<height;
   const targetKey=point=>point.x+","+point.z;
-  const markerTiles=new Set(requested.filter(({point})=>valid(point))
-    .map(({point})=>targetKey(point)));
   let movedMarkers=0;
   // Preflight the complete proposed pair on the original arrangement.
   // An invalid pair must not leave Start and Finish in a hybrid state.
   const originals=new Map(requested.map(({type})=>[
     type,prepared.data.cells.filter(cell=>cell.type===type)
   ]));
-  const distinct=markerTiles.size===requested.length;
+  const distinct=new Set(requested.map(({point})=>targetKey(point))).size===requested.length;
   const unambiguous=[...originals.values()].every(cells=>cells.length<=1);
   const usable=requested.every(({type,point})=>valid(point)&&
     !holeTiles.has(targetKey(point))&&
@@ -405,8 +403,10 @@ export function applyCaptureFindings(document,wallSuggestions,holeSuggestions,ma
     movedMarkers=moving.length;
   }
 
-  const safeWalls=wallSuggestions.filter(w=>
-    !holeTiles.has(w.x+","+w.z)&&!markerTiles.has(w.x+","+w.z));
+  // Only committed marker moves affect occupation. Rejected photo marker
+  // proposals must not suppress legitimate photographed walls. Occupancy is
+  // already enforced against prepared.data.cells by applyWallSuggestions.
+  const safeWalls=wallSuggestions.filter(w=>!holeTiles.has(w.x+","+w.z));
   const {maze,applied}=applyWallSuggestions(prepared,safeWalls);
   const byPosition=new Map(originalHoles.map(item=>[
     String(item.position?.[0])+","+String(item.position?.[2]),item

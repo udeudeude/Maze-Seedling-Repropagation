@@ -143,3 +143,39 @@ test("one approved marker can move safely and repeated imports are idempotent",(
   const again=applyCaptureFindings(result.maze,[],[],{exit:{x:12,z:10}});
   assert.equal(again.movedMarkers,0);
 });
+
+test("rejected photographic marker proposals cannot silently erase wall findings",()=>{
+  const original=newMaze();
+  original.data.cells.push({type:"gate",position:["8","0","8"],nativeFlag:42});
+  original.nativeExtra={keep:["unmodified"]};
+  const snapshot=JSON.stringify(original);
+  const walls=[{x:3,z:3},{x:4,z:4},{x:7,z:7},{x:8,z:8}];
+  // Every rejected pair leaves the still-free (3,3) eligible for wall import.
+  // Older code wrongly filtered that tile using the UNCOMMITTED start target.
+  for(const markers of [
+    {entrance:{x:3,z:3},exit:{x:8,z:8}}, // finish obstructed by a native gate
+    {entrance:{x:3,z:3},exit:{x:-1,z:3}}, // invalid finish coordinates
+    {entrance:{x:3,z:3},exit:{x:3,z:3}} // ambiguous overlapping start/finish
+  ]){
+    const result=applyCaptureFindings(original,walls,[{x:7,z:7}],markers);
+    assert.equal(result.movedMarkers,0,JSON.stringify(markers));
+    assert.equal(result.appliedWalls,2,"Uncommitted marker destinations cannot hide physical walls");
+    assert.deepEqual(locate(result.maze,"wall").sort(),[[3,3],[4,4]].sort());
+    assert.deepEqual(locate(result.maze,"entrance"),[[1,1]]);
+    assert.deepEqual(locate(result.maze,"exit"),[[16,16]]);
+    assert.equal(result.maze.data.cells.find(cell=>cell.type==="gate").nativeFlag,42);
+    assert.equal(result.annotatedHoles,1);
+    assert.deepEqual(result.maze.nativeExtra,original.nativeExtra);
+  }
+  assert.equal(JSON.stringify(original),snapshot,"Source document remains untouched");
+});
+
+test("committed marker destinations stay protected by actual maze occupancy",()=>{
+  const original=newMaze();
+  const result=applyCaptureFindings(original,
+    [{x:1,z:1},{x:3,z:3},{x:4,z:4}],[],{entrance:{x:3,z:3}});
+  assert.equal(result.movedMarkers,1);
+  assert.equal(result.appliedWalls,2);
+  assert.deepEqual(locate(result.maze,"entrance"),[[3,3]]);
+  assert.deepEqual(locate(result.maze,"wall").sort(),[[1,1],[4,4]].sort());
+});

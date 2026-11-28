@@ -8,6 +8,7 @@ import {readFileSync} from "node:fs";
 import {warpSquarePixels,insetRectifiedBoard,homographyForCorners} from "../src/maze-capture.mjs";
 import {suggestWalls} from "../src/maze-recognize.mjs";
 import {suggestPrintedGridRefinement} from "../src/maze-grid-refine.mjs";
+import {measurePaperLatticeEvidence} from "./measure-paper-lattice.mjs";
 
 const SIZE=512;
 // Approximate by inspection of the kit's photographed paper maze, not
@@ -126,6 +127,9 @@ export function measurePhotoProposals(pixels,config={}) {
       markerCandidateCount:result.markers.length,
       detectedWallSpans:result.segments.length,
       printedGrid:result.printedGrid,
+      // Independently measure faint paper-ink periodicity even if the
+      // production recognizer declines to resolve it. NOT tile labels.
+      paperInkEvidence:measurePaperLatticeEvidence(image),
       // Shifted tracing-grid sensitivity is aggregate, never pixel labels.
       registrationSensitivity:result.registrationSensitivity,
       // Aggregate only; original-photo pixels and layout stay private.

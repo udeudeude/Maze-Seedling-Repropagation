@@ -238,6 +238,37 @@ def verified_plt_calls(plt_bytes, address, relocated_got, diagnostics=None, cand
     return verified
 
 
+
+def ordered_plt_relocation_map(plt_bytes, address, relocated_got, candidates):
+    """An independent, restrictive structural cross-check, not exact GOT proof.
+
+    GNU ARM uses a 20-byte PLT resolver plus 12-byte per-symbol stubs.
+    If every executable stub is recognized, every reloc slot and computed
+    target advances by 4, and the candidate/GOT difference is *identical*
+    across all entries, linker order can be mapped without exposing bytes.
+    Never apply this fallback to an incomplete or irregular PLT.
+    """
+    count = len(relocated_got)
+    if count < 2 or len(plt_bytes) != 20 + 12 * count:
+        return {}
+    ordered = sorted(candidates)
+    addresses = [address + 20 + 12*i for i in range(count)]
+    if [entry[0] for entry in ordered] != addresses:
+        return {}
+    got_addresses = list(relocated_got)
+    if got_addresses != sorted(got_addresses):
+        return {}
+    if any(b-a != 4 for a, b in zip(got_addresses, got_addresses[1:])):
+        return {}
+    if any(b[1]-a[1] != 4 for a, b in zip(ordered, ordered[1:])):
+        return {}
+    differences = {candidate - got for (_, candidate), got in
+                   zip(ordered, got_addresses)}
+    if len(differences) != 1:
+        return {}
+    return dict(zip(addresses, relocated_got.values()))
+
+
 def test_plt_resolver():
     # Freshly constructed ARM arithmetic and branch instructions, NOT
     # historical executable bytes. PC is current address + 8 in ARM state.
@@ -253,6 +284,21 @@ def test_plt_resolver():
     assert verified_plt_calls(bytes.fromhex("00 f0 20 e3") + stub,
                               0x1000, {0x1018: "cv::findContours"}) == {
                                   0x1004: "cv::findContours"}
+    # A complete, newly authored two-entry PLT with a uniform relocation
+    # bias can be linked structurally; broken or incomplete tables cannot.
+    header = bytes(20)
+    second = bytes.fromhex("00 c0 8f e2 04 c0 8c e2 00 f0 9c e5")
+    made = header + stub + second
+    candidates = []
+    verified_plt_calls(made, 0x1000, {}, candidates=candidates)
+    reloc = {0x9000: "cv::Canny", 0x9004: "cv::GaussianBlur"}
+    assert ordered_plt_relocation_map(made, 0x1000, reloc, candidates) == {
+        0x1014: "cv::Canny", 0x1020: "cv::GaussianBlur"}
+    assert ordered_plt_relocation_map(made, 0x1000,
+                                      {0x9000: "a", 0x9008: "b"},
+                                      candidates) == {}
+    assert ordered_plt_relocation_map(made[:-4], 0x1000,
+                                      reloc, candidates) == {}
     print("Synthetic ARM PLT/GOT attribution checks passed")
 
 
@@ -360,11 +406,20 @@ def main(path):
                     next_ - prev for prev, next_ in
                     zip(reloc_ordered, reloc_ordered[1:]))),
             }
+        ordered_plt = ordered_plt_relocation_map(
+            plt.data(), int(plt["sh_addr"]), relocated_got, plt_candidates
+        ) if plt is not None else {}
         readable_plt_names = demangle_many(list(raw_plt.values()))
         verified_plt = dict(zip(raw_plt, (
             normalize(name) for name in readable_plt_names)))
         verified_image_plt = {
             address: name for address, name in verified_plt.items()
+            if "cv::" in name or "opencv" in name.lower()
+        }
+        ordered_names = demangle_many(list(ordered_plt.values()))
+        structurally_mapped_image_plt = {
+            addr: normalize(name)
+            for addr, name in zip(ordered_plt, ordered_names)
             if "cv::" in name or "opencv" in name.lower()
         }
         # Bounded structural diagnostics, no native instructions, offsets or
@@ -431,6 +486,7 @@ def main(path):
             flow = reachable_decode(code, address, thumb)
             flow_named = collections.Counter()
             reachable_image_calls = collections.Counter()
+            structurally_attributed_image_calls = collections.Counter()
             for ins in flow["instructions"]:
                 if not ins.group(CS_GRP_CALL) or not ins.operands or \
                    ins.operands[0].type != ARM_OP_IMM:
@@ -440,6 +496,10 @@ def main(path):
                 if imported_image and any(
                         word in imported_image.lower() for word in IMAGE_API_WORDS):
                     reachable_image_calls[imported_image] += 1
+                structural_image = structurally_mapped_image_plt.get(call_target)
+                if structural_image and any(
+                        word in structural_image.lower() for word in IMAGE_API_WORDS):
+                    structurally_attributed_image_calls[structural_image] += 1
                 callee = by_address.get(call_target)
                 if callee and any(k in callee.lower() for k in SCANNER_WORDS):
                     flow_named[normalize(callee)] += 1
@@ -450,6 +510,8 @@ def main(path):
                 "reachableNamedScannerCalls": dict(sorted(flow_named.items())),
                 "verifiedReachableImportedImageCalls": dict(
                     sorted(reachable_image_calls.items())),
+                "pltOrderAttributedImageCallsNotExactGotProof": dict(
+                    sorted(structurally_attributed_image_calls.items())),
                 "reachableBranchEdges": flow["reachableBranchEdges"],
                 "reachableUnresolvedTransfers": flow["unresolvedTransfers"],
                 "reachableReturns": flow["returns"],
@@ -511,6 +573,8 @@ def main(path):
             "pltRelocationCount": len(relocated_got),
             "pltStubsVerifiedByExactGOT": len(verified_plt),
             "imageApiPltStubsVerifiedByExactGOT": len(verified_image_plt),
+            "imageApiPltStubsLinkedByWholeTableStructure": len(
+                structurally_mapped_image_plt),
             "functionFacts": answers,
             "selectedDirectCallers": callers,
             "selectedReachableDirectCallersAmongSelectedMethods": reachable_callers,

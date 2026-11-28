@@ -117,6 +117,8 @@ def self_test():
     assert evidence["knownPresetSchemaKeyLiteralOccurrencesWithinFixer"] == {"cells": 1}
     assert evidence["jsonApiCallsWithinFixer"] == {
         "Lorg/json/JSONObject;->getJSONArray": 1}
+    assert evidence["standardPlatformCallsWithinFixer"] == {
+        "Ljava/lang/String;->toString": 1}
     assert "copyrighted-original-text" not in str(evidence)
     assert capture_json_handoff([("Lother/class;->unrelated()V", [
         ("const-string", 'v1, "cells"')])])["originalFixerMethods"] == []
@@ -150,6 +152,8 @@ def capture_json_handoff(decoded_methods):
     capture_calls = []
     json_calls = collections.Counter()
     fixer_schema_keys = collections.Counter()
+    platform_invocations = collections.Counter()
+    arithmetic_opcodes = collections.Counter()
     for caller, instructions in decoded_methods:
         is_fixer = caller.startswith(FIXER_CLASS + "->")
         is_capture_scan = caller.startswith(CAPTURE_CLASS + "->processScan(")
@@ -165,6 +169,9 @@ def capture_json_handoff(decoded_methods):
                             "callee": matched.group(2) + matched.group(3)})
             continue
         for name, output in instructions:
+            if is_fixer and (name.startswith(("add-", "sub-", "mul-", "div-",
+                "rem-", "neg-", "shl-", "shr-", "ushr-", "and-", "or-", "xor-"))):
+                arithmetic_opcodes[name.split("-")[0]] += 1
             if is_fixer and name.startswith("const-string"):
                 # Use quoted exact-match schema identifiers only, never a
                 # pattern that emits an arbitrary original string.
@@ -186,12 +193,21 @@ def capture_json_handoff(decoded_methods):
             if is_fixer and owner in (
                     "Lorg/json/JSONObject;", "Lorg/json/JSONArray;"):
                 json_calls[owner + "->" + method] += 1
+            if is_fixer and owner in (
+                    "Ljava/lang/String;", "Ljava/lang/StringBuilder;",
+                    "Ljava/util/regex/Pattern;", "Ljava/util/regex/Matcher;",
+                    "Ljava/util/ArrayList;", "Ljava/util/List;",
+                    "Ljava/lang/Integer;", "Ljava/lang/Math;",
+                    "Ljava/util/Collections;"):
+                platform_invocations[owner + "->" + method] += 1
     return {
         "originalFixerMethods": sorted(fixer_methods),
         "directFixerCallsites": sorted(fixer_calls,
             key=lambda site: (site["caller"], site["callee"]))[:30],
         "processScanCallsitesInInstructionOrderNotRuntimeOrder": capture_calls[:30],
         "jsonApiCallsWithinFixer": dict(sorted(json_calls.items())),
+        "standardPlatformCallsWithinFixer": dict(sorted(platform_invocations.items())),
+        "numericOperatorCountsWithinFixerNotEquations": dict(sorted(arithmetic_opcodes.items())),
         "knownPresetSchemaKeyLiteralOccurrencesWithinFixer":
             dict(sorted(fixer_schema_keys.items())),
         "interpretation": ("Direct Java invocations and short public schema-key "

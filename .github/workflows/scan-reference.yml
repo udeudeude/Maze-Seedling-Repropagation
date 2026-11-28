@@ -6,7 +6,9 @@ on:
     branches: [main]
     paths:
       - "scripts/probe-seedling-photo.mjs"
+      - "scripts/measure-paper-lattice.mjs"
       - "src/maze-shapes.mjs"
+      - "src/maze-printed-grid.mjs"
       - ".github/workflows/scan-reference.yml"
 
 permissions:

@@ -18,7 +18,7 @@ import sys
 from capstone import (Cs, CS_ARCH_ARM, CS_MODE_ARM, CS_MODE_THUMB,
                       CS_GRP_JUMP, CS_GRP_CALL, CS_GRP_RET)
 from capstone.arm import (ARM_OP_IMM, ARM_OP_MEM, ARM_OP_REG,
-                          ARM_REG_PC, ARM_REG_LR, ARM_REG_R12)
+                          ARM_REG_PC, ARM_REG_LR, ARM_REG_R12, ARM_REG_R1, ARM_REG_R2)
 from elftools.elf.elffile import ELFFile
 
 FOCUS = (
@@ -26,6 +26,8 @@ FOCUS = (
     "TileReader::euclideanDist",
     "TileReader::getBoardCorners", "TileReader::computeMatches",
     "TileReader::setBoardDimensions",
+    "TileReader::TileReader", "TileReader::init",
+    "stb::TileBoard::TileBoard", "stb::TileBoard::init",
     "TileReader::computeBoard", "TileReader::drawGrid",
     "TileReader::removeBoardEdges", "TileReader::getWalls",
     "TileReader::processFromJNI", "TileReader::json",
@@ -302,6 +304,74 @@ def test_plt_resolver():
     print("Synthetic ARM PLT/GOT attribution checks passed")
 
 
+
+def nearby_constructor_literal_args(instructions, call_index):
+    """Bounded, instruction-local ARM argument-register provenance.
+
+    Follow MOV-immediate and MOV-register chains backwards in a short block.
+    Unknown writes, calls, branches, and conditional IT blocks stop traversal.
+    There is no inter-block SSA, alias analysis, or runtime path proof.
+    """
+    def resolve(reg, before, depth=0):
+        if depth>5:
+            return None
+        for i in range(before-1, max(-1,before-15), -1):
+            ins=instructions[i]
+            mnemonic=ins.mnemonic.split(".")[0]
+            if ins.group(CS_GRP_CALL) or ins.group(CS_GRP_JUMP) or \
+               ins.group(CS_GRP_RET) or mnemonic.startswith("it") or \
+               mnemonic in ("bx","cbz","cbnz","tbb","tbh"):
+                return None
+            _reads,writes=ins.regs_access()
+            if reg not in writes:
+                continue
+            if mnemonic not in ("mov","movs","movw") or \
+               len(ins.operands)<2 or \
+               ins.operands[0].type!=ARM_OP_REG or \
+               ins.operands[0].reg!=reg:
+                return None
+            source=ins.operands[1]
+            if source.type==ARM_OP_IMM and 0<=source.imm<=64:
+                return int(source.imm)
+            if source.type==ARM_OP_REG:
+                return resolve(source.reg,i,depth+1)
+            return None
+        return None
+    return {"r1":resolve(ARM_REG_R1,call_index),
+            "r2":resolve(ARM_REG_R2,call_index)}
+
+
+def self_test_constructor_literal_args():
+    engine = Cs(CS_ARCH_ARM, CS_MODE_THUMB)
+    engine.detail = True
+    def decode(source):
+        return list(engine.disasm(bytes.fromhex(source), 0x1000))
+    # Fully independent synthetic Thumb instructions. R1 and R2 have
+    # immediate literals in the same basic block as the callee.
+    found=decode("12 21 12 22 00 f0 00 f8 70 47")
+    assert nearby_constructor_literal_args(found,2)=={"r1":18,"r2":18}
+    # Do not invent an argument from the earlier MOV when R1 is changed.
+    changed=decode("12 21 12 22 01 31 00 f0 00 f8 70 47")
+    assert nearby_constructor_literal_args(changed,3)=={"r1":None,"r2":18}
+    # Both argument registers can inherit a literal through a register MOV.
+    copied=decode("12 21 0a 46 00 f0 00 f8 70 47")
+    assert nearby_constructor_literal_args(copied,2)=={"r1":18,"r2":18}
+    # A later change to r1 does not retroactively alter r2's copied value.
+    overwritten=decode("12 21 0a 46 07 21 00 f0 00 f8 70 47")
+    assert nearby_constructor_literal_args(overwritten,3)=={"r1":7,"r2":18}
+    # An unknown transformation invalidates the copied source's constant.
+    transformed=decode("12 21 01 31 0a 46 00 f0 00 f8 70 47")
+    assert nearby_constructor_literal_args(transformed,3)=={"r1":None,"r2":None}
+    # An intervening jump makes the preceding literals non-proven.
+    jumped=decode("12 21 12 22 00 e0 00 f0 00 f8 70 47")
+    assert nearby_constructor_literal_args(jumped,3)=={"r1":None,"r2":None}
+    # An intervening call can clobber r1/r2 by the ARM calling convention.
+    called=decode("12 21 12 22 00 f0 00 f8 00 f0 00 f8 70 47")
+    assert nearby_constructor_literal_args(called,3)=={"r1":None,"r2":None}
+    assert nearby_constructor_literal_args(decode("70 47"),0)=={"r1":None,"r2":None}
+    print("Synthetic immediate-to-native-constructor callsite controls passed")
+
+
 def main(path):
     source = Path(path)
     if source.stat().st_size > 80_000_000:
@@ -477,7 +547,8 @@ def main(path):
             flow_named = collections.Counter()
             reachable_image_calls = collections.Counter()
             structurally_attributed_image_calls = collections.Counter()
-            for ins in flow["instructions"]:
+            constructor_arg_sites=[]
+            for call_i,ins in enumerate(flow["instructions"]):
                 if not ins.group(CS_GRP_CALL) or not ins.operands or \
                    ins.operands[0].type != ARM_OP_IMM:
                     continue
@@ -491,10 +562,18 @@ def main(path):
                         word in structural_image.lower() for word in IMAGE_API_WORDS):
                     structurally_attributed_image_calls[structural_image] += 1
                 callee = by_address.get(call_target)
+                if callee and normalize(callee) in ("stb::TileBoard::TileBoard", "stb::TileBoard::init"):
+                    args=nearby_constructor_literal_args(flow["instructions"],call_i)
+                    constructor_arg_sites.append({
+                        "callee":callee,
+                        "r1ImmediateInSameStraightLineRegion":args["r1"],
+                        "r2ImmediateInSameStraightLineRegion":args["r2"],
+                    })
                 if callee and any(k in callee.lower() for k in SCANNER_WORDS):
                     flow_named[normalize(callee)] += 1
                     reachable_calls[normalize(display)].add(normalize(callee))
             answers.append({
+                "nativeBoardConstructorArgumentCandidatesNotCalibrations": constructor_arg_sites,
                 "reachableDecodedBytes": sum(ins.size for ins in flow["instructions"]),
                 "reachableInstructionCount": len(flow["instructions"]),
                 "reachableNamedScannerCalls": dict(sorted(flow_named.items())),
@@ -588,6 +667,7 @@ if __name__ == "__main__":
     if sys.argv[1:] == ["--self-test"]:
         self_test_reachable_decode()
         test_plt_resolver()
+        self_test_constructor_literal_args()
         raise SystemExit(0)
     if len(sys.argv) != 2:
         raise SystemExit("Usage: native-scanner-evidence.py original-libtile_reader.so")

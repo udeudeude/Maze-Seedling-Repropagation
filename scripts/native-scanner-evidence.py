@@ -18,7 +18,7 @@ import sys
 from capstone import (Cs, CS_ARCH_ARM, CS_MODE_ARM, CS_MODE_THUMB,
                       CS_GRP_JUMP, CS_GRP_CALL, CS_GRP_RET)
 from capstone.arm import (ARM_OP_IMM, ARM_OP_MEM, ARM_OP_REG,
-                          ARM_REG_PC, ARM_REG_LR)
+                          ARM_REG_PC, ARM_REG_LR, ARM_REG_R12)
 from elftools.elf.elffile import ELFFile
 
 FOCUS = (
@@ -183,6 +183,61 @@ def self_test_reachable_decode():
     assert result["budgetExhausted"] is False
     print("Synthetic native control-flow traversal checks passed")
 
+
+def verified_plt_calls(plt_bytes, address, relocated_got):
+    """Resolve ARM PLT entrypoints only by reconstructing their GOT address.
+
+    Calling a relocated PLT stub establishes an imported function call, unlike
+    merely observing a name in .dynsym. We accept only the three-instruction
+    ADD ip,pc ; ADD ip,ip ; LDR pc,[ip] pattern when the calculated address
+    exactly matches an ELF jump-slot relocation. Other linker patterns remain
+    unclassified rather than guessed from relocation order.
+    """
+    engine = Cs(CS_ARCH_ARM, CS_MODE_ARM)
+    engine.detail = True
+    verified = {}
+    for offset in range(0, len(plt_bytes) - 11, 4):
+        instructions = list(engine.disasm(
+            plt_bytes[offset:offset + 16], address + offset, count=4))
+        ip = None
+        for ins in instructions:
+            mnemonic = ins.mnemonic.split(".")[0]
+            ops = ins.operands
+            if mnemonic == "add" and len(ops) >= 3 and \
+                    ops[0].type == ARM_OP_REG and ops[0].reg == ARM_REG_R12 and \
+                    ops[1].type == ARM_OP_REG and ops[2].type == ARM_OP_IMM:
+                if ops[1].reg == ARM_REG_PC:
+                    ip = ins.address + 8 + ops[2].imm
+                elif ops[1].reg == ARM_REG_R12 and ip is not None:
+                    ip += ops[2].imm
+                else:
+                    break
+            elif mnemonic == "ldr" and ip is not None and len(ops) >= 2 and \
+                    ops[0].type == ARM_OP_REG and ops[0].reg == ARM_REG_PC and \
+                    ops[1].type == ARM_OP_MEM and ops[1].mem.base == ARM_REG_R12:
+                got = ip + ops[1].mem.disp
+                if got in relocated_got:
+                    verified[address + offset] = relocated_got[got]
+                break
+            else:
+                break
+    return verified
+
+
+def test_plt_resolver():
+    # Freshly constructed ARM arithmetic and branch instructions, NOT
+    # historical executable bytes. PC is current address + 8 in ARM state.
+    stub = bytes.fromhex("00 c0 8f e2 04 c0 8c e2 08 f0 9c e5")
+    assert verified_plt_calls(stub, 0x1000, {0x1014: "cv::findContours"}) == {
+        0x1000: "cv::findContours"}
+    # Do not guess the import from relocation order or a nearby GOT entry.
+    assert verified_plt_calls(stub, 0x1000, {0x1018: "cv::findContours"}) == {}
+    assert verified_plt_calls(bytes.fromhex("00 f0 20 e3") + stub,
+                              0x1000, {0x1018: "cv::findContours"}) == {
+                                  0x1004: "cv::findContours"}
+    print("Synthetic ARM PLT/GOT attribution checks passed")
+
+
 def main(path):
     source = Path(path)
     if source.stat().st_size > 80_000_000:
@@ -246,6 +301,33 @@ def main(path):
                     return handle.read(length)
             return None
 
+        # Resolve imported image-processing functions to *actual reachable
+        # call sites*. A bare .dynsym import is not evidence of use.
+        plt = elf.get_section_by_name(".plt")
+        relocation_sections = [
+            elf.get_section_by_name(".rel.plt"),
+            elf.get_section_by_name(".rela.plt"),
+        ]
+        relocated_got = {}
+        for section in relocation_sections:
+            if section is None:
+                continue
+            symbol_table = elf.get_section(section["sh_link"])
+            for relocation in section.iter_relocations():
+                symbol = symbol_table.get_symbol(relocation["r_info_sym"])
+                if symbol.name:
+                    relocated_got[int(relocation["r_offset"])] = symbol.name
+        raw_plt = verified_plt_calls(
+            plt.data(), int(plt["sh_addr"]), relocated_got
+        ) if plt is not None else {}
+        readable_plt_names = demangle_many(list(raw_plt.values()))
+        verified_plt = dict(zip(raw_plt, (
+            normalize(name) for name in readable_plt_names)))
+        verified_image_plt = {
+            address: name for address, name in verified_plt.items()
+            if "cv::" in name or "opencv" in name.lower()
+        }
+
         answers = []
         all_calls = collections.defaultdict(set)
         reachable_calls = collections.defaultdict(set)
@@ -299,11 +381,17 @@ def main(path):
                             float_candidates[round(value, 4)] += 1
             flow = reachable_decode(code, address, thumb)
             flow_named = collections.Counter()
+            reachable_image_calls = collections.Counter()
             for ins in flow["instructions"]:
                 if not ins.group(CS_GRP_CALL) or not ins.operands or \
                    ins.operands[0].type != ARM_OP_IMM:
                     continue
-                callee = by_address.get(int(ins.operands[0].imm) & ~1)
+                call_target = int(ins.operands[0].imm) & ~1
+                imported_image = verified_image_plt.get(call_target)
+                if imported_image and any(
+                        word in imported_image.lower() for word in IMAGE_API_WORDS):
+                    reachable_image_calls[imported_image] += 1
+                callee = by_address.get(call_target)
                 if callee and any(k in callee.lower() for k in SCANNER_WORDS):
                     flow_named[normalize(callee)] += 1
                     reachable_calls[normalize(display)].add(normalize(callee))
@@ -311,6 +399,8 @@ def main(path):
                 "reachableDecodedBytes": sum(ins.size for ins in flow["instructions"]),
                 "reachableInstructionCount": len(flow["instructions"]),
                 "reachableNamedScannerCalls": dict(sorted(flow_named.items())),
+                "verifiedReachableImportedImageCalls": dict(
+                    sorted(reachable_image_calls.items())),
                 "reachableBranchEdges": flow["reachableBranchEdges"],
                 "reachableUnresolvedTransfers": flow["unresolvedTransfers"],
                 "reachableReturns": flow["returns"],
@@ -364,6 +454,9 @@ def main(path):
             "architecture": "ARM 32-bit",
             "selectedFunctionCount": len(answers),
             "availableImportedImageApisNotProvenCalled": image_api_imports,
+            "pltRelocationCount": len(relocated_got),
+            "pltStubsVerifiedByExactGOT": len(verified_plt),
+            "imageApiPltStubsVerifiedByExactGOT": len(verified_image_plt),
             "functionFacts": answers,
             "selectedDirectCallers": callers,
             "selectedReachableDirectCallersAmongSelectedMethods": reachable_callers,
@@ -381,6 +474,7 @@ def main(path):
 if __name__ == "__main__":
     if sys.argv[1:] == ["--self-test"]:
         self_test_reachable_decode()
+        test_plt_resolver()
         raise SystemExit(0)
     if len(sys.argv) != 2:
         raise SystemExit("Usage: native-scanner-evidence.py original-libtile_reader.so")

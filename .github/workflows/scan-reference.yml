@@ -3,9 +3,10 @@ name: Inspect a public historical Seedling photograph (research only)
 on:
   workflow_dispatch:
   push:
-    branches: [main, research/faint-printed-grid-20261128]
+    branches: [main]
     paths:
       - "scripts/probe-seedling-photo.mjs"
+      - "scripts/measure-paper-lattice.mjs"
       - "src/maze-shapes.mjs"
       - "src/maze-printed-grid.mjs"
       - ".github/workflows/scan-reference.yml"

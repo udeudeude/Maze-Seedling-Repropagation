@@ -40,64 +40,72 @@ function axisEstimate(image,axis,minCells,maxCells,crossRange=[.12,.88]){
   }
   const smoothed=new Float64Array(length);
   for(let i=1;i<length-1;i++)smoothed[i]=(ink[i-1]+2*ink[i]+ink[i+1])/4;
-  const peaks=[];
-  const separation=Math.max(3,Math.floor(length/maxCells*.35));
-  for(let i=Math.ceil(length*.025);i<Math.floor(length*.975);i++){
-    if(smoothed[i]<13||smoothed[i]<smoothed[i-1]||smoothed[i]<=smoothed[i+1])continue;
-    const previous=peaks.at(-1);
-    if(previous&&i-previous.position<separation){
-      if(smoothed[i]>previous.strength)peaks[peaks.length-1]={position:i,strength:smoothed[i]};
-    }else peaks.push({position:i,strength:smoothed[i]});
-  }
-  if(peaks.length<7)return null;
-  let best=null;
-  for(let count=minCells;count<=maxCells;count++){
-    const spacing=length/count;
-    const tolerance=Math.max(2,Math.min(4.5,spacing*.15));
-    for(let phase=0;phase<spacing;phase+=.5){
-      let matches=0,expected=0;
-      const explained=new Set();
-      for(let k=0;k<=count+1;k++){
-        const location=phase+k*spacing;
-        if(location<length*.025||location>=length*.975)continue;
-        expected++;
-        let chosen=-1,distance=tolerance;
-        for(let p=0;p<peaks.length;p++){
-          const delta=Math.abs(peaks[p].position-location);
-          if(delta<distance){chosen=p;distance=delta;}
-        }
-        if(chosen>=0){matches++;explained.add(chosen);}
-      }
-      if(expected<7)continue;
-      const recall=matches/expected;
-      const precision=explained.size/peaks.length;
-      const score=2*precision*recall/(precision+recall||1);
-      if(!best||score>best.score||score===best.score&&matches>best.matches)
-        best={count,score,precision,recall,matches,expected,peaks:peaks.length,phase};
+  // In genuine kit photography the paper's light grey printed lines may be
+  // much fainter than the charcoal blocks. The legacy 13-level cutoff can
+  // therefore find no grid at all. A second, low-contrast pass is permitted,
+  // but only when nearly a whole, independently repeating lattice is visible.
+  // Never let a faint isolated stripe or a few wall edges establish geometry.
+  const findLattice=(threshold,faint)=>{
+    const peaks=[];
+    const separation=Math.max(3,Math.floor(length/maxCells*.35));
+    for(let i=Math.ceil(length*.025);i<Math.floor(length*.975);i++){
+      if(smoothed[i]<threshold||smoothed[i]<smoothed[i-1]||
+          smoothed[i]<=smoothed[i+1])continue;
+      const previous=peaks.at(-1);
+      if(previous&&i-previous.position<separation){
+        if(smoothed[i]>previous.strength)peaks[peaks.length-1]=
+          {position:i,strength:smoothed[i]};
+      }else peaks.push({position:i,strength:smoothed[i]});
     }
-  }
-  if(!best||best.score<.78||best.recall<.78||best.precision<.72||best.matches<7)return null;
-  // Period count alone is not registration. Eighteen evenly spaced printed
-  // lines could sit midway between all eighteen digital cell boundaries.
-  // Refine the lattice phase from the observed ink peaks: the matching
-  // tolerance allows several equivalent trial phases with identical scores.
-  const spacing=length/best.count;
-  const tolerance=Math.max(2,Math.min(4.5,spacing*.15));
-  const residuals=peaks.map(({position})=>{
-    const distance=position-best.phase;
-    const residual=distance-Math.round(distance/spacing)*spacing;
-    return Math.abs(residual)<=tolerance?residual:null;
-  }).filter(value=>value!==null);
-  const observedPhase=((best.phase+median(residuals))%spacing+spacing)%spacing;
-  const phaseOffsetCells=Math.min(observedPhase,spacing-observedPhase)/spacing;
-  return {cells:best.count,confidence:Number(best.score.toFixed(2)),
-    // Distance to the expected line-at-cell-boundary lattice, expressed as
-    // a fraction of one cell, NOT a probability of camera alignment.
-    phaseOffsetCells:Number(phaseOffsetCells.toFixed(2)),
-    // Observed ink lattice origin in rectified image pixels; meaningful only
-    // with strong, correctly registered periodic printed-line evidence.
-    phasePixels:Number(observedPhase.toFixed(2)),
-    matchedLines:best.matches,observedLines:best.peaks};
+    if(peaks.length<(faint?14:7))return null;
+    let best=null;
+    for(let count=minCells;count<=maxCells;count++){
+      const spacing=length/count;
+      const tolerance=Math.max(2,Math.min(4.5,spacing*.15));
+      for(let phase=0;phase<spacing;phase+=.5){
+        let matches=0,expected=0;
+        const explained=new Set();
+        for(let k=0;k<=count+1;k++){
+          const location=phase+k*spacing;
+          if(location<length*.025||location>=length*.975)continue;
+          expected++;
+          let chosen=-1,distance=tolerance;
+          for(let p=0;p<peaks.length;p++){
+            const delta=Math.abs(peaks[p].position-location);
+            if(delta<distance){chosen=p;distance=delta;}
+          }
+          if(chosen>=0){matches++;explained.add(chosen);}
+        }
+        if(expected<7)continue;
+        const recall=matches/expected;
+        const precision=explained.size/peaks.length;
+        const score=2*precision*recall/(precision+recall||1);
+        if(!best||score>best.score||score===best.score&&matches>best.matches)
+          best={count,score,precision,recall,matches,expected,peaks:peaks.length,phase};
+      }
+    }
+    // The faint route has a much higher evidence burden: almost the entire
+    // printed array must repeat. These are geometric scores, NOT probabilities.
+    if(!best||best.score<(faint?.92:.78)||
+        best.recall<(faint?.88:.78)||
+        best.precision<(faint?.86:.72)||
+        best.matches<(faint?14:7))return null;
+    const spacing=length/best.count;
+    const tolerance=Math.max(2,Math.min(4.5,spacing*.15));
+    const residuals=peaks.map(({position})=>{
+      const distance=position-best.phase;
+      const residual=distance-Math.round(distance/spacing)*spacing;
+      return Math.abs(residual)<=tolerance?residual:null;
+    }).filter(value=>value!==null);
+    const observedPhase=((best.phase+median(residuals))%spacing+spacing)%spacing;
+    const phaseOffsetCells=Math.min(observedPhase,spacing-observedPhase)/spacing;
+    return {cells:best.count,confidence:Number(best.score.toFixed(2)),
+      phaseOffsetCells:Number(phaseOffsetCells.toFixed(2)),
+      phasePixels:Number(observedPhase.toFixed(2)),
+      matchedLines:best.matches,observedLines:best.peaks,
+      inkEvidence:faint?"faint":"strong"};
+  };
+  return findLattice(13,false)??findLattice(3.5,true);
 }
 
 
@@ -133,14 +141,19 @@ export function estimatePrintedGrid(image,{expectedColumns,expectedRows}={}){
   if(!Number.isInteger(width)||!Number.isInteger(height)||
     width<160||height<160||data?.length!==width*height*4)
     throw new TypeError("Expected a rectified RGBA photograph at least 160 pixels across");
-  const columns=axisEstimate(image,"columns",8,40);
-  const rows=axisEstimate(image,"rows",8,40);
-  // Requested document dimensions are checked separately; never silently
-  // replace a saved maze's geometry with a detected period count.
+  let columns=axisEstimate(image,"columns",8,40);
+  let rows=axisEstimate(image,"rows",8,40);
   const alignment={
     columns:bandPhaseDrift(image,"columns",expectedColumns),
     rows:bandPhaseDrift(image,"rows",expectedRows)
   };
+  // Weak print must agree in two widely separated image bands at the
+  // KNOWN document pitch. Unsupported evidence is absence of evidence, not
+  // permission to rewrite the physical board dimensions.
+  if(columns?.inkEvidence==="faint"&&
+      (!alignment.columns||alignment.columns.driftCells>.12))columns=null;
+  if(rows?.inkEvidence==="faint"&&
+      (!alignment.rows||alignment.rows.driftCells>.12))rows=null;
   if(!columns||!rows)return {status:"unresolved",columns,rows,alignment};
   return {status:columns.cells===rows.cells?"supported":"inconsistent",columns,rows,alignment};
 }

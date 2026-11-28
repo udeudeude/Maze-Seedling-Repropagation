@@ -6,6 +6,7 @@ on:
     branches: [main]
     paths:
       - "scripts/probe-seedling-photo.mjs"
+      - "scripts/compare-photo-ink-resolution.mjs"
       - "scripts/measure-paper-lattice.mjs"
       - "src/maze-shapes.mjs"
       - "src/maze-printed-grid.mjs"
@@ -49,11 +50,14 @@ jobs:
           base = os.environ["RUNNER_TEMP"]
           with open(os.path.join(base, "photo.rgba"), "wb") as out:
               out.write(image.tobytes())
+          with open(os.path.join(base, "photo1024.rgba"), "wb") as out:
+              out.write(Image.open(io.BytesIO(raw)).crop((0,120,1200,1320)).convert("RGBA").resize((1024,1024), Image.Resampling.LANCZOS).tobytes())
           with open(os.path.join(base, "photo.sha"), "w") as out:
               out.write(hashlib.sha256(raw).hexdigest())
           PY
           node scripts/probe-seedling-photo.mjs "$RUNNER_TEMP/photo.rgba" "$(cat "$RUNNER_TEMP/photo.sha")"
+          node scripts/compare-photo-ink-resolution.mjs "$RUNNER_TEMP/photo.rgba" "$RUNNER_TEMP/photo1024.rgba"
       - name: Do not persist third-party photo or layout
         if: always()
         run: |
-          rm -f "$RUNNER_TEMP/photo.rgba" "$RUNNER_TEMP/photo.sha"
+          rm -f "$RUNNER_TEMP/photo.rgba" "$RUNNER_TEMP/photo1024.rgba" "$RUNNER_TEMP/photo.sha"

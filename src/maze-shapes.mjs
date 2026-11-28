@@ -52,12 +52,12 @@ export function separateRoundHoles(mask,width,height,columns=18,rows=18){
  * remain eligible. This is a provisional optical discriminator, not recovered
  * original TileReader recognition logic or a measured false-positive rate.
  */
-function hasMetallicInterior(gray,width,cx,cy,radius){
+function hasMetallicInterior(cx,cy,radius,sample){
   const reach=Math.max(3,Math.round(radius*.68));
   let total=0,bright=0,dark=0;
   for(let dy=-reach;dy<=reach;dy++)for(let dx=-reach;dx<=reach;dx++){
     if(dx*dx+dy*dy>reach*reach)continue;
-    const value=gray[(cy+dy)*width+cx+dx];
+    const value=sample(cx+dx,cy+dy);
     total++;
     if(value>=185)bright++;
     if(value<=105)dark++;
@@ -65,6 +65,32 @@ function hasMetallicInterior(gray,width,cx,cy,radius){
   // A bright paper line or a few illuminated pixels are not sufficient.
   return bright>=Math.max(7,Math.ceil(total*.14))&&
     dark>=Math.ceil(total*.25);
+}
+
+/**
+ * Apply the same reflective-marble rejection to compact connected circles
+ * as to the radial-edge detector. Otherwise a steel ball rejected by the
+ * latter can be reintroduced as a false trap by the former. The caller must
+ * still review all hole candidates; this is not an original scanner rule.
+ */
+export function isReflectiveCircle(image,{cx,cy,radius}){
+  const {width,height,data}=image??{};
+  if(!Number.isInteger(width)||!Number.isInteger(height)||
+      data?.length!==width*height*4||
+      !Number.isFinite(cx)||!Number.isFinite(cy)||
+      !Number.isFinite(radius)||radius<=0)
+    throw new TypeError("Expected an RGBA image and finite circle geometry");
+  const x=Math.round(cx),y=Math.round(cy);
+  const reach=Math.max(3,Math.round(radius*.68));
+  // If a candidate is truncated by an image boundary, do not invent a
+  // reflectance classification using out-of-frame/transparent pixels.
+  if(x-reach<0||y-reach<0||x+reach>=width||y+reach>=height)
+    return false;
+  return hasMetallicInterior(x,y,radius,(px,py)=>{
+    const i=(py*width+px)*4;
+    if(data[i+3]<160)return 255;
+    return .2126*data[i]+.7152*data[i+1]+.0722*data[i+2];
+  });
 }
 
 /**
@@ -140,7 +166,7 @@ export function findRoundHolesByEdges(image,columns=18,rows=18){
       const arc=observations?good/observations:0;
       const avgContrast=observations?contrast/observations:0;
       if(arc<.67||avgContrast<51)continue;
-      if(hasMetallicInterior(gray,w,x,y,r))continue;
+      if(hasMetallicInterior(x,y,r,(px,py)=>gray[py*w+px]))continue;
       const confidence=Math.min(1,arc*.6+
         Math.min(1,Math.max(0,avgContrast)/100)*.25+
         Math.min(1,v/(r*2.8))*.15);

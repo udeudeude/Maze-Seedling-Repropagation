@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {findRoundHolesByEdges} from "../src/maze-shapes.mjs";
+import {suggestWalls} from "../src/maze-recognize.mjs";
 
 const cells=18,pitch=20,size=cells*pitch;
 const paperHole={x:7*pitch+10,y:8*pitch+10};
@@ -58,4 +59,31 @@ test("uncertain dark round objects without a strong glint still require review",
   const found=findRoundHolesByEdges(scene({hole:false,highlight:false}));
   assert.ok(hits(found,marble).length>=1,
     "Without a specular signature the provisional detector must not claim certainty");
+});
+
+test("end-to-end photographic suggestions do not resurrect a reflective steel ball as a punched hole",()=>{
+  const image=scene(),original=image.data.slice();
+  const scanned=suggestWalls(image);
+  assert.notEqual(scanned.quality,"low-contrast","The full image should be analyzed");
+  assert.equal(hits(scanned.holes,paperHole).length,1,
+    "The real dark perforation must remain detectable");
+  assert.equal(hits(scanned.holes,marble).length,0,
+    "The connected-component path must not bypass the reflective-marble exclusion");
+  assert.deepEqual(image.data,original,"A full scanner pass must preserve source image pixels");
+});
+
+test("full scanner preserves genuine holes with small glints and rejects visible dim metal",()=>{
+  const faint=scene({dim:true});
+  const faintResults=suggestWalls(faint);
+  assert.equal(hits(faintResults.holes,paperHole).length,1,
+    "A dim photograph must retain a real perforation");
+  assert.equal(hits(faintResults.holes,marble).length,0,
+    "Reflective steel remains a negative even in dim light");
+  const glinted=scene({smallHoleGlint:true,ball:false});
+  const glintedResults=suggestWalls(glinted);
+  assert.equal(hits(glintedResults.holes,paperHole).length,1,
+    "A tiny paper highlight must not erase a genuine hole");
+  const ambiguous=scene({hole:false,highlight:false});
+  assert.ok(hits(suggestWalls(ambiguous).holes,marble).length>=1,
+    "Without distinctive reflectance a dark circle must remain reviewable");
 });

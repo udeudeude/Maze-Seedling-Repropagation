@@ -1,4 +1,4 @@
-import {separateRoundHoles,findRoundHolesByEdges,findStraightWallSpans} from "./maze-shapes.mjs";
+import {separateRoundHoles,findRoundHolesByEdges,findStraightWallSpans,isReflectiveCircle} from "./maze-shapes.mjs";
 import {detectColoredMarkers} from "./maze-markers.mjs";
 import {estimatePrintedGrid} from "./maze-printed-grid.mjs";
 import {removeThinPrintedGridInk} from "./maze-grid-ink.mjs";
@@ -206,7 +206,10 @@ export function suggestWalls(image,{columns=18,rows=18,sensitivity=.5}={}){
       if(circularCells.size>=Math.max(48,Math.ceil(columns*rows*.22))){
         computed.densePerforations=circularCells.size;
       }else{
-        const holes=[...separated.holes];
+        // Compact connected components and radial-edge voting are two paths
+        // to the same physical object. Both must reject a demonstrably
+        // reflective steel marble; otherwise the earlier exclusion is bypassed.
+        const holes=separated.holes.filter(hole=>!isReflectiveCircle(image,hole));
       // Circle-edge voting finds holes that are merged with nearby wall pixels.
       for(const proposed of findRoundHolesByEdges(image,columns,rows)){
         if(holes.some(previous=>Math.hypot(previous.cx-proposed.cx,

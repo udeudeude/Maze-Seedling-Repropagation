@@ -51,3 +51,11 @@ test("control: no detected hole when only reflective marble and paper are presen
   const found=findRoundHolesByEdges(scene({hole:false}));
   assert.equal(hits(found,marble).length,0);
 });
+
+test("uncertain dark round objects without a strong glint still require review",()=>{
+  // Not a claim that every physical marble is optically recognizable:
+  // removing its telltale reflection makes it indistinguishable from a hole.
+  const found=findRoundHolesByEdges(scene({hole:false,highlight:false}));
+  assert.ok(hits(found,marble).length>=1,
+    "Without a specular signature the provisional detector must not claim certainty");
+});

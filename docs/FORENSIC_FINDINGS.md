@@ -126,3 +126,20 @@ The next original-parity research target is the arguments/data dependencies of *
 ## Original-kit marker symbols versus classifier defaults (November 28, 2026)
 
 A [contemporary photograph of the assembled physical kit](https://images.vat19.com/covers/x-large/design-your-own-marble-maze.jpg) shows a red sticker with a white flag pictogram and a separate turquoise sticker. This **visually supports** a provisional red-Finish / turquoise-Start interpretation, rather than the web prototype's earlier inverted color-to-role guess. The photo does **not** reveal the original Android algorithm's sticker recognition thresholds or prove every kit uses the same icon/color mapping. Scanner outputs are unconfirmed proposals, and the user must be able to correct the roles before import. No original image or sticker artwork is redistributed.
+
+
+## Original scanner's image-processing call sites, structurally attributed (November 28, 2026)
+
+The [checksum-pinned ARM investigation](https://github.com/udeudeude/Maze-Seedling-Repropagation/actions/runs/46106959210) traced **calls originating within the original native library**, going beyond the previously known list of imported image-processing functions. The original `libtile_reader.so` checksum remains `5e2795b7a9a3db2949464381100cedcafcd2bad0a8b8ee401828d1f987b525f0`.
+
+The 32-bit ARM procedure linkage table contains 115 consistently decoded call stubs, with one 20-byte resolver and 115 twelve-byte entries, corresponding to 115 contiguous relocation slots. Calculated stub references and relocation slots each advance by four bytes and differ by one constant address bias of **-360,360 bytes**. This permits a **structural, linker-order attribution** of imported function names to reachable scanner call sites, but **exact absolute GOT address verification failed**. Accordingly the following is high-value *qualified evidence*, not proof of execution or fully validated external linkage. The tooling refuses incomplete or irregular synthetic linkage tables and never republishes original executable code.
+
+| Original function | Structurally attributed reachable OpenCV call sites (counts are static sites, not executions) |
+| --- | --- |
+| `TileReader::liveProcess` | `getPerspectiveTransform` (2), `warpPerspective` (1), `boundingRect` (1), `cvtColor` (3) |
+| `TileReader::getBoardCorners` | `findContours` (2), `boundingRect` (2), `blur` (1), `cvtColor` (1) |
+| `TileReader::computeBoard` | `Canny` (2), `GaussianBlur` (1), `findContours` (2), `boundingRect` (2), `cvtColor` (2), `blur` (1) |
+| `TileReader::computeMatches` | `cvtColor` (1) |
+| `TileReader::removeBoardEdges` | `blur` (1), `cvtColor` (1) |
+
+These relationships justify prioritizing investigations into **perspective rectification, image contours, and actual wall/hole classification** rather than repeatedly adding correction controls. Neither the observed call-site structure nor a binary import inventory establishes image thresholds, line pitch, actual wall lengths, which branches run on a specific photograph, or full-feature parity. The current web classifier remains experimental. Real assembled-board photographs with independently measured grid boundaries and comprehensive labels are still the indispensable accuracy benchmark. The original photographs, binaries and source-level disassembly remain outside this public repository.

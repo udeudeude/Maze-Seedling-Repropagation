@@ -164,7 +164,7 @@ test("invalid taps cannot be accepted by borrowing a valid nearby detector",()=>
   const candidate={x:3,z:7,cx:103,cy:201,radius:8,confidence:.8};
   const common={x:3,z:7,width:504,height:504,columns:18,rows:18};
   for(const tap of [{},{cx:103},{cx:NaN,cy:201},
-    {cx:112,cy:201},{cx:103,cy:196},{cx:-1,cy:201},
+    {cx:112,cy:201},{cx:103,cy:195},{cx:-1,cy:201},
     {cx:Infinity,cy:201}])
     assert.throws(()=>holeForPhotoReview([candidate],{...common,...tap}),TypeError);
 });

@@ -41,8 +41,8 @@ function rotate(image){
 
 test("dark crimson printed sticker outranks warm reddish wooden wall",()=>{
   const found=detectColoredMarkers(dimMarkerControl());
-  assert.deepEqual(found.map(f=>[f.color,f.x,f.z]),[
-    ["red",16,17],["blue-green",1,1]
+  assert.deepEqual(found.map(f=>[f.color,f.type,f.x,f.z]),[
+    ["red","exit",16,17],["blue-green","entrance",1,1]
   ]);
 });
 

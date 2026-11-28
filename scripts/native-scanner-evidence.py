@@ -26,7 +26,8 @@ FOCUS = (
     "TileReader::euclideanDist",
     "TileReader::getBoardCorners", "TileReader::computeMatches",
     "TileReader::setBoardDimensions",
-    "TileReader::TileReader", "stb::TileBoard::TileBoard",
+    "TileReader::TileReader", "TileReader::init",
+    "stb::TileBoard::TileBoard", "stb::TileBoard::init",
     "TileReader::computeBoard", "TileReader::drawGrid",
     "TileReader::removeBoardEdges", "TileReader::getWalls",
     "TileReader::processFromJNI", "TileReader::json",
@@ -548,7 +549,7 @@ def main(path):
                         word in structural_image.lower() for word in IMAGE_API_WORDS):
                     structurally_attributed_image_calls[structural_image] += 1
                 callee = by_address.get(call_target)
-                if callee and "stb::TileBoard::TileBoard" in normalize(callee):
+                if callee and normalize(callee) in ("stb::TileBoard::TileBoard", "stb::TileBoard::init"):
                     args=nearby_constructor_literal_args(flow["instructions"],call_i)
                     constructor_arg_sites.append({
                         "callee":callee,

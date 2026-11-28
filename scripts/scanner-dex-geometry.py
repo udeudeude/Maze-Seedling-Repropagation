@@ -22,7 +22,7 @@ SCANNER_TERMS = ("tilereader", "capture", "scan", "board", "corner",
                  "grid", "processfromjni", "calibrat", "preview")
 IMPORTANT_CALLEES = ("setboarddimensions", "processfromjni", "getboardcorners",
                      "computeboard", "setboardsize", "setgridsize")
-CALL_PATTERN = re.compile(r"(L[^\s,]+;)->([^\s(]+)(\([^\s]*\))")
+CALL_PATTERN = re.compile(r"(L[^\s,]+;)->([^\s(]+)(\([^\s)]*\)[^\s,]*)")
 CONSTANT_PATTERN = re.compile(r"^v(\d+),\s*(?:#)?(-?(?:0x[0-9a-fA-F]+|\d+))$")
 
 

@@ -120,6 +120,20 @@ def self_test():
     assert evidence["standardPlatformCallsWithinFixer"] == {
         "Ljava/lang/String;->toString": 1}
     assert "copyrighted-original-text" not in str(evidence)
+    source = ("invoke-virtual", "v0, Lcom/seedling/maze/TileReader;->stringFromJNI()Ljava/lang/String;")
+    sink = ("invoke-static", "v2, Lcom/seedling/maze/MazeCaptureJsonFixer;->fixCapturedMazeJson(Ljava/lang/String;)Ljava/lang/String;")
+    assert directly_forwarded_scanner_string([source,
+        ("move-result-object", "v1"),
+        ("move-object", "v2, v1"), sink])
+    for invalid in [
+        [source, ("move-result-object", "v1"), sink],
+        [source, ("move-result-object", "v1"), ("const-string", 'v1, "other"'),
+            ("move-object", "v2, v1"), sink],
+        [source, ("move-result-object", "v1"), ("if-eqz", "v1, +4"), sink],
+        [source, ("move-result-object", "v1"), ("invoke-virtual",
+            "v0, Ljava/lang/Object;->toString()Ljava/lang/String;"), sink],
+    ]:
+        assert not directly_forwarded_scanner_string(invalid)
     assert capture_json_handoff([("Lother/class;->unrelated()V", [
         ("const-string", 'v1, "cells"')])])["originalFixerMethods"] == []
     print("Synthetic DEX scanner-call selection and negative controls passed")
@@ -139,6 +153,54 @@ CAPTURE_CLASS = "Lcom/seedling/maze/activity/MazeCaptureActivity;"
 NATIVE_CLASS = "Lcom/seedling/maze/TileReader;"
 
 
+
+def directly_forwarded_scanner_string(instructions):
+    """Prove only an adjacent, unmodified Dalvik result forwarded to the fixer.
+
+    Any intervening branch, arbitrary instruction, another invoke or register
+    update makes this bounded check inconclusive. It never claims that a
+    lexical sequence necessarily executes on any particular scan.
+    """
+    for i, (name, output) in enumerate(instructions):
+        if not name.startswith("invoke-"):
+            continue
+        call = CALL_PATTERN.search(output)
+        if not call or call.group(1) != NATIVE_CLASS or \
+                call.group(2) != "stringFromJNI":
+            continue
+        if i + 2 >= len(instructions):
+            continue
+        result_name, result_out = instructions[i + 1]
+        if result_name != "move-result-object":
+            continue
+        aliases = {result_out.strip()}
+        if not re.fullmatch(r"[vp]\d+", result_out.strip()):
+            continue
+        for next_name, next_out in instructions[i + 2:i + 6]:
+            if next_name.startswith("invoke-"):
+                sink = CALL_PATTERN.search(next_out)
+                if sink and sink.group(1) == FIXER_CLASS and \
+                        sink.group(2) == "fixCapturedMazeJson" and \
+                        next_name == "invoke-static":
+                    arguments = next_out.split("L", 1)[0]
+                    registers = set(re.findall(r"\b[vp]\d+\b", arguments))
+                    return bool(registers & aliases)
+                break
+            if next_name == "move-object":
+                operands = re.findall(r"\b[vp]\d+\b", next_out)
+                if len(operands) != 2:
+                    break
+                dst, src = operands
+                if src in aliases:
+                    aliases.add(dst)
+                else:
+                    aliases.discard(dst)
+                continue
+            # Even a simple condition may jump into another assignment.
+            break
+    return False
+
+
 def capture_json_handoff(decoded_methods):
     """Bounded original scanner->JSON handoff survey, not execution or decompilation.
 
@@ -150,6 +212,7 @@ def capture_json_handoff(decoded_methods):
     fixer_methods = []
     fixer_calls = []
     capture_calls = []
+    native_return_directly_to_fixer = False
     json_calls = collections.Counter()
     fixer_schema_keys = collections.Counter()
     platform_invocations = collections.Counter()
@@ -159,6 +222,8 @@ def capture_json_handoff(decoded_methods):
         is_capture_scan = caller.startswith(CAPTURE_CLASS + "->processScan(")
         if is_fixer:
             fixer_methods.append(caller)
+        if is_capture_scan:
+            native_return_directly_to_fixer = directly_forwarded_scanner_string(instructions)
         if not (is_fixer or is_capture_scan):
             # Still scan a bounded set of direct incoming fixer calls.
             for name, output in instructions:
@@ -202,6 +267,8 @@ def capture_json_handoff(decoded_methods):
                 platform_invocations[owner + "->" + method] += 1
     return {
         "originalFixerMethods": sorted(fixer_methods),
+        "nativeStringDirectlyForwardedToFixerWithoutInterveningOperation":
+            native_return_directly_to_fixer,
         "directFixerCallsites": sorted(fixer_calls,
             key=lambda site: (site["caller"], site["callee"]))[:30],
         "processScanCallsitesInInstructionOrderNotRuntimeOrder": capture_calls[:30],

@@ -7,8 +7,10 @@ on:
       - research/scanner-live-callgraph-20261127
       - research/native-scanner-reachable-cfg-20261127
       - research/native-cv-stage-attribution-20261128
+      - research/dex-capture-calibration-20261128
     paths:
       - "scripts/native-scanner-evidence.py"
+      - "scripts/scanner-dex-geometry.py"
       - ".github/workflows/native-scanner-evidence.yml"
   workflow_dispatch:
 
@@ -23,13 +25,15 @@ jobs:
       - uses: actions/checkout@v4
       - name: Check scanner analysis script and the existing reconstruction
         run: |
-          python3 -m py_compile scripts/native-scanner-evidence.py
+          python3 -m py_compile scripts/native-scanner-evidence.py scripts/scanner-dex-geometry.py
           node --test tests/*.test.mjs
       - name: Install read-only ELF disassembly dependencies
         run: |
-          python3 -m pip install --quiet --disable-pip-version-check 'pyelftools>=0.30,<1' 'capstone>=5,<6'
+          python3 -m pip install --quiet --disable-pip-version-check 'pyelftools>=0.30,<1' 'capstone>=5,<6' 'androguard>=4,<5'
       - name: Check synthetic Thumb control-flow cases
-        run: python3 scripts/native-scanner-evidence.py --self-test
+        run: |
+          python3 scripts/native-scanner-evidence.py --self-test
+          python3 scripts/scanner-dex-geometry.py --self-test
       - name: Download checksum-pinned historical Android archive temporarily
         shell: bash
         run: |
@@ -66,16 +70,20 @@ jobs:
                   if binary not in apk.namelist():
                       raise ValueError("Original scanner library not found")
                   body = apk.read(binary)
+                  dex = apk.read("classes.dex")
           destination = Path(os.environ["RUNNER_TEMP"]) / "original-libtile_reader.so"
           destination.write_bytes(body)
+          # Distinct archive member, held only in the temporary runner directory.
+          (Path(os.environ["RUNNER_TEMP"]) / "original-classes.dex").write_bytes(dex)
           print(f"Pinned historical archive verified; ARM scanner library size {len(body):,} bytes")
           PY
       - name: Report high-level facts only, without disassembly or original files
         shell: bash
         run: |
           python3 scripts/native-scanner-evidence.py "$RUNNER_TEMP/original-libtile_reader.so"
+          python3 scripts/scanner-dex-geometry.py "$RUNNER_TEMP/original-classes.dex"
       - name: Remove original binary even on failure
         if: always()
         shell: bash
         run: |
-          rm -f "$RUNNER_TEMP/original-libtile_reader.so"
+          rm -f "$RUNNER_TEMP/original-libtile_reader.so" "$RUNNER_TEMP/original-classes.dex"

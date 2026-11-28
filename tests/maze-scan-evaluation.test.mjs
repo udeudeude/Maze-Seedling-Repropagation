@@ -79,6 +79,8 @@ test("unverified photographed hole and sticker candidates are never preapproved"
   assert.match(app,/for\(const hole of scanResult\?\.holes\?\?\[\]\)/);
   assert.match(app,/for\(const marker of scanResult\?\.markers\?\?\[\]\)/);
   assert.match(app,/holeForPhotoReview\(scanResult\?\.holes\?\?\[\],/);
+  assert.match(app,/scanMode==="holes"[\s\S]*?const point=reviewPixelAt\(/);
+  assert.match(app,/scanMode==="holes"[\s\S]*?holeForPhotoReview\(scanResult\?\.holes\?\?\[\],[\s\S]*?\.\.\.point/);
   assert.doesNotMatch(app,/if\(!scanRejectedHoles.has\(key\)\)scanSelectedHoles.set\(key,hole\)/);
   assert.match(app,/Circle and sticker guesses are NOT selected automatically/);
 });
@@ -95,16 +97,25 @@ test("explicit approval preserves actual hole center, radius and detector data",
   assert.equal(original.radius,8.4,"Approving cannot mutate detector results");
 });
 
-test("manual annotation works when no physical circle is recognized",()=>{
+test("manually adding a missed hole records the actual tapped photo center",()=>{
   const result=holeForPhotoReview([],{x:2,z:4,width:504,height:504,
-    columns:18,rows:18});
-  assert.deepEqual(result,{x:2,z:4,cx:70,cy:126,radius:8.4,confidence:0});
+    columns:18,rows:18,cx:62.25,cy:135.75});
+  assert.deepEqual(result,{x:2,z:4,cx:62.25,cy:135.75,radius:8.4,confidence:0});
+  assert.notEqual(result.cx,70,"Do not invent a square midpoint");
+  assert.notEqual(result.cy,126,"Do not invent a square midpoint");
+});
+test("a missing circle is never fabricated from a digital-square midpoint",()=>{
+  const args={x:2,z:4,width:504,height:504,columns:18,rows:18};
+  for(const tap of [{},{cx:70},{cx:NaN,cy:120},{cx:84,cy:120},
+                    {cx:60,cy:140},{cx:60,cy:Infinity},
+                    {cx:-1,cy:120},{cx:600,cy:120}])
+    assert.throws(()=>holeForPhotoReview([],{...args,...tap}),TypeError);
 });
 
 test("rejects invalid cell coordinates and ignores corrupt candidate centers",()=>{
   const r=holeForPhotoReview([{x:2,z:4,cx:NaN,cy:10,radius:8}],
-    {x:2,z:4,width:504,height:504,columns:18,rows:18});
-  assert.equal(r.cx,70);
+    {x:2,z:4,width:504,height:504,columns:18,rows:18,cx:69.5,cy:125.5});
+  assert.equal(r.cx,69.5);
   for(const point of [{x:-1,z:4},{x:18,z:4},{x:0,z:NaN}])
     assert.throws(()=>holeForPhotoReview([],{...point,
       width:504,height:504,columns:18,rows:18}),TypeError);

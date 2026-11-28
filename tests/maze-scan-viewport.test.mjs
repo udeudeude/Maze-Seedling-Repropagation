@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {readFileSync} from "node:fs";
-import {reviewCellAt,centeredReviewScroll} from "../src/maze-scan-viewport.mjs";
+import {reviewCellAt,reviewPixelAt,centeredReviewScroll} from "../src/maze-scan-viewport.mjs";
+import {holeForPhotoReview} from "../src/maze-scan-evaluation.mjs";
 
 test("the same photographed tile is selected at every zoom and pan position",()=>{
   const cols=18,rows=18;
@@ -52,4 +53,22 @@ test("review magnification is for actual correction, not detector or layout scal
   assert.match(app,/scanSurface\.style\.width=scanZoom\*100\+"%"/);
   assert.match(css,/#scanViewport\{[^}]*overflow:auto/);
   assert.match(worker,/maze-scan-viewport\.mjs/);
+});
+
+test("manual hole centers stay at the touched image pixel across zoom and scrolling",()=>{
+  const width=504,height=504,columns=18,rows=18;
+  const expected={cx:60.75,cy:135.25};
+  for(const zoom of [1,2,3,4]){
+    const rect={left:11-zoom*27,top:83-zoom*34,
+      width:width*zoom,height:height*zoom};
+    const atX=rect.left+expected.cx*zoom;
+    const atY=rect.top+expected.cy*zoom;
+    const point=reviewPixelAt(rect,atX,atY,width,height);
+    const cell=reviewCellAt(rect,atX,atY,columns,rows);
+    const hole=holeForPhotoReview([],{...cell,...point,width,height,columns,rows});
+    assert.deepEqual(cell,{x:2,z:4});
+    assert.ok(Math.abs(hole.cx-expected.cx)<1e-8);
+    assert.ok(Math.abs(hole.cy-expected.cy)<1e-8);
+    assert.notEqual(hole.cx,(cell.x+.5)*width/columns);
+  }
 });

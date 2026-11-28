@@ -422,16 +422,6 @@ def main(path):
             for addr, name in zip(ordered_plt, ordered_names)
             if "cv::" in name or "opencv" in name.lower()
         }
-        # Bounded structural diagnostics, no native instructions, offsets or
-        # bytes are included in the published report.
-        plt_instruction_families = []
-        if plt is not None:
-            preview = Cs(CS_ARCH_ARM, CS_MODE_ARM)
-            plt_instruction_families = [
-                ins.mnemonic.split(".")[0]
-                for ins in preview.disasm(plt.data()[:72], int(plt["sh_addr"]))
-            ]
-
         answers = []
         all_calls = collections.defaultdict(set)
         reachable_calls = collections.defaultdict(set)
@@ -569,7 +559,6 @@ def main(path):
             "pltStubPatternCountsNoOriginalCode": dict(sorted(
                 plt_diagnostics.items())),
             "pltCandidateVsRelocationDiagnosticsNotAttribution": plt_diffs,
-            "pltInitialInstructionFamilies": plt_instruction_families,
             "pltRelocationCount": len(relocated_got),
             "pltStubsVerifiedByExactGOT": len(verified_plt),
             "imageApiPltStubsVerifiedByExactGOT": len(verified_image_plt),
@@ -584,7 +573,13 @@ def main(path):
                                "handling are unresolved. Coverage is neither complete "
                                "nor evidence of runtime branch choice. Linear disassembly "
                                "can stop at embedded data. Literal values are unclassified "
-                               "and do not establish physical measurements or thresholds."),
+                               "and do not establish physical measurements or thresholds. "
+                               "PLT-order attribution requires a complete regular ARM stub "
+                               "table with a uniform candidate-versus-relocation bias. The "
+                               "nonzero bias means absolute PLT/GOT target resolution remains "
+                               "unverified; a listed stage call is a structurally attributed "
+                               "reachable call site, never proof of execution for a particular "
+                               "photograph or of the native detection thresholds."),
             "redistributedOriginalBytes": False,
         }, indent=2))
 

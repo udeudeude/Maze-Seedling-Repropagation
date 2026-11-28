@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {findRoundHolesByEdges} from "../src/maze-shapes.mjs";
+import {suggestWalls} from "../src/maze-recognize.mjs";
 
 const cells=18,pitch=20,size=cells*pitch;
 const paperHole={x:7*pitch+10,y:8*pitch+10};

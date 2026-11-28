@@ -184,7 +184,7 @@ def self_test_reachable_decode():
     print("Synthetic native control-flow traversal checks passed")
 
 
-def verified_plt_calls(plt_bytes, address, relocated_got, diagnostics=None):
+def verified_plt_calls(plt_bytes, address, relocated_got, diagnostics=None, candidates=None):
     """Resolve ARM PLT entrypoints only by reconstructing their GOT address.
 
     Calling a relocated PLT stub establishes an imported function call, unlike
@@ -220,6 +220,8 @@ def verified_plt_calls(plt_bytes, address, relocated_got, diagnostics=None):
                     ops[1].type == ARM_OP_MEM and ops[1].mem.base == ARM_REG_R12:
                 counts["final_ldr_pc_ip"] += 1
                 got = (ip + ops[1].mem.disp) & 0xffffffff
+                if candidates is not None:
+                    candidates.append((address + offset, got))
                 if got in relocated_got:
                     verified[address + offset] = relocated_got[got]
                 elif relocated_got:
@@ -334,9 +336,30 @@ def main(path):
                 if symbol.name:
                     relocated_got[int(relocation["r_offset"])] = symbol.name
         plt_diagnostics = {}
+        plt_candidates = []
         raw_plt = verified_plt_calls(
-            plt.data(), int(plt["sh_addr"]), relocated_got, plt_diagnostics
+            plt.data(), int(plt["sh_addr"]), relocated_got, plt_diagnostics,
+            plt_candidates
         ) if plt is not None else {}
+        # Compare two *sets* of addresses only to diagnose why exact
+        # relocation validation failed. This does NOT attribute any symbol.
+        plt_diffs = {}
+        if len(plt_candidates) == len(relocated_got) and plt_candidates:
+            ordered = sorted(plt_candidates)
+            reloc_ordered = sorted(relocated_got)
+            deltas = [candidate - got for (_, candidate), got in
+                      zip(ordered, reloc_ordered)]
+            plt_diffs = {
+                "minCandidateMinusSortedRelocation": min(deltas),
+                "maxCandidateMinusSortedRelocation": max(deltas),
+                "distinctCandidateMinusRelocationValues": len(set(deltas)),
+                "consecutiveCandidateStepWidths": dict(collections.Counter(
+                    next_[1] - prev[1] for prev, next_ in
+                    zip(ordered, ordered[1:]))),
+                "consecutiveRelocationStepWidths": dict(collections.Counter(
+                    next_ - prev for prev, next_ in
+                    zip(reloc_ordered, reloc_ordered[1:]))),
+            }
         readable_plt_names = demangle_many(list(raw_plt.values()))
         verified_plt = dict(zip(raw_plt, (
             normalize(name) for name in readable_plt_names)))
@@ -483,6 +506,7 @@ def main(path):
             "pltSectionBytes": int(plt["sh_size"]) if plt is not None else 0,
             "pltStubPatternCountsNoOriginalCode": dict(sorted(
                 plt_diagnostics.items())),
+            "pltCandidateVsRelocationDiagnosticsNotAttribution": plt_diffs,
             "pltInitialInstructionFamilies": plt_instruction_families,
             "pltRelocationCount": len(relocated_got),
             "pltStubsVerifiedByExactGOT": len(verified_plt),

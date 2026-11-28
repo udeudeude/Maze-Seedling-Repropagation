@@ -48,8 +48,10 @@ export function compareScanReview({columns,rows,suggested,reviewed}) {
  * Approve a photographed hole only when its square is deliberately selected.
  * Keep a detected circle's actual pixel center and radius rather than silently
  * replacing them with the center of a possibly misregistered 18x18 cell.
+ * A manually added hole must use the actual review tap, not a fabricated
+ * grid-square midpoint. Neither point proves the correct physical grid.
  */
-export function holeForPhotoReview(candidates,{x,z,width,height,columns,rows}={}){
+export function holeForPhotoReview(candidates,{x,z,width,height,columns,rows,cx,cy}={}){
   if(!Array.isArray(candidates)||![x,z,width,height,columns,rows].every(Number.isFinite)||
     ![x,z,width,height,columns,rows].every(Number.isInteger)||
     columns<2||rows<2||width<columns||height<rows||
@@ -59,7 +61,15 @@ export function holeForPhotoReview(candidates,{x,z,width,height,columns,rows}={}
     Number.isFinite(h.cx)&&Number.isFinite(h.cy)&&
     Number.isFinite(h.radius)&&h.radius>0);
   if(detected)return {...detected};
-  return {x,z,cx:(x+.5)*width/columns,cy:(z+.5)*height/rows,
+  // A failed detector supplies no image-space location. The center of a
+  // digital square is not evidence of where a physical hole appeared.
+  // Require a real photograph tap, and reject a point in a different square.
+  if(!Number.isFinite(cx)||!Number.isFinite(cy)||
+      cx<0||cy<0||cx>=width||cy>=height||
+      Math.floor(cx*columns/width)!==x||
+      Math.floor(cy*rows/height)!==z)
+    throw new TypeError("Tap the actual center of the missing photographed hole");
+  return {x,z,cx,cy,
     radius:Math.min(width/columns,height/rows)*.3,confidence:0};
 }
 

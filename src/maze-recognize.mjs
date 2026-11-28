@@ -371,7 +371,7 @@ export function applyCaptureFindings(document,wallSuggestions,holeSuggestions,ma
   const originals=new Map(requested.map(({type})=>[
     type,prepared.data.cells.filter(cell=>cell.type===type)
   ]));
-  const distinct=markerTiles.size===requested.length;
+  const distinct=new Set(requested.map(({point})=>targetKey(point))).size===requested.length;
   const unambiguous=[...originals.values()].every(cells=>cells.length<=1);
   const usable=requested.every(({type,point})=>valid(point)&&
     !holeTiles.has(targetKey(point))&&

@@ -70,11 +70,10 @@ jobs:
                   if binary not in apk.namelist():
                       raise ValueError("Original scanner library not found")
                   body = apk.read(binary)
+                  dex = apk.read("classes.dex")
           destination = Path(os.environ["RUNNER_TEMP"]) / "original-libtile_reader.so"
           destination.write_bytes(body)
           # Distinct archive member, held only in the temporary runner directory.
-          with zipfile.ZipFile(io.BytesIO(xapk.read(apks[0]))) as apk:
-              dex = apk.read("classes.dex")
           (Path(os.environ["RUNNER_TEMP"]) / "original-classes.dex").write_bytes(dex)
           print(f"Pinned historical archive verified; ARM scanner library size {len(body):,} bytes")
           PY

@@ -59,3 +59,14 @@ test("uncertain dark round objects without a strong glint still require review",
   assert.ok(hits(found,marble).length>=1,
     "Without a specular signature the provisional detector must not claim certainty");
 });
+
+test("end-to-end photographic suggestions do not resurrect a reflective steel ball as a punched hole",()=>{
+  const image=scene(),original=image.data.slice();
+  const scanned=suggestWalls(image);
+  assert.notEqual(scanned.quality,"low-contrast","The full image should be analyzed");
+  assert.equal(hits(scanned.holes,paperHole).length,1,
+    "The real dark perforation must remain detectable");
+  assert.equal(hits(scanned.holes,marble).length,0,
+    "The connected-component path must not bypass the reflective-marble exclusion");
+  assert.deepEqual(image.data,original,"A full scanner pass must preserve source image pixels");
+});

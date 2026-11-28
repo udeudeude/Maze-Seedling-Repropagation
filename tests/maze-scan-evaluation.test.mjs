@@ -90,7 +90,8 @@ test("explicit approval preserves actual hole center, radius and detector data",
     source:"radial-edge"};
   const candidates=[original,{x:1,z:1,cx:42,cy:42,radius:6}];
   const result=holeForPhotoReview(candidates,{
-    x:3,z:7,width:504,height:504,columns:18,rows:18});
+    x:3,z:7,width:504,height:504,columns:18,rows:18,
+    cx:105.6,cy:202.1});
   assert.deepEqual(result,original);
   assert.notStrictEqual(result,original);
   result.radius=999;
@@ -119,4 +120,62 @@ test("rejects invalid cell coordinates and ignores corrupt candidate centers",()
   for(const point of [{x:-1,z:4},{x:18,z:4},{x:0,z:NaN}])
     assert.throws(()=>holeForPhotoReview([],{...point,
       width:504,height:504,columns:18,rows:18}),TypeError);
+});
+
+test("a distant false circle in the SAME square never hijacks a manual tap",()=>{
+  const candidate={x:3,z:7,cx:88,cy:198,radius:5,confidence:.88};
+  const result=holeForPhotoReview([candidate],{
+    x:3,z:7,width:504,height:504,columns:18,rows:18,
+    cx:109.5,cy:219.5
+  });
+  assert.deepEqual(result,{x:3,z:7,cx:109.5,cy:219.5,radius:8.4,confidence:0});
+  assert.equal(candidate.confidence,.88);
+});
+
+test("same-square competing circles approve only the one actually tapped",()=>{
+  const left={x:3,z:7,cx:87,cy:203,radius:5,confidence:.5,source:"base-perforation"};
+  const right={x:3,z:7,cx:108,cy:203,radius:5,confidence:.4,source:"hole"};
+  const candidates=[left,right];
+  const result=holeForPhotoReview(candidates,{
+    x:3,z:7,width:504,height:504,columns:18,rows:18,cx:108.6,cy:204
+  });
+  assert.deepEqual(result,right);
+  assert.notStrictEqual(result,right);
+  assert.deepEqual(candidates,[left,right]);
+});
+
+test("tap proximity is image-based, not confidence-ranked or square-wide",()=>{
+  const a={x:3,z:7,cx:105,cy:201,radius:8,confidence:.2};
+  const b={x:3,z:7,cx:109,cy:201,radius:8,confidence:.99};
+  const result=holeForPhotoReview([b,a],{
+    x:3,z:7,width:504,height:504,columns:18,rows:18,cx:105.2,cy:201.1
+  });
+  assert.deepEqual(result,a);
+  // Clicking elsewhere in a square with only a high-confidence candidate
+  // must not silently transfer its center or status to the new annotation.
+  const manual=holeForPhotoReview([a],{
+    x:3,z:7,width:504,height:504,columns:18,rows:18,cx:86,cy:217
+  });
+  assert.equal(manual.confidence,0);
+  assert.deepEqual([manual.cx,manual.cy],[86,217]);
+});
+
+test("invalid taps cannot be accepted by borrowing a valid nearby detector",()=>{
+  const candidate={x:3,z:7,cx:103,cy:201,radius:8,confidence:.8};
+  const common={x:3,z:7,width:504,height:504,columns:18,rows:18};
+  for(const tap of [{},{cx:103},{cx:NaN,cy:201},
+    {cx:112,cy:201},{cx:103,cy:195},{cx:-1,cy:201},
+    {cx:Infinity,cy:201}])
+    assert.throws(()=>holeForPhotoReview([candidate],{...common,...tap}),TypeError);
+});
+
+test("out-of-square and corrupt candidate centers cannot masquerade as verified holes",()=>{
+  const common={x:3,z:7,width:504,height:504,columns:18,rows:18,cx:100,cy:201};
+  const candidates=[
+    {x:3,z:7,cx:115,cy:201,radius:9,confidence:1},
+    {x:3,z:7,cx:100,cy:201,radius:NaN,confidence:1},
+    {x:3,z:7,cx:Infinity,cy:201,radius:8,confidence:1}
+  ];
+  const result=holeForPhotoReview(candidates,common);
+  assert.deepEqual(result,{x:3,z:7,cx:100,cy:201,radius:8.4,confidence:0});
 });

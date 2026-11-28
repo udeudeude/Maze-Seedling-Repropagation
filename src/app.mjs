@@ -2049,7 +2049,7 @@ function initializePhoto() {
     const instruction=scanPan
       ?"Drag the magnified photograph to inspect another area. Turn Pan off to correct squares."
       :scanMode==="holes"
-        ?"Tap a dashed circle to approve it, a solid circle to remove it, or the actual center of an undetected hole to add it. Zoom in for precision."
+        ?"Tap inside a dashed circle to approve that detected hole, a solid circle to remove it, or the actual center of an undetected hole to add it. Other taps in the same square do not approve a distant detection. Zoom in for precision."
         :scanMode==="markers"
           ?"Dashed stickers are unconfirmed guesses. Choose Start or Finish below, then tap the correct square."
           :"Tap a green tile to remove it, or tap an unmarked square to add a wall.";
@@ -2441,9 +2441,9 @@ function initializePhoto() {
         scanAddedHoles.delete(key);
         scanRejectedHoles.add(key);
       }else{
-        // If recognition missed the hole, use the physical point the user
-        // actually tapped. Inventing the square midpoint conceals location
-        // errors, especially beside walls and near calibration boundaries.
+        // Approve a detected circle only when tapped near its actual center.
+        // A different tap in the same square is a manual observation, not
+        // proof that the classifier's possibly spurious perforation is real.
         const point=reviewPixelAt(event.currentTarget.getBoundingClientRect(),
           event.clientX,event.clientY,scanGuide.width,scanGuide.height);
         if(!point)return;

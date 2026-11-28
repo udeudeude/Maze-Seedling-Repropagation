@@ -209,17 +209,17 @@ def verified_plt_calls(plt_bytes, address, relocated_got, diagnostics=None):
                     ops[1].type == ARM_OP_REG and ops[2].type == ARM_OP_IMM:
                 if ops[1].reg == ARM_REG_PC:
                     counts["initial_add_ip_pc"] += 1
-                    ip = ins.address + 8 + ops[2].imm
+                    ip = (ins.address + 8 + ops[2].imm) & 0xffffffff
                 elif ops[1].reg == ARM_REG_R12 and ip is not None:
                     counts["second_add_ip_ip"] += 1
-                    ip += ops[2].imm
+                    ip = (ip + ops[2].imm) & 0xffffffff
                 else:
                     break
             elif mnemonic == "ldr" and ip is not None and len(ops) >= 2 and \
                     ops[0].type == ARM_OP_REG and ops[0].reg == ARM_REG_PC and \
                     ops[1].type == ARM_OP_MEM and ops[1].mem.base == ARM_REG_R12:
                 counts["final_ldr_pc_ip"] += 1
-                got = ip + ops[1].mem.disp
+                got = (ip + ops[1].mem.disp) & 0xffffffff
                 if got in relocated_got:
                     verified[address + offset] = relocated_got[got]
                 elif relocated_got:
@@ -242,6 +242,10 @@ def test_plt_resolver():
     stub = bytes.fromhex("00 c0 8f e2 04 c0 8c e2 08 f0 9c e5")
     assert verified_plt_calls(stub, 0x1000, {0x1014: "cv::findContours"}) == {
         0x1000: "cv::findContours"}
+    # CPU arithmetic wraps at 32 bits, unlike unbounded Python integers.
+    assert verified_plt_calls(stub, 0xfffffff0,
+                              {0x4: "cv::warpPerspective"}) == {
+                                  0xfffffff0: "cv::warpPerspective"}
     # Do not guess the import from relocation order or a nearby GOT entry.
     assert verified_plt_calls(stub, 0x1000, {0x1018: "cv::findContours"}) == {}
     assert verified_plt_calls(bytes.fromhex("00 f0 20 e3") + stub,

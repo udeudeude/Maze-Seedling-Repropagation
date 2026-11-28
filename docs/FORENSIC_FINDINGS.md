@@ -143,3 +143,9 @@ The 32-bit ARM procedure linkage table contains 115 consistently decoded call st
 | `TileReader::removeBoardEdges` | `blur` (1), `cvtColor` (1) |
 
 These relationships justify prioritizing investigations into **perspective rectification, image contours, and actual wall/hole classification** rather than repeatedly adding correction controls. Neither the observed call-site structure nor a binary import inventory establishes image thresholds, line pitch, actual wall lengths, which branches run on a specific photograph, or full-feature parity. The current web classifier remains experimental. Real assembled-board photographs with independently measured grid boundaries and comprehensive labels are still the indispensable accuracy benchmark. The original photographs, binaries and source-level disassembly remain outside this public repository.
+
+
+## Physical steel marble versus punched-out paper traps (November 28, 2026)
+
+- The [contemporary assembled-board photograph](https://images.vat19.com/covers/x-large/design-your-own-marble-maze.jpg) shows a shiny metal playing marble as well as black paper perforations. The original kit shipped with three loose steel marbles ([retailer feature list](https://www.vat19.com/item/design-your-own-marble-maze-virtual-reality)), so a circular image feature alone does not establish a physical trap.
+- The independent web detector now applies an **experimental reflective-interior negative** to candidates after radial-edge voting: an appreciable bright glint embedded in a dark body is treated as a likely physical marble rather than automatically proposed as a hole. This is not a claim about original native scanner logic, a verified marker threshold or real-photo accuracy. Extreme lighting, marble reflections and backlit openings still need real-image evaluation; unknown candidates remain reviewable.

@@ -184,7 +184,7 @@ def self_test_reachable_decode():
     print("Synthetic native control-flow traversal checks passed")
 
 
-def verified_plt_calls(plt_bytes, address, relocated_got):
+def verified_plt_calls(plt_bytes, address, relocated_got, diagnostics=None):
     """Resolve ARM PLT entrypoints only by reconstructing their GOT address.
 
     Calling a relocated PLT stub establishes an imported function call, unlike
@@ -196,6 +196,7 @@ def verified_plt_calls(plt_bytes, address, relocated_got):
     engine = Cs(CS_ARCH_ARM, CS_MODE_ARM)
     engine.detail = True
     verified = {}
+    counts = collections.Counter()
     for offset in range(0, len(plt_bytes) - 11, 4):
         instructions = list(engine.disasm(
             plt_bytes[offset:offset + 16], address + offset, count=4))
@@ -207,20 +208,31 @@ def verified_plt_calls(plt_bytes, address, relocated_got):
                     ops[0].type == ARM_OP_REG and ops[0].reg == ARM_REG_R12 and \
                     ops[1].type == ARM_OP_REG and ops[2].type == ARM_OP_IMM:
                 if ops[1].reg == ARM_REG_PC:
+                    counts["initial_add_ip_pc"] += 1
                     ip = ins.address + 8 + ops[2].imm
                 elif ops[1].reg == ARM_REG_R12 and ip is not None:
+                    counts["second_add_ip_ip"] += 1
                     ip += ops[2].imm
                 else:
                     break
             elif mnemonic == "ldr" and ip is not None and len(ops) >= 2 and \
                     ops[0].type == ARM_OP_REG and ops[0].reg == ARM_REG_PC and \
                     ops[1].type == ARM_OP_MEM and ops[1].mem.base == ARM_REG_R12:
+                counts["final_ldr_pc_ip"] += 1
                 got = ip + ops[1].mem.disp
                 if got in relocated_got:
                     verified[address + offset] = relocated_got[got]
+                elif relocated_got:
+                    closest = min(abs(got - key) for key in relocated_got)
+                    if closest <= 64:
+                        counts["nearest_got_delta_" + str(closest)] += 1
+                    else:
+                        counts["nearest_got_delta_gt64"] += 1
                 break
             else:
                 break
+    if diagnostics is not None:
+        diagnostics.update(counts)
     return verified
 
 
@@ -317,8 +329,9 @@ def main(path):
                 symbol = symbol_table.get_symbol(relocation["r_info_sym"])
                 if symbol.name:
                     relocated_got[int(relocation["r_offset"])] = symbol.name
+        plt_diagnostics = {}
         raw_plt = verified_plt_calls(
-            plt.data(), int(plt["sh_addr"]), relocated_got
+            plt.data(), int(plt["sh_addr"]), relocated_got, plt_diagnostics
         ) if plt is not None else {}
         readable_plt_names = demangle_many(list(raw_plt.values()))
         verified_plt = dict(zip(raw_plt, (
@@ -464,6 +477,8 @@ def main(path):
             "selectedFunctionCount": len(answers),
             "availableImportedImageApisNotProvenCalled": image_api_imports,
             "pltSectionBytes": int(plt["sh_size"]) if plt is not None else 0,
+            "pltStubPatternCountsNoOriginalCode": dict(sorted(
+                plt_diagnostics.items())),
             "pltInitialInstructionFamilies": plt_instruction_families,
             "pltRelocationCount": len(relocated_got),
             "pltStubsVerifiedByExactGOT": len(verified_plt),

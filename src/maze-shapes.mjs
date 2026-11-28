@@ -44,6 +44,30 @@ export function separateRoundHoles(mask,width,height,columns=18,rows=18){
 
 
 /**
+ * The historical physical kit includes a shiny steel marble, visible next
+ * to dark punched-out traps in the assembled-board product photograph.
+ * A marble's dark outline can generate the same circular edge votes as a
+ * trap. Reject only a strong *mixed bright-glint/dark-body* signature inside
+ * the candidate circle. A dark paper perforation with a tiny highlight must
+ * remain eligible. This is a provisional optical discriminator, not recovered
+ * original TileReader recognition logic or a measured false-positive rate.
+ */
+function hasMetallicInterior(gray,width,cx,cy,radius){
+  const reach=Math.max(3,Math.round(radius*.68));
+  let total=0,bright=0,dark=0;
+  for(let dy=-reach;dy<=reach;dy++)for(let dx=-reach;dx<=reach;dx++){
+    if(dx*dx+dy*dy>reach*reach)continue;
+    const value=gray[(cy+dy)*width+cx+dx];
+    total++;
+    if(value>=185)bright++;
+    if(value<=105)dark++;
+  }
+  // A bright paper line or a few illuminated pixels are not sufficient.
+  return bright>=Math.max(7,Math.ceil(total*.14))&&
+    dark>=Math.ceil(total*.25);
+}
+
+/**
  * Detect circles from their radial edges, even when blur or a nearby wall
  * connects a hole to a longer dark component. A circle creates convergent
  * votes for the center; a straight wall does not. All work runs on-device.
@@ -116,6 +140,7 @@ export function findRoundHolesByEdges(image,columns=18,rows=18){
       const arc=observations?good/observations:0;
       const avgContrast=observations?contrast/observations:0;
       if(arc<.67||avgContrast<51)continue;
+      if(hasMetallicInterior(gray,w,x,y,r))continue;
       const confidence=Math.min(1,arc*.6+
         Math.min(1,Math.max(0,avgContrast)/100)*.25+
         Math.min(1,v/(r*2.8))*.15);

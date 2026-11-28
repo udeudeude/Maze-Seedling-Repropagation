@@ -327,6 +327,15 @@ def main(path):
             address: name for address, name in verified_plt.items()
             if "cv::" in name or "opencv" in name.lower()
         }
+        # Bounded structural diagnostics, no native instructions, offsets or
+        # bytes are included in the published report.
+        plt_instruction_families = []
+        if plt is not None:
+            preview = Cs(CS_ARCH_ARM, CS_MODE_ARM)
+            plt_instruction_families = [
+                ins.mnemonic.split(".")[0]
+                for ins in preview.disasm(plt.data()[:72], int(plt["sh_addr"]))
+            ]
 
         answers = []
         all_calls = collections.defaultdict(set)
@@ -454,6 +463,8 @@ def main(path):
             "architecture": "ARM 32-bit",
             "selectedFunctionCount": len(answers),
             "availableImportedImageApisNotProvenCalled": image_api_imports,
+            "pltSectionBytes": int(plt["sh_size"]) if plt is not None else 0,
+            "pltInitialInstructionFamilies": plt_instruction_families,
             "pltRelocationCount": len(relocated_got),
             "pltStubsVerifiedByExactGOT": len(verified_plt),
             "imageApiPltStubsVerifiedByExactGOT": len(verified_image_plt),

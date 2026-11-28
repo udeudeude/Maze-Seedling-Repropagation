@@ -340,36 +340,90 @@ export function applyWallSuggestions(document,suggestions){
  * inventing an original cell-type mapping would corrupt interoperability.
  * This supports lossless saved reviews without claiming original-app parity.
  */
+/**
+ * Import a reviewed physical photograph without discarding original cell data.
+ * Native scanner evidence shows both start and end were tracked, but its
+ * original relocation semantics have not been recovered. Treat simultaneous
+ * marker approvals as a transaction, with neither changed if either is unsafe.
+ *
+ * Move approved markers BEFORE importing photographed walls. Otherwise a
+ * newly photographed wall at a vacated default marker square is discarded
+ * as "occupied". Never alter existing original marker fields.
+ */
 export function applyCaptureFindings(document,wallSuggestions,holeSuggestions,markers={}){
+  if(!document||!Array.isArray(document.data?.cells))
+    throw new TypeError("Expected maze document with data.cells");
+  const prepared=JSON.parse(JSON.stringify(document));
+  const width=Number(prepared.data.scale[0]),height=Number(prepared.data.scale[2]);
+  const originalHoles=Array.isArray(prepared.repropagation?.physicalHoles)
+    ?prepared.repropagation.physicalHoles:[];
   const holeTiles=new Set((holeSuggestions??[])
     .filter(h=>Number.isInteger(h.x)&&Number.isInteger(h.z))
     .map(h=>h.x+","+h.z));
-  for(const entry of document.repropagation?.physicalHoles??[]){
+  for(const entry of originalHoles)
     holeTiles.add(String(entry.position?.[0])+","+String(entry.position?.[2]));
+
+  const roles=["entrance","exit"];
+  const requested=roles.filter(type=>markers?.[type]!=null)
+    .map(type=>({type,point:markers[type]}));
+  const valid=point=>Number.isInteger(point?.x)&&Number.isInteger(point?.z)&&
+    point.x>=0&&point.z>=0&&point.x<width&&point.z<height;
+  const targetKey=point=>point.x+","+point.z;
+  const markerTiles=new Set(requested.filter(({point})=>valid(point))
+    .map(({point})=>targetKey(point)));
+  let movedMarkers=0;
+  // Preflight the complete proposed pair on the original arrangement.
+  // An invalid pair must not leave Start and Finish in a hybrid state.
+  const originals=new Map(requested.map(({type})=>[
+    type,prepared.data.cells.filter(cell=>cell.type===type)
+  ]));
+  const distinct=markerTiles.size===requested.length;
+  const unambiguous=[...originals.values()].every(cells=>cells.length<=1);
+  const usable=requested.every(({type,point})=>valid(point)&&
+    !holeTiles.has(targetKey(point))&&
+    prepared.data.cells.every(cell=>{
+      if(Number(cell.position?.[0])!==point.x||
+          Number(cell.position?.[2])!==point.z)return true;
+      if(cell.type===type)return true;
+      // The opposite marker can vacate this square only if it has its own
+      // approved destination different from its existing position.
+      const departing=requested.find(candidate=>candidate.type===cell.type);
+      return roles.includes(cell.type)&&departing&&
+        targetKey(departing.point)!==targetKey(point);
+    }));
+  if(distinct&&unambiguous&&usable){
+    const moving=requested.filter(({type,point})=>{
+      const previous=originals.get(type)[0];
+      return !previous||Number(previous.position?.[0])!==point.x||
+        Number(previous.position?.[2])!==point.z;
+    });
+    const movingTypes=new Set(moving.map(({type})=>type));
+    prepared.data.cells=prepared.data.cells.filter(cell=>!movingTypes.has(cell.type));
+    for(const {type,point} of moving){
+      const previous=originals.get(type)[0];
+      prepared.data.cells.push(previous?
+        {...previous,position:[String(point.x),previous.position[1],String(point.z)]}:
+        {type,position:[String(point.x),"0",String(point.z)]});
+    }
+    movedMarkers=moving.length;
   }
-  const markerTiles=new Set(Object.values(markers??{})
-    .filter(m=>m&&Number.isInteger(m.x)&&Number.isInteger(m.z))
-    .map(m=>m.x+","+m.z));
+
   const safeWalls=wallSuggestions.filter(w=>
     !holeTiles.has(w.x+","+w.z)&&!markerTiles.has(w.x+","+w.z));
-  const {maze,applied}=applyWallSuggestions(document,safeWalls);
-  const width=Number(maze.data.scale[0]),height=Number(maze.data.scale[2]);
-  const existing=Array.isArray(maze.repropagation?.physicalHoles)
-    ?maze.repropagation.physicalHoles:[];
-  const byPosition=new Map(existing.map(item=>
-    [String(item.position?.[0])+","+String(item.position?.[2]),item]));
+  const {maze,applied}=applyWallSuggestions(prepared,safeWalls);
+  const byPosition=new Map(originalHoles.map(item=>[
+    String(item.position?.[0])+","+String(item.position?.[2]),item
+  ]));
   let added=0,skippedHoles=0;
   for(const hole of holeSuggestions??[]){
     if(!Number.isInteger(hole.x)||!Number.isInteger(hole.z)||
       hole.x<0||hole.z<0||hole.x>=width||hole.z>=height)continue;
     const key=hole.x+","+hole.z;
     if(byPosition.has(key))continue;
-    // A scanned hole must not silently turn an existing wall, start, gate,
-    // or other authored object into a lethal square. Explicit floor tiles
-    // can still carry a physical hole annotation.
+    // A photographed hole cannot silently cover an existing original object.
     if(maze.data.cells.some(cell=>
       Number(cell.position?.[0])===hole.x&&Number(cell.position?.[2])===hole.z&&
-      !["floor","empty"].includes(cell.type))) {
+      !["floor","empty"].includes(cell.type))){
       skippedHoles++;continue;
     }
     byPosition.set(key,{position:[String(hole.x),"0",String(hole.z)],
@@ -378,30 +432,5 @@ export function applyCaptureFindings(document,wallSuggestions,holeSuggestions,ma
   }
   maze.repropagation={...maze.repropagation,
     physicalHoles:[...byPosition.values()]};
-  let movedMarkers=0;
-  // Two photographed stickers assigned to the same square cannot safely
-  // replace the existing distinct Start and Finish markers.
-  const coincident=markers?.entrance&&markers?.exit&&
-    Number.isInteger(markers.entrance.x)&&Number.isInteger(markers.entrance.z)&&
-    markers.entrance.x===markers.exit.x&&markers.entrance.z===markers.exit.z;
-  for(const type of ["entrance","exit"]){
-    if(coincident)continue;
-    const point=markers?.[type];
-    if(!point||!Number.isInteger(point.x)||!Number.isInteger(point.z)||
-      point.x<0||point.z<0||point.x>=width||point.z>=height)continue;
-    const key=point.x+","+point.z;
-    if(holeTiles.has(key))continue;
-    // Marker placement is an explicit user-reviewed replacement; never erase
-    // an unrelated original cell to make a location appear available.
-    if(maze.data.cells.some(cell=>
-      Number(cell.position[0])===point.x&&Number(cell.position[2])===point.z&&
-      cell.type!==type))continue;
-    const already=maze.data.cells.some(cell=>cell.type===type&&
-      Number(cell.position[0])===point.x&&Number(cell.position[2])===point.z);
-    if(already)continue;
-    maze.data.cells=maze.data.cells.filter(cell=>cell.type!==type);
-    maze.data.cells.push({position:[String(point.x),"0",String(point.z)],type});
-    movedMarkers++;
-  }
   return {maze,appliedWalls:applied,annotatedHoles:added,movedMarkers,skippedHoles};
 }

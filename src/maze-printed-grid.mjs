@@ -14,19 +14,39 @@ function axisEstimate(image,axis,minCells,maxCells,crossRange=[.12,.88]){
   const length=axis==="columns"?w:h;
   const cross=axis==="columns"?h:w;
   const profile=new Float64Array(length);
+  const localLineContrast=new Float64Array(length);
+  // Compare each pixel to its lateral neighbors on the same paper row.
+  // A shallow grey lattice is often lost when comparing median brightness
+  // across the whole board; local background cancellation keeps it visible.
+  const lateral=Math.max(2,Math.round(length/maxCells*.20));
   for(let position=0;position<length;position++){
-    const values=[];
+    const values=[],lineSignals=[];
     for(let s=0;s<65;s++){
       const perpendicular=Math.min(cross-1,Math.floor(cross*(crossRange[0]+(crossRange[1]-crossRange[0])*(s+.5)/65)));
       const x=axis==="columns"?position:perpendicular;
       const y=axis==="columns"?perpendicular:position;
       const i=(y*w+x)*4;
       if(data[i+3]<200)continue;
-      values.push(.2126*data[i]+.7152*data[i+1]+.0722*data[i+2]);
+      const center=.2126*data[i]+.7152*data[i+1]+.0722*data[i+2];
+      values.push(center);
+      if(position<lateral||position+lateral>=length||center<160)continue;
+      const neighbor=(at)=>{
+        const n=(axis==="columns"?
+          perpendicular*w+at:at*w+perpendicular)*4;
+        return data[n+3]<200?null:
+          .2126*data[n]+.7152*data[n+1]+.0722*data[n+2];
+      };
+      const left=neighbor(position-lateral),right=neighbor(position+lateral);
+      if(left!==null&&right!==null&&left>=160&&right>=160)
+        lineSignals.push(Math.max(0,(left+right)/2-center));
     }
     if(values.length<45)return null;
     values.sort((a,b)=>a-b);
     profile[position]=values[Math.floor(values.length*.64)];
+    if(lineSignals.length>=45){
+      lineSignals.sort((a,b)=>a-b);
+      localLineContrast[position]=lineSignals[Math.floor(lineSignals.length*.60)];
+    }
   }
   // Narrow ink lines are darker than local paper; broad illumination changes
   // are discarded by this high-pass operation.
@@ -36,7 +56,7 @@ function axisEstimate(image,axis,minCells,maxCells,crossRange=[.12,.88]){
     const neighboring=[];
     for(let k=Math.max(0,i-radius);k<=Math.min(length-1,i+radius);k+=2)
       neighboring.push(profile[k]);
-    ink[i]=Math.max(0,median(neighboring)-profile[i]);
+    ink[i]=Math.max(0,median(neighboring)-profile[i],localLineContrast[i]);
   }
   const smoothed=new Float64Array(length);
   for(let i=1;i<length-1;i++)smoothed[i]=(ink[i-1]+2*ink[i]+ink[i+1])/4;

@@ -335,13 +335,9 @@ export function applyWallSuggestions(document,suggestions){
 
 
 /**
- * Keep physical trap holes in a namespaced reconstruction field. Original
- * Android data mapped holes through scanner/editor logic not yet established;
- * inventing an original cell-type mapping would corrupt interoperability.
- * This supports lossless saved reviews without claiming original-app parity.
- */
-/**
  * Import a reviewed physical photograph without discarding original cell data.
+ * Physical trap holes remain in a namespaced reconstruction field, rather
+ * than inventing an unsupported original cell category.
  * Native scanner evidence shows both start and end were tracked, but its
  * original relocation semantics have not been recovered. Treat simultaneous
  * marker approvals as a transaction, with neither changed if either is unsafe.
@@ -402,7 +398,8 @@ export function applyCaptureFindings(document,wallSuggestions,holeSuggestions,ma
     for(const {type,point} of moving){
       const previous=originals.get(type)[0];
       prepared.data.cells.push(previous?
-        {...previous,position:[String(point.x),previous.position[1],String(point.z)]}:
+        {...previous,position:previous.position.map((value,index)=>
+          index===0?String(point.x):index===2?String(point.z):value)}:
         {type,position:[String(point.x),"0",String(point.z)]});
     }
     movedMarkers=moving.length;

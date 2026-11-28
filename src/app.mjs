@@ -2136,7 +2136,7 @@ function initializePhoto() {
       for(const marker of photoReference.markers.values()){
         const cx=(marker.x+.5)*tw,cy=(marker.z+.5)*th;
         context.beginPath();context.arc(cx,cy,Math.max(9,tw*.39),0,Math.PI*2);
-        context.strokeStyle=marker.type==="entrance"?"#fd7066":"#70d6ff";
+        context.strokeStyle=marker.type==="entrance"?"#70d6ff":"#fd7066";
         context.lineWidth=Math.max(3,width/160);context.stroke();
         context.font="bold "+Math.round(tw*.5)+"px sans-serif";
         context.fillStyle="#fffdf1";context.textAlign="center";
@@ -2211,7 +2211,7 @@ function initializePhoto() {
       for(const marker of scanMarkers.values()){
         const cx=(marker.x+.5)*tw,cy=(marker.z+.5)*th;
         context.beginPath();context.arc(cx,cy,Math.max(9,tw*.39),0,Math.PI*2);
-        context.strokeStyle=marker.type==="entrance"?"#fd7066":"#70d6ff";
+        context.strokeStyle=marker.type==="entrance"?"#70d6ff":"#fd7066";
         context.lineWidth=Math.max(3,width/160);context.stroke();
         context.font="bold "+Math.round(tw*.5)+"px sans-serif";
         context.fillStyle="#fffdf1";context.textAlign="center";

@@ -18,7 +18,7 @@ test("colored sticker candidates are localized to the board, not guessed",()=>{
   }
   const result=detectColoredMarkers({width,height,data});
   assert.deepEqual(result.map(r=>[r.type,r.x,r.z]),
-    [["entrance",2,3],["exit",14,13]]);
+    [["exit",2,3],["entrance",14,13]]);
 });
 test("neutral photographs do not hallucinate colored markers",()=>{
   const width=100,height=100;

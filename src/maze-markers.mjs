@@ -1,6 +1,9 @@
 /** Candidate start/finish sticker detection in a rectified physical maze photo.
- * Red and turquoise correspond to sticker colors visible in surviving examples;
- * the historical color-to-role assignment is provisional and fully editable.
+ * Red and turquoise correspond to sticker colors visible in surviving examples.
+ * A contemporary photograph of the original kit shows a red flag icon (finish)
+ * and a turquoise marker (likely start). Assign tentative roles accordingly;
+ * no original classifier or sticker legend has been independently recovered.
+ * Both guesses remain user-editable and require explicit approval.
  */
 export function detectColoredMarkers(image,columns=18,rows=18){
   const {width:w,height:h,data}=image??{};
@@ -12,8 +15,8 @@ export function detectColoredMarkers(image,columns=18,rows=18){
     // moderate-redness rule: warm-lit charcoal wall faces were selected over
     // a darker, more strongly red end sticker. Demand chromatic separation
     // rather than brightness. Marker-to-role mapping is still provisional.
-    {type:"entrance",color:"red",test:(r,g,b)=>r>55&&r>g*1.5&&r>b*1.5},
-    {type:"exit",color:"blue-green",test:(r,g,b)=>b>90&&
+    {type:"exit",color:"red",test:(r,g,b)=>r>55&&r>g*1.5&&r>b*1.5},
+    {type:"entrance",color:"blue-green",test:(r,g,b)=>b>90&&
       b>r*1.15&&g>r*1.06&&b>g*.86}
   ];
   const suggestions=[];

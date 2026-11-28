@@ -121,3 +121,8 @@ The next original-parity research target is the arguments/data dependencies of *
 3. Preserve the four theme identities, actual cell semantics, audio cues, and controls; redraw or license assets appropriately for public distribution.
 4. Implement camera scanning, manual correction, editing, single-player, Google Cardboard stereoscopy, and multiplayer in independently testable increments.
 5. Keep raw third-party binaries out of this public repository. The user's **private** `udeudeude/work-and-research` repository can be used for non-public research if needed, subject to its `AGENTS.md` constraints. Its main branch is **not** a scratchpad.
+
+
+## Original-kit marker symbols versus classifier defaults (November 28, 2026)
+
+A [contemporary photograph of the assembled physical kit](https://images.vat19.com/covers/x-large/design-your-own-marble-maze.jpg) shows a red sticker with a white flag pictogram and a separate turquoise sticker. This **visually supports** a provisional red-Finish / turquoise-Start interpretation, rather than the web prototype's earlier inverted color-to-role guess. The photo does **not** reveal the original Android algorithm's sticker recognition thresholds or prove every kit uses the same icon/color mapping. Scanner outputs are unconfirmed proposals, and the user must be able to correct the roles before import. No original image or sticker artwork is redistributed.

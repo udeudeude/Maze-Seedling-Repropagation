@@ -45,11 +45,12 @@ export function compareScanReview({columns,rows,suggested,reviewed}) {
 }
 
 /**
- * Approve a photographed hole only when its square is deliberately selected.
- * Keep a detected circle's actual pixel center and radius rather than silently
- * replacing them with the center of a possibly misregistered 18x18 cell.
- * A manually added hole must use the actual review tap, not a fabricated
- * grid-square midpoint. Neither point proves the correct physical grid.
+ * Review a photographed physical hole at the ACTUAL tap location. A detector
+ * candidate may be approved only when the tap falls inside its drawn circle,
+ * not merely somewhere in the same (potentially misregistered) grid square.
+ * Otherwise retain the tap as an independent, unverified manual observation.
+ * Multiple candidates in one square are disambiguated by image-space distance.
+ * This is review safety, NOT recovered original scanner or board calibration.
  */
 export function holeForPhotoReview(candidates,{x,z,width,height,columns,rows,cx,cy}={}){
   if(!Array.isArray(candidates)||![x,z,width,height,columns,rows].every(Number.isFinite)||
@@ -57,20 +58,35 @@ export function holeForPhotoReview(candidates,{x,z,width,height,columns,rows,cx,
     columns<2||rows<2||width<columns||height<rows||
     x<0||z<0||x>=columns||z>=rows)
     throw new TypeError("Expected a valid photographic grid square");
-  const detected=candidates.find(h=>h?.x===x&&h?.z===z&&
-    Number.isFinite(h.cx)&&Number.isFinite(h.cy)&&
-    Number.isFinite(h.radius)&&h.radius>0);
-  if(detected)return {...detected};
-  // A failed detector supplies no image-space location. The center of a
-  // digital square is not evidence of where a physical hole appeared.
-  // Require a real photograph tap, and reject a point in a different square.
+  // Even if the classifier proposed a circle, the person's tap must be real
+  // and inside the square. Never use a candidate to launder an invalid tap.
   if(!Number.isFinite(cx)||!Number.isFinite(cy)||
       cx<0||cy<0||cx>=width||cy>=height||
       Math.floor(cx*columns/width)!==x||
       Math.floor(cy*rows/height)!==z)
-    throw new TypeError("Tap the actual center of the missing photographed hole");
-  return {x,z,cx,cy,
-    radius:Math.min(width/columns,height/rows)*.3,confidence:0};
+    throw new TypeError("Tap the actual photographed hole inside its square");
+  const pitch=Math.min(width/columns,height/rows);
+  let nearest=null,nearestDistance=Infinity;
+  for(const hole of candidates){
+    if(hole?.x!==x||hole?.z!==z||
+        !Number.isFinite(hole.cx)||!Number.isFinite(hole.cy)||
+        !Number.isFinite(hole.radius)||hole.radius<=0||
+        hole.cx<0||hole.cy<0||hole.cx>=width||hole.cy>=height||
+        Math.floor(hole.cx*columns/width)!==x||
+        Math.floor(hole.cy*rows/height)!==z)continue;
+    // The visible ring has radius max(5, radius+2). Cap the hit area at
+    // 0.35 cell so another perforation in the same square is not selected
+    // just because the detector returned a large/incorrect circle radius.
+    const hitRadius=Math.min(pitch*.35,Math.max(5,hole.radius+2));
+    const distance=Math.hypot(hole.cx-cx,hole.cy-cy);
+    if(distance<=hitRadius&&distance<nearestDistance){
+      nearest=hole;nearestDistance=distance;
+    }
+  }
+  if(nearest)return {...nearest};
+  // Nearby base perforations and false circles are not proof this tap marks
+  // the detected object. Keep the actual point, with no detector confidence.
+  return {x,z,cx,cy,radius:pitch*.3,confidence:0};
 }
 
 /**

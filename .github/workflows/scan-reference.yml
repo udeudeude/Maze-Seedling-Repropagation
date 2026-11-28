@@ -3,7 +3,7 @@ name: Inspect a public historical Seedling photograph (research only)
 on:
   workflow_dispatch:
   push:
-    branches: [main, research/photo-ink-resolution-20261128]
+    branches: [main]
     paths:
       - "scripts/probe-seedling-photo.mjs"
       - "scripts/compare-photo-ink-resolution.mjs"
